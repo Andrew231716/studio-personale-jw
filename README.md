@@ -27,3 +27,24 @@ npm start
 ```
 
 Apri `http://localhost:5173` (dev) o `http://localhost:4173` (start).
+
+## Deploy su Vercel
+
+Supabase **non è necessario**: argomenti, decisioni e chat restano nel browser (`localStorage`).
+
+1. Crea un token su [vercel.com/account/tokens](https://vercel.com/account/tokens)
+2. Dalla cartella del progetto:
+
+```bash
+npx vercel login
+npx vercel --prod --yes
+```
+
+Oppure con token:
+
+```bash
+npx vercel --prod --yes --token "$VERCEL_TOKEN"
+```
+
+Le route in `api/` fanno da proxy verso jw.org e l’AI gratuita (Pollinations).
+
