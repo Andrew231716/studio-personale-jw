@@ -30,7 +30,13 @@ export function HomeView() {
   return (
     <div className="stack">
       <section className={`hero ${settings.theme.heroStyle === 'morbido' ? 'morbido' : ''}`}>
-        <div className="badge" style={{ width: 'fit-content' }}>Fonte: jw.org</div>
+        <img
+          className="hero-logo"
+          src="/logo.svg"
+          alt="JW Studio"
+          width={88}
+          height={88}
+        />
         <h1>{settings.brandName}</h1>
         <p>{settings.tagline}</p>
         <div className="hero-actions">

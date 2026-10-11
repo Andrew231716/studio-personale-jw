@@ -15,6 +15,7 @@ import { StudioView } from './views/StudioView'
 import { DecisioniView } from './views/DecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
+import { BrandLogo } from './components/BrandLogo'
 
 const ICONS: Record<AppView, typeof Home> = {
   home: Home,
@@ -73,7 +74,7 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">{settings.brandName}</div>
+          <BrandLogo size={52} withWordmark brandName={settings.brandName} />
           <div className="brand-tag">{settings.tagline}</div>
         </div>
         <nav className="nav" aria-label="Sezioni">

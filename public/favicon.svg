@@ -1,5 +1,57 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="14" fill="#124A4A"/>
-  <path d="M18 44V20h6.2l7.4 16.8L39 20H45v24h-5.2V29.2L32.6 44h-1.2L24.2 29.2V44H18z" fill="#F2E6D0"/>
-  <circle cx="48" cy="16" r="4" fill="#C4A35A"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="JW Studio">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="8" x2="112" y2="120" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1A5C5A"/>
+      <stop offset="0.55" stop-color="#124A4A"/>
+      <stop offset="1" stop-color="#0D3838"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="30" y1="28" x2="98" y2="92" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F1E4"/>
+      <stop offset="1" stop-color="#E7D7B5"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="86" y1="22" x2="108" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E2C27A"/>
+      <stop offset="1" stop-color="#C4A35A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Soft square mark -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="10" y="10" width="108" height="108" rx="24" fill="none" stroke="#2F6F6A" stroke-opacity="0.45" stroke-width="2"/>
+
+  <!-- Open-book arc under letters -->
+  <path
+    d="M28 86c14-10 28-10 36 0 8-10 22-10 36 0"
+    fill="none"
+    stroke="#C4A35A"
+    stroke-opacity="0.55"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+
+  <!-- JW wordmark -->
+  <path
+    d="M34 34h10.2v34.2c0 5.8 2.5 8.8 7.6 8.8 5.2 0 7.7-3 7.7-8.8V34H69.8v35.1c0 12.4-7.2 18.7-17.9 18.7-10.8 0-17.9-6.3-17.9-18.7V34z"
+    fill="url(#ink)"
+  />
+  <path
+    d="M76.4 34H87v28.4L102.2 34H114l-18.4 28.8V88H87.1V62.6L76.4 34z"
+    fill="url(#ink)"
+  />
+
+  <!-- Accent lamp / insight -->
+  <circle cx="98" cy="28" r="6.5" fill="url(#gold)"/>
+  <circle cx="98" cy="28" r="2.6" fill="#F7F1E4" fill-opacity="0.85"/>
+
+  <!-- STUDIO label -->
+  <text
+    x="64"
+    y="108"
+    text-anchor="middle"
+    fill="#C4A35A"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="12"
+    font-weight="700"
+    letter-spacing="3.5"
+  >STUDIO</text>
 </svg>

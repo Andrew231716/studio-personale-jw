@@ -44,7 +44,7 @@ const defaultSettings: AppSettings = {
     schedule: true,
   },
   navOrder: ['home', 'argomenti', 'studio', 'decisioni', 'assistente', 'impostazioni'],
-  brandName: 'Studio Personale JW',
+  brandName: 'JW Studio',
   tagline: 'Programma, approfondisci e decidi con l’aiuto di jw.org',
   studyMethodNotes:
     'Metodo ispirato ai consigli di articoli e video recenti su jw.org: preghiera, obiettivo, materiale aggiornato, meditazione, domande e applicazione pratica.',
