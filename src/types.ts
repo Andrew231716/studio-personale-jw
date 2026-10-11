@@ -152,6 +152,18 @@ export interface StudySessionLog {
   minutesSpent: number
 }
 
+export interface ScheduledStudy {
+  id: string
+  title: string
+  topicId: string | null
+  topicTitle: string
+  startsAt: string
+  durationMinutes: number
+  reminderMinutes: number
+  notes: string
+  createdAt: string
+}
+
 export interface ThemeConfig {
   primary: string
   secondary: string

@@ -11,6 +11,7 @@ import type {
   AppSettings,
   AppView,
   DecisionItem,
+  ScheduledStudy,
   StudySessionDraft,
   StudySessionLog,
   StudyTopic,
@@ -91,6 +92,7 @@ interface AppState {
   aiMessages: AiMessage[]
   sessionDraft: StudySessionDraft | null
   sessionLogs: StudySessionLog[]
+  schedules: ScheduledStudy[]
   setView: (view: AppView) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   updateTheme: (patch: Partial<ThemeConfig>) => void
@@ -110,6 +112,8 @@ interface AppState {
   updateSessionDraft: (patch: Partial<StudySessionDraft>) => void
   completeSession: () => StudySessionLog | null
   abandonSession: () => void
+  addSchedule: (event: ScheduledStudy) => void
+  removeSchedule: (id: string) => void
 }
 
 function seedTopic(title: string, interest = ''): StudyTopic {
@@ -166,6 +170,7 @@ export const useAppStore = create<AppState>()(
       aiMessages: [],
       sessionDraft: null,
       sessionLogs: [],
+      schedules: [],
       setView: (view) => set({ view }),
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -347,6 +352,14 @@ export const useAppStore = create<AppState>()(
         return log
       },
       abandonSession: () => set({ sessionDraft: null }),
+      addSchedule: (event) =>
+        set((s) => ({
+          schedules: [event, ...s.schedules]
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+            .slice(0, 50),
+        })),
+      removeSchedule: (id) =>
+        set((s) => ({ schedules: s.schedules.filter((x) => x.id !== id) })),
     }),
     {
       name: 'studio-personale-jw-v1',
@@ -371,6 +384,7 @@ export const useAppStore = create<AppState>()(
           },
           sessionLogs: p.sessionLogs || [],
           sessionDraft: p.sessionDraft || null,
+          schedules: p.schedules || [],
         }
       },
       partialize: (s) => ({
@@ -382,6 +396,7 @@ export const useAppStore = create<AppState>()(
         aiMessages: s.aiMessages,
         sessionDraft: s.sessionDraft,
         sessionLogs: s.sessionLogs,
+        schedules: s.schedules,
       }),
     },
   ),

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Flame, Sparkles } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { JwSearch } from '../components/JwSearch'
+import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
 import {
   SESSION_STEPS,
   computeStreak,
@@ -97,6 +98,22 @@ export function SessioneView() {
             </button>
           </div>
         </section>
+
+        <section className="panel">
+          <ScheduleNextStudy
+            topicId={celebration.topicId}
+            topicTitle={celebration.topicTitle}
+            defaultTitle={`Studio: ${celebration.topicTitle}`}
+            defaultNotes={
+              [
+                celebration.practice ? `Da provare: ${celebration.practice}` : '',
+                celebration.keyVerse ? `Scrittura: ${celebration.keyVerse}` : '',
+              ]
+                .filter(Boolean)
+                .join('\n')
+            }
+          />
+        </section>
       </div>
     )
   }
@@ -175,6 +192,14 @@ export function SessioneView() {
               Ultima sessione: {lastLog.topicTitle} · {lastLog.minutesSpent} min
             </div>
           )}
+        </section>
+
+        <section className="panel">
+          <ScheduleNextStudy
+            topicId={focusTopic?.id || null}
+            topicTitle={focusTopic?.title || ''}
+            defaultTitle={focusTopic ? `Studio: ${focusTopic.title}` : 'Prossimo studio personale'}
+          />
         </section>
 
         <section className="panel">

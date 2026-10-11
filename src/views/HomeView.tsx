@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BookOpen, Compass, Flame, PlayCircle, Sparkles } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
+import { formatScheduleLabel } from '../lib/calendar'
 import { fetchLatestVideos, type LatestMediaItem } from '../lib/jwApi'
 import {
   computeStreak,
@@ -15,6 +17,7 @@ export function HomeView() {
   const topics = useAppStore((s) => s.topics)
   const decisions = useAppStore((s) => s.decisions)
   const logs = useAppStore((s) => s.sessionLogs)
+  const schedules = useAppStore((s) => s.schedules)
   const setView = useAppStore((s) => s.setView)
   const startSession = useAppStore((s) => s.startSession)
   const [latest, setLatest] = useState<LatestMediaItem[]>([])
@@ -23,6 +26,13 @@ export function HomeView() {
   const streak = useMemo(() => computeStreak(logs), [logs])
   const weekCount = useMemo(() => sessionsThisWeek(logs), [logs])
   const todayDone = useMemo(() => studiedToday(logs), [logs])
+  const nextSchedule = useMemo(
+    () =>
+      [...schedules]
+        .filter((s) => new Date(s.startsAt).getTime() > Date.now())
+        .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0],
+    [schedules],
+  )
   const focusTopic =
     topics.find((t) => t.status === 'in_corso') ||
     topics.find((t) => t.status === 'da_iniziare') ||
@@ -148,6 +158,20 @@ export function HomeView() {
           </p>
         </section>
       )}
+
+      <section className="panel">
+        {nextSchedule && (
+          <p className="muted" style={{ marginTop: 0 }}>
+            Prossimo in calendario: <strong>{formatScheduleLabel(nextSchedule.startsAt)}</strong>
+            {nextSchedule.topicTitle ? ` · ${nextSchedule.topicTitle}` : ''}
+          </p>
+        )}
+        <ScheduleNextStudy
+          topicId={focusTopic?.id || null}
+          topicTitle={focusTopic?.title || ''}
+          defaultTitle={focusTopic ? `Studio: ${focusTopic.title}` : 'Prossimo studio personale'}
+        />
+      </section>
 
       {settings.features.recentJwFeed && (
         <section className="panel">

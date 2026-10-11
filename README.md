@@ -5,6 +5,7 @@ App web per programmare lo studio personale, approfondire argomenti, riflettere 
 ## Funzionalità
 
 - **Sessione guidata**: 8 passi (preghiera → obiettivo → materiale → meditazione → pratica) con progresso e serie giorni
+- **Calendario Apple**: programma il prossimo studio e scarica un file `.ics` con promemoria
 - **Argomenti**: elenco personale + ricerca live su jw.org con suggerimenti
 - **Quaderno**: obiettivi, punti di riflessione, domande, pratiche, programma
 - **Decisioni**: priorità ponderate, pro/contro, materiale jw.org, conclusione automatica dai dati
