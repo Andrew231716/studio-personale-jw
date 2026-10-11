@@ -12,10 +12,10 @@ export function BrandLogo({
   className = '',
 }: Props) {
   return (
-    <div className={`brand-logo ${className}`.trim()} style={{ gap: withWordmark ? '0.75rem' : 0 }}>
+    <div className={`brand-logo ${withWordmark ? 'stacked' : ''} ${className}`.trim()}>
       <img
         src="/logo.svg"
-        alt=""
+        alt="JW Studio"
         width={size}
         height={size}
         className="brand-logo-mark"
