@@ -1,0 +1,138 @@
+export type ContentKind = 'article' | 'video' | 'audio' | 'index' | 'other'
+
+export interface JwResult {
+  id: string
+  title: string
+  snippet: string
+  kind: ContentKind
+  url: string
+  wolUrl?: string
+  image?: string
+  duration?: string
+  context?: string
+}
+
+export interface StudyResource {
+  id: string
+  title: string
+  url: string
+  kind: ContentKind
+  notes?: string
+}
+
+export interface StudyTopic {
+  id: string
+  title: string
+  interest: string
+  status: 'da_iniziare' | 'in_corso' | 'approfondire' | 'completato'
+  createdAt: string
+  updatedAt: string
+  objectives: string[]
+  reflections: ReflectionPoint[]
+  questions: StudyQuestion[]
+  practices: PracticeItem[]
+  resources: StudyResource[]
+  schedule?: StudySchedule
+}
+
+export interface ReflectionPoint {
+  id: string
+  prompt: string
+  response: string
+}
+
+export interface StudyQuestion {
+  id: string
+  question: string
+  answer: string
+}
+
+export interface PracticeItem {
+  id: string
+  action: string
+  tried: boolean
+  outcome: string
+}
+
+export interface StudySchedule {
+  days: string[]
+  minutesPerSession: number
+  startDate?: string
+  notes?: string
+}
+
+export type DecisionScale = 'piccola' | 'grande'
+
+export interface DecisionItem {
+  id: string
+  title: string
+  context: string
+  scale: DecisionScale
+  priorities: PriorityItem[]
+  pros: string[]
+  cons: string[]
+  relatedResources: StudyResource[]
+  conclusion: string
+  prayerNotes: string
+  status: 'aperta' | 'in_valutazione' | 'decisa'
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PriorityItem {
+  id: string
+  label: string
+  weight: number
+  note: string
+}
+
+export interface AiMessage {
+  id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  createdAt: string
+}
+
+export type AppView =
+  | 'home'
+  | 'argomenti'
+  | 'studio'
+  | 'decisioni'
+  | 'assistente'
+  | 'impostazioni'
+
+export interface FeatureFlags {
+  home: boolean
+  argomenti: boolean
+  studio: boolean
+  decisioni: boolean
+  assistente: boolean
+  impostazioni: boolean
+  recentJwFeed: boolean
+  schedule: boolean
+}
+
+export interface ThemeConfig {
+  primary: string
+  secondary: string
+  accent: string
+  background: string
+  surface: string
+  text: string
+  muted: string
+  radius: number
+  fontDisplay: string
+  fontBody: string
+  density: 'comoda' | 'media' | 'compatta'
+  heroStyle: 'pieno' | 'morbido'
+}
+
+export interface AppSettings {
+  language: 'I' | 'E'
+  theme: ThemeConfig
+  features: FeatureFlags
+  navOrder: AppView[]
+  brandName: string
+  tagline: string
+  studyMethodNotes: string
+}
