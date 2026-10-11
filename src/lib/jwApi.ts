@@ -1,4 +1,5 @@
 import type { ContentKind, JwResult } from '../types'
+import { extractJwRefs, buildJwLibraryShareLink } from './jwLibrary'
 
 let cachedToken = ''
 let tokenFetchedAt = 0
@@ -42,13 +43,20 @@ function flattenResults(payload: Record<string, unknown>): JwResult[] {
       const url = links['jw.org'] || links.wol || ''
       if (!url) continue
       const image = (item.image as { url?: string } | undefined)?.url
+      const lankFromItem = item.lank ? String(item.lank) : undefined
+      const refs = extractJwRefs(url)
+      const wolRefs = extractJwRefs(links.wol)
+      const lank = lankFromItem || refs.lank || wolRefs.lank
+      const docid = refs.docid || wolRefs.docid
       out.push({
-        id: String(item.lank || item.title || uidFallback()),
+        id: String(lank || docid || item.title || uidFallback()),
         title: stripHtml(String(item.title || 'Senza titolo')),
         snippet: stripHtml(String(item.snippet || '')),
         kind: mapKind(String(item.subtype || ''), groupLayout),
         url,
         wolUrl: links.wol,
+        lank,
+        docid,
         image,
         duration: item.duration ? String(item.duration) : undefined,
         context: item.context ? String(item.context) : undefined,
@@ -92,6 +100,8 @@ export interface LatestMediaItem {
   duration: string
   image?: string
   url: string
+  lank?: string
+  libraryUrl?: string
 }
 
 export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem[]> {
@@ -106,6 +116,9 @@ export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem
     const image =
       images?.pnr?.lg || images?.pnr?.md || images?.lsr?.lg || images?.sqr?.lg || undefined
     const naturalKey = String(m.languageAgnosticNaturalKey || m.naturalKey || '')
+    const share =
+      buildJwLibraryShareLink({ lank: naturalKey, wtlocale: language }, language) ||
+      `https://www.jw.org/finder?srcid=jwlshare&wtlocale=${language}&lank=${encodeURIComponent(naturalKey)}`
     return {
       guid: String(m.guid),
       title: String(m.title || ''),
@@ -113,7 +126,11 @@ export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem
       published: String(m.firstPublished || ''),
       duration: String(m.durationFormattedMinSec || m.durationFormattedHHMM || ''),
       image,
-      url: `https://www.jw.org/finder?srcid=jwlshare&wtlocale=${language}&lank=${encodeURIComponent(naturalKey)}`,
+      url: share,
+      lank: naturalKey || undefined,
+      libraryUrl: naturalKey
+        ? `jwlibrary:///finder?wtlocale=${encodeURIComponent(language)}&lank=${encodeURIComponent(naturalKey)}`
+        : undefined,
     }
   })
 }

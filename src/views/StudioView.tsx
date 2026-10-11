@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { JwSearch } from '../components/JwSearch'
+import { JwOpenButtons } from '../components/JwOpenButtons'
 import { askAi, buildStudyContext, createMessage } from '../lib/ai'
 import { uid } from '../lib/id'
 import { useAppStore } from '../store/useAppStore'
@@ -150,7 +151,13 @@ export function StudioView() {
             {topic.resources.map((r) => (
               <div className="list-item" key={r.id}>
                 <strong>{r.title}</strong>
-                <a href={r.url} target="_blank" rel="noreferrer">Apri</a>
+                <JwOpenButtons
+                  url={r.url}
+                  lank={r.lank}
+                  docid={r.docid}
+                  language={settings.language}
+                  compact
+                />
               </div>
             ))}
             {topic.resources.length === 0 && (

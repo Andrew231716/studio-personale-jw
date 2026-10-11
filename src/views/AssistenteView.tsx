@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { JwOpenButtons } from '../components/JwOpenButtons'
 import { askAi, buildDecisionContext, buildStudyContext, createMessage } from '../lib/ai'
 import { searchJw } from '../lib/jwApi'
 import { useAppStore } from '../store/useAppStore'
@@ -21,7 +22,9 @@ export function AssistenteView() {
   const language = useAppStore((s) => s.settings.language)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [foundLinks, setFoundLinks] = useState<Array<{ title: string; url: string }>>([])
+  const [foundLinks, setFoundLinks] = useState<
+    Array<{ title: string; url: string; lank?: string; docid?: string }>
+  >([])
 
   const topic = topics.find((t) => t.id === activeTopicId) || topics[0]
   const decision = decisions.find((d) => d.id === activeDecisionId) || decisions[0]
@@ -37,8 +40,12 @@ export function AssistenteView() {
     try {
       const results = await searchJw(prompt, { language })
       const top = results.slice(0, 6)
-      setFoundLinks(top.map((r) => ({ title: r.title, url: r.url })))
-      resultsSnippet = top.map((r) => `- [${r.kind}] ${r.title}: ${r.url}`).join('\n')
+      setFoundLinks(
+        top.map((r) => ({ title: r.title, url: r.url, lank: r.lank, docid: r.docid })),
+      )
+      resultsSnippet = top
+        .map((r) => `- [${r.kind}] ${r.title}: ${r.url}${r.lank ? ` (lank ${r.lank})` : ''}`)
+        .join('\n')
     } catch {
       setFoundLinks([])
     }
@@ -127,16 +134,22 @@ export function AssistenteView() {
       </section>
 
       <section className="panel">
-        <h3>Collegamenti jw.org trovati</h3>
+        <h3>Collegamenti trovati</h3>
         <p className="muted">
-          L’assistente cerca prima su jw.org e usa i risultati come base, senza inventare pubblicazioni.
+          Risultati da jw.org, apribili anche in JW Library quando l’app è installata.
         </p>
         <div className="list">
           {foundLinks.map((l) => (
-            <a key={l.url} className="list-item result-link" href={l.url} target="_blank" rel="noreferrer">
+            <div key={`${l.url}-${l.lank || l.docid || ''}`} className="list-item">
               <strong>{l.title}</strong>
-              <span className="muted">Apri su jw.org</span>
-            </a>
+              <JwOpenButtons
+                url={l.url}
+                lank={l.lank}
+                docid={l.docid}
+                language={language}
+                compact
+              />
+            </div>
           ))}
           {foundLinks.length === 0 && (
             <div className="empty">I collegamenti appariranno dopo la prossima richiesta.</div>

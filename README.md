@@ -8,6 +8,7 @@ App web per programmare lo studio personale, approfondire argomenti, riflettere 
 - **Studio**: obiettivi, punti di riflessione, domande, pratiche, programma
 - **Decisioni**: priorità ponderate, pro/contro, materiale jw.org, conclusione automatica dai dati
 - **Assistente AI gratuito**: ricerca jw.org + elaborazione pensieri (Pollinations, con fallback locale)
+- **Apertura in JW Library**: deep link `jwlibrary://` e link di condivisione `finder?srcid=jwlshare` per articoli e video
 - **Impostazioni**: colori, font, densità, hero, ordine sezioni, funzionalità on/off
 
 I dati restano nel browser (`localStorage`). L’app non è affiliata a jw.org.

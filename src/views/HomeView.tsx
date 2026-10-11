@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BookOpen, Compass, Sparkles } from 'lucide-react'
+import { JwOpenButtons } from '../components/JwOpenButtons'
 import { fetchLatestVideos, type LatestMediaItem } from '../lib/jwApi'
 import { STUDY_STEPS } from '../lib/studyMethod'
 import { useAppStore } from '../store/useAppStore'
@@ -100,22 +101,16 @@ export function HomeView() {
         <section className="panel">
           <div className="section-head">
             <div>
-              <h2>Video recenti su jw.org</h2>
+              <h2>Video recenti su jw.org / JW Library</h2>
               <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-                Materiale aggiornato da cui trarre obiettivi e punti di riflessione
+                Materiale aggiornato: aprilo sul sito o direttamente nell’app JW Library
               </p>
             </div>
           </div>
           {feedError && <p className="muted">{feedError}</p>}
           <div className="grid-3">
             {latest.map((item) => (
-              <a
-                key={item.guid}
-                className="list-item result-link"
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-              >
+              <div key={item.guid} className="list-item">
                 {item.image ? (
                   <img className="media-thumb" src={item.image} alt="" loading="lazy" />
                 ) : (
@@ -123,7 +118,13 @@ export function HomeView() {
                 )}
                 <strong>{item.title}</strong>
                 <span className="muted">{item.duration}</span>
-              </a>
+                <JwOpenButtons
+                  url={item.url}
+                  lank={item.lank}
+                  language={settings.language}
+                  compact
+                />
+              </div>
             ))}
           </div>
         </section>

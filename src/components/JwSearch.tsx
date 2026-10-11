@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Search, ExternalLink, Plus } from 'lucide-react'
+import { useState } from 'react'
+import { Search, Plus } from 'lucide-react'
 import { SUGGESTED_TOPICS, searchJw } from '../lib/jwApi'
+import { buildJwLibraryShareLink } from '../lib/jwLibrary'
+import { JwOpenButtons } from './JwOpenButtons'
 import type { ContentKind, JwResult, StudyResource } from '../types'
 import { uid } from '../lib/id'
 
@@ -34,10 +36,6 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
     }
   }
 
-  useEffect(() => {
-    // no auto-search
-  }, [])
-
   function add(result: JwResult) {
     onAddResource?.({
       id: uid('res'),
@@ -45,13 +43,20 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
       url: result.url,
       kind: result.kind,
       notes: result.snippet,
+      lank: result.lank,
+      docid: result.docid,
+      libraryUrl:
+        buildJwLibraryShareLink(
+          { lank: result.lank, docid: result.docid, wtlocale: language },
+          language,
+        ) || undefined,
     })
   }
 
   return (
     <div className="stack">
       <div className="field" style={{ marginBottom: 0 }}>
-        <label htmlFor="jw-q">Cerca su jw.org</label>
+        <label htmlFor="jw-q">Cerca su jw.org / JW Library</label>
         <div className="row">
           <input
             id="jw-q"
@@ -102,20 +107,21 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
               <span className="badge">{kindLabel(r.kind)}</span>
             </div>
             {r.snippet && <p className="muted" style={{ margin: 0 }}>{r.snippet}</p>}
-            <div className="row">
-              <a className="btn secondary" href={r.url} target="_blank" rel="noreferrer">
+            <JwOpenButtons
+              url={r.url}
+              wolUrl={r.wolUrl}
+              lank={r.lank}
+              docid={r.docid}
+              language={language}
+              compact={compact}
+            />
+            {onAddResource && (
+              <button className="btn" type="button" onClick={() => add(r)}>
                 <span className="row" style={{ gap: 6 }}>
-                  <ExternalLink size={14} /> Apri su jw.org
+                  <Plus size={14} /> Aggiungi allo studio
                 </span>
-              </a>
-              {onAddResource && (
-                <button className="btn accent" type="button" onClick={() => add(r)}>
-                  <span className="row" style={{ gap: 6 }}>
-                    <Plus size={14} /> Aggiungi allo studio
-                  </span>
-                </button>
-              )}
-            </div>
+              </button>
+            )}
           </div>
         ))}
         {!loading && results.length === 0 && query && !error && (

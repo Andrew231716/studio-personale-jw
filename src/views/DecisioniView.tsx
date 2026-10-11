@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { JwSearch } from '../components/JwSearch'
+import { JwOpenButtons } from '../components/JwOpenButtons'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { DECISION_STEPS } from '../lib/studyMethod'
 import { uid } from '../lib/id'
@@ -280,7 +281,13 @@ export function DecisioniView() {
                 {decision.relatedResources.map((r) => (
                   <div className="list-item" key={r.id}>
                     <strong>{r.title}</strong>
-                    <a href={r.url} target="_blank" rel="noreferrer">Apri</a>
+                    <JwOpenButtons
+                      url={r.url}
+                      lank={r.lank}
+                      docid={r.docid}
+                      language={language}
+                      compact
+                    />
                   </div>
                 ))}
               </div>

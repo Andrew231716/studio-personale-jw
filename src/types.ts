@@ -7,6 +7,8 @@ export interface JwResult {
   kind: ContentKind
   url: string
   wolUrl?: string
+  lank?: string
+  docid?: string
   image?: string
   duration?: string
   context?: string
@@ -18,6 +20,9 @@ export interface StudyResource {
   url: string
   kind: ContentKind
   notes?: string
+  lank?: string
+  docid?: string
+  libraryUrl?: string
 }
 
 export interface StudyTopic {
