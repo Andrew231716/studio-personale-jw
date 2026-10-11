@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Flame, Sparkles } from 'lucide-react'
+import { Flame } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { JwSearch } from '../components/JwSearch'
 import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
@@ -43,7 +43,7 @@ export function SessioneView() {
     return (
       <div className="session-shell">
         <section className="panel session-card celebrate">
-          <div className="badge">Sessione completata</div>
+          <p className="section-kicker">Sessione completata</p>
           <h2>Hai studiato con il cuore</h2>
           <p className="muted">
             {celebration.minutesSpent} min · {celebration.topicTitle}
@@ -128,21 +128,18 @@ export function SessioneView() {
       <div className="session-shell">
         <section className="panel session-card">
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <div className="badge">Percorso guidato</div>
+            <p className="section-kicker" style={{ margin: 0 }}>Percorso guidato</p>
             {streak > 0 && (
-              <span className="streak-pill">
+              <span className="streak-mark">
                 <Flame size={14} /> Serie {streak} giorni
               </span>
             )}
           </div>
           <h2>Una sessione che ti accompagna</h2>
-          <p className="muted">
+          <p className="lede">
             Otto passi brevi: preghiera, obiettivo, materiale jw.org, meditazione e un’azione concreta.
-            Un passo alla volta, senza fretta.
           </p>
-          <p className="encourage">
-            <Sparkles size={16} /> {dailyEncouragement()}
-          </p>
+          <p className="encourage">{dailyEncouragement()}</p>
 
           {focusTopic ? (
             <div className="list-item" style={{ marginTop: '0.5rem' }}>
@@ -245,16 +242,16 @@ export function SessioneView() {
         <div className="session-progress" aria-hidden>
           <div className="session-progress-bar" style={{ width: `${progress}%` }} />
         </div>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
-          <span className="badge">
-            Passo {draft.step + 1}/{SESSION_STEPS.length}
+        <div className="meta-line">
+          <span>
+            Passo <strong>{draft.step + 1}/{SESSION_STEPS.length}</strong>
           </span>
-          <span className="muted">
+          <span>
             {topic ? topic.title : 'Sessione libera'} · ~{elapsedMin || tick || 1} min
           </span>
         </div>
         <h2>{step.title}</h2>
-        <p className="muted">{step.hint}</p>
+        <p className="lede">{step.hint}</p>
 
         {draft.step === 0 && (
           <div className="field">

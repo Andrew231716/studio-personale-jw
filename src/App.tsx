@@ -78,7 +78,7 @@ export default function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <BrandLogo size={52} withWordmark brandName={settings.brandName} />
+          <BrandLogo size={44} withWordmark brandName={settings.brandName} />
           <div className="brand-tag">{settings.tagline}</div>
         </div>
         <nav className="nav" aria-label="Sezioni">
@@ -91,24 +91,24 @@ export default function App() {
                 className={view === key ? 'active' : ''}
                 onClick={() => setView(key)}
               >
-                <Icon size={18} />
+                <Icon size={17} strokeWidth={2.1} />
                 {VIEW_LABELS[key]}
               </button>
             )
           })}
         </nav>
-        <div className="muted" style={{ marginTop: 'auto', fontSize: '0.78rem', opacity: 0.8 }}>
-          Contenuti collegati a jw.org · dati salvati in locale
-        </div>
+        <div className="sidebar-foot">Contenuti da jw.org · salvati in locale</div>
       </aside>
       <main className="main">
-        {view === 'home' && <HomeView />}
-        {view === 'argomenti' && <ArgomentiView />}
-        {view === 'sessione' && <SessioneView />}
-        {view === 'studio' && <StudioView />}
-        {view === 'decisioni' && <DecisioniView />}
-        {view === 'assistente' && <AssistenteView />}
-        {view === 'impostazioni' && <ImpostazioniView />}
+        <div className="main-inner">
+          {view === 'home' && <HomeView />}
+          {view === 'argomenti' && <ArgomentiView />}
+          {view === 'sessione' && <SessioneView />}
+          {view === 'studio' && <StudioView />}
+          {view === 'decisioni' && <DecisioniView />}
+          {view === 'assistente' && <AssistenteView />}
+          {view === 'impostazioni' && <ImpostazioniView />}
+        </div>
       </main>
     </div>
   )

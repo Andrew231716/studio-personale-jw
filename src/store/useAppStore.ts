@@ -26,7 +26,7 @@ const defaultTheme: ThemeConfig = {
   surface: '#F7FBF8',
   text: '#16302C',
   muted: '#5B736C',
-  radius: 18,
+  radius: 16,
   fontDisplay: '"Fraunces", Georgia, serif',
   fontBody: '"Manrope", "Segoe UI", sans-serif',
   density: 'media',

@@ -73,9 +73,10 @@ export function ScheduleNextStudy({
   return (
     <div className={`stack ${compact ? 'schedule-compact' : ''}`}>
       <div>
-        <h3 style={{ margin: 0 }}>Programma il prossimo studio</h3>
-        <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-          Crea un promemoria e aggiungilo al Calendario Apple (.ics)
+        <p className="section-kicker">Calendario</p>
+        <h2 style={{ margin: 0 }}>Programma il prossimo studio</h2>
+        <p className="lede">
+          Scegli data e ora, poi aggiungi l’evento al Calendario Apple
         </p>
       </div>
 

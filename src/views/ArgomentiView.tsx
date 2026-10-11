@@ -25,8 +25,9 @@ export function ArgomentiView() {
       <section className="panel">
         <div className="section-head">
           <div>
+            <p className="section-kicker">Quaderno</p>
             <h2>I tuoi argomenti</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+            <p className="lede">
               Inserisci ciò che vuoi studiare e continuare ad approfondire
             </p>
           </div>
@@ -106,8 +107,9 @@ export function ArgomentiView() {
       <section className="panel">
         <div className="section-head">
           <div>
-            <h2>Suggerimenti da jw.org</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+            <p className="section-kicker">jw.org</p>
+            <h2>Suggerimenti</h2>
+            <p className="lede">
               Cerca articoli e video, poi crea un argomento dal titolo che ti colpisce
             </p>
           </div>

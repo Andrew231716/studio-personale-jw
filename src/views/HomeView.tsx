@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Compass, Flame, PlayCircle, Sparkles } from 'lucide-react'
+import { Flame, PlayCircle } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
 import { formatScheduleLabel } from '../lib/calendar'
@@ -15,7 +15,6 @@ import { useAppStore } from '../store/useAppStore'
 export function HomeView() {
   const settings = useAppStore((s) => s.settings)
   const topics = useAppStore((s) => s.topics)
-  const decisions = useAppStore((s) => s.decisions)
   const logs = useAppStore((s) => s.sessionLogs)
   const schedules = useAppStore((s) => s.schedules)
   const setView = useAppStore((s) => s.setView)
@@ -43,7 +42,7 @@ export function HomeView() {
     let cancelled = false
     fetchLatestVideos(settings.language)
       .then((items) => {
-        if (!cancelled) setLatest(items)
+        if (!cancelled) setLatest(items.slice(0, 6))
       })
       .catch((e) => {
         if (!cancelled) setFeedError(e instanceof Error ? e.message : 'Feed non disponibile')
@@ -56,13 +55,7 @@ export function HomeView() {
   return (
     <div className="stack">
       <section className={`hero ${settings.theme.heroStyle === 'morbido' ? 'morbido' : ''}`}>
-        <img
-          className="hero-logo"
-          src="/logo.svg"
-          alt="JW Studio"
-          width={88}
-          height={88}
-        />
+        <img className="hero-logo" src="/logo.svg" alt="" width={72} height={72} />
         <h1>{settings.brandName}</h1>
         <p>{settings.tagline}</p>
         <div className="hero-actions">
@@ -71,7 +64,7 @@ export function HomeView() {
             type="button"
             onClick={() => startSession(focusTopic?.id || null)}
           >
-            {todayDone ? 'Un altro passo di studio' : 'Inizia la sessione di oggi'}
+            {todayDone ? 'Continua a studiare' : 'Inizia la sessione di oggi'}
           </button>
           <button className="btn ghost" type="button" onClick={() => setView('argomenti')}>
             Scegli un argomento
@@ -79,93 +72,64 @@ export function HomeView() {
         </div>
       </section>
 
-      <section className="panel invite-panel">
-        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'start' }}>
-          <div>
-            <h2>{todayDone ? 'Hai già studiato oggi' : 'Il tuo invito di oggi'}</h2>
-            <p className="encourage" style={{ margin: '0.5rem 0 0' }}>
-              <Sparkles size={16} /> {dailyEncouragement()}
-            </p>
-          </div>
-          {(streak > 0 || weekCount > 0) && (
-            <div className="streak-pill">
-              <Flame size={14} />
-              {streak > 0 ? `${streak} giorni di fila` : `${weekCount} sessioni questa settimana`}
-            </div>
+      <section className="section panel">
+        <p className="section-kicker">Oggi</p>
+        <h2>{todayDone ? 'Hai già fatto un passo' : 'Il tuo invito allo studio'}</h2>
+        <p className="encourage">{dailyEncouragement()}</p>
+        <div className="meta-line">
+          {streak > 0 && (
+            <span className="streak-mark">
+              <Flame size={15} /> Serie di {streak} giorni
+            </span>
+          )}
+          <span>
+            Questa settimana: <strong>{weekCount}</strong> sessioni
+          </span>
+          {nextSchedule && (
+            <span>
+              Prossimo: <strong>{formatScheduleLabel(nextSchedule.startsAt)}</strong>
+            </span>
           )}
         </div>
-        {focusTopic && (
-          <div className="list-item" style={{ marginTop: '0.9rem' }}>
-            <strong>{focusTopic.title}</strong>
+
+        {focusTopic ? (
+          <div className="focus-strip">
+            <h3>{focusTopic.title}</h3>
             <p className="muted" style={{ margin: 0 }}>
               {focusTopic.interest || focusTopic.objectives[0] || 'Pronto per una sessione guidata'}
             </p>
-            <button
-              className="btn"
-              type="button"
-              onClick={() => startSession(focusTopic.id)}
-            >
-              <span className="row" style={{ gap: 6 }}>
+            <div className="row">
+              <button className="btn" type="button" onClick={() => startSession(focusTopic.id)}>
                 <PlayCircle size={16} /> Apri sessione guidata
-              </span>
+              </button>
+              <button className="btn secondary" type="button" onClick={() => setView('studio')}>
+                Apri quaderno
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="focus-strip">
+            <p className="muted" style={{ margin: 0 }}>
+              Crea un argomento per iniziare con un percorso chiaro.
+            </p>
+            <button className="btn" type="button" onClick={() => setView('argomenti')}>
+              Crea il primo argomento
             </button>
           </div>
         )}
-        {!focusTopic && (
-          <button
-            className="btn"
-            type="button"
-            style={{ marginTop: '0.9rem' }}
-            onClick={() => setView('argomenti')}
-          >
-            Crea il primo argomento
-          </button>
-        )}
       </section>
 
-      <div className="grid-3">
-        <div className="panel">
-          <div className="row"><BookOpen size={18} /><h3>Argomenti</h3></div>
-          <p className="muted">{topics.length} salvati</p>
-          <button className="btn secondary" type="button" onClick={() => setView('argomenti')}>
-            Gestisci
-          </button>
-        </div>
-        <div className="panel">
-          <div className="row"><Compass size={18} /><h3>Decisioni</h3></div>
-          <p className="muted">{decisions.filter((d) => d.status !== 'decisa').length} aperte</p>
-          <button className="btn secondary" type="button" onClick={() => setView('decisioni')}>
-            Apri
-          </button>
-        </div>
-        <div className="panel">
-          <div className="row"><Sparkles size={18} /><h3>Questa settimana</h3></div>
-          <p className="muted">{weekCount} sessioni completate</p>
-          <button className="btn secondary" type="button" onClick={() => setView('studio')}>
-            Vedi quaderno
-          </button>
-        </div>
-      </div>
-
       {logs[0] && (
-        <section className="panel">
-          <h2>Ultima scintilla</h2>
-          <p className="muted" style={{ marginTop: 0 }}>
-            {logs[0].topicTitle} · {logs[0].minutesSpent} min
-          </p>
-          <p style={{ margin: 0 }}>
-            {logs[0].highlight || logs[0].gratitude || logs[0].goal}
+        <section className="section panel flat">
+          <p className="section-kicker">Ultima sessione</p>
+          <h2>{logs[0].topicTitle}</h2>
+          <p className="lede">
+            {logs[0].minutesSpent} min · {logs[0].highlight || logs[0].gratitude || logs[0].goal}
           </p>
         </section>
       )}
 
-      <section className="panel">
-        {nextSchedule && (
-          <p className="muted" style={{ marginTop: 0 }}>
-            Prossimo in calendario: <strong>{formatScheduleLabel(nextSchedule.startsAt)}</strong>
-            {nextSchedule.topicTitle ? ` · ${nextSchedule.topicTitle}` : ''}
-          </p>
-        )}
+      <section className="section panel">
         <ScheduleNextStudy
           topicId={focusTopic?.id || null}
           topicTitle={focusTopic?.title || ''}
@@ -174,19 +138,18 @@ export function HomeView() {
       </section>
 
       {settings.features.recentJwFeed && (
-        <section className="panel">
+        <section className="section panel">
           <div className="section-head">
             <div>
-              <h2>Video recenti su jw.org / JW Library</h2>
-              <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-                Materiale fresco da cui partire nella prossima sessione
-              </p>
+              <p className="section-kicker">jw.org</p>
+              <h2>Video recenti</h2>
+              <p className="lede">Materiale aggiornato da aprire sul sito o in JW Library</p>
             </div>
           </div>
           {feedError && <p className="muted">{feedError}</p>}
           <div className="grid-3">
             {latest.map((item) => (
-              <div key={item.guid} className="list-item">
+              <article key={item.guid} className="media-card list-item">
                 {item.image ? (
                   <img className="media-thumb" src={item.image} alt="" loading="lazy" />
                 ) : (
@@ -200,15 +163,18 @@ export function HomeView() {
                   language={settings.language}
                   compact
                 />
-              </div>
+              </article>
             ))}
           </div>
         </section>
       )}
 
       <p className="footnote">
-        Questa app non è affiliata a jw.org. I contenuti collegati appartengono a{' '}
-        <a href="https://www.jw.org/" target="_blank" rel="noreferrer">jw.org</a>.
+        App non affiliata a jw.org. I contenuti collegati appartengono a{' '}
+        <a href="https://www.jw.org/" target="_blank" rel="noreferrer">
+          jw.org
+        </a>
+        .
       </p>
     </div>
   )

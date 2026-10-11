@@ -15,10 +15,11 @@ export function BrandLogo({
     <div className={`brand-logo ${withWordmark ? 'stacked' : ''} ${className}`.trim()}>
       <img
         src="/logo.svg"
-        alt="JW Studio"
+        alt=""
         width={size}
         height={size}
         className="brand-logo-mark"
+        style={{ width: size, height: size }}
       />
       {withWordmark && (
         <div className="brand-logo-text">
