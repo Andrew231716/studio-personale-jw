@@ -157,6 +157,87 @@ a {
   }
 }
 
+.invite-panel {
+  animation: rise 0.55s ease both;
+}
+
+.encourage {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+  color: color-mix(in srgb, var(--primary) 80%, var(--text));
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.streak-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 28%, white);
+  color: #2a3428;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.session-shell {
+  max-width: 720px;
+}
+
+.session-card {
+  position: relative;
+  overflow: hidden;
+  animation: rise 0.45s ease both;
+}
+
+.session-card.celebrate {
+  background:
+    radial-gradient(500px 220px at 90% 0%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 60%),
+    color-mix(in srgb, var(--surface) 92%, white);
+}
+
+.session-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 10%, white);
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.session-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--secondary), var(--accent));
+  transition: width 0.35s ease;
+}
+
+.session-summary {
+  display: grid;
+  gap: 0.85rem;
+  margin: 1rem 0;
+}
+
+.session-summary > div,
+.session-summary.preview > div {
+  padding: 0.8rem 0.95rem;
+  border-radius: calc(var(--radius) - 6px);
+  background: color-mix(in srgb, var(--bg) 60%, white);
+  border: 1px solid color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.session-summary p {
+  margin: 0.25rem 0 0;
+}
+
+.session-summary.preview {
+  margin: 0 0 0.5rem;
+}
+
 .nav {
   display: grid;
   gap: 0.35rem;

@@ -4,6 +4,7 @@ import { useAppStore, VIEW_LABELS } from '../store/useAppStore'
 const FEATURE_KEYS: Array<keyof FeatureFlags> = [
   'home',
   'argomenti',
+  'sessione',
   'studio',
   'decisioni',
   'assistente',
@@ -216,8 +217,10 @@ function featureLabel(key: keyof FeatureFlags) {
       return 'Home'
     case 'argomenti':
       return 'Argomenti'
+    case 'sessione':
+      return 'Sessione guidata'
     case 'studio':
-      return 'Studio'
+      return 'Quaderno'
     case 'decisioni':
       return 'Decisioni'
     case 'assistente':

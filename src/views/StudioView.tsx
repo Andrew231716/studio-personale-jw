@@ -13,6 +13,7 @@ export function StudioView() {
   const settings = useAppStore((s) => s.settings)
   const pushAiMessage = useAppStore((s) => s.pushAiMessage)
   const setView = useAppStore((s) => s.setView)
+  const startSession = useAppStore((s) => s.startSession)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiHint, setAiHint] = useState('')
 
@@ -61,17 +62,22 @@ export function StudioView() {
       <section className="panel">
         <div className="section-head">
           <div>
-            <h2>Studio: {topic.title}</h2>
+            <h2>Quaderno: {topic.title}</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>{topic.interest || 'Studio personale'}</p>
           </div>
-          <select
-            value={topic.id}
-            onChange={(e) => setActiveTopic(e.target.value)}
-          >
-            {topics.map((t) => (
-              <option key={t.id} value={t.id}>{t.title}</option>
-            ))}
-          </select>
+          <div className="row">
+            <button className="btn accent" type="button" onClick={() => startSession(topic.id)}>
+              Sessione guidata
+            </button>
+            <select
+              value={topic.id}
+              onChange={(e) => setActiveTopic(e.target.value)}
+            >
+              {topics.map((t) => (
+                <option key={t.id} value={t.id}>{t.title}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {settings.features.schedule && topic.schedule && (

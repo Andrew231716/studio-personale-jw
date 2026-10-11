@@ -5,12 +5,14 @@ import {
   Home,
   MessageSquareText,
   NotebookPen,
+  PlayCircle,
   Settings2,
 } from 'lucide-react'
 import type { AppView } from './types'
 import { useAppStore, VIEW_LABELS } from './store/useAppStore'
 import { HomeView } from './views/HomeView'
 import { ArgomentiView } from './views/ArgomentiView'
+import { SessioneView } from './views/SessioneView'
 import { StudioView } from './views/StudioView'
 import { DecisioniView } from './views/DecisioniView'
 import { AssistenteView } from './views/AssistenteView'
@@ -20,6 +22,7 @@ import { BrandLogo } from './components/BrandLogo'
 const ICONS: Record<AppView, typeof Home> = {
   home: Home,
   argomenti: BookOpenText,
+  sessione: PlayCircle,
   studio: NotebookPen,
   decisioni: Compass,
   assistente: MessageSquareText,
@@ -57,6 +60,7 @@ export default function App() {
       settings.navOrder.filter((key) => {
         if (key === 'home') return settings.features.home
         if (key === 'argomenti') return settings.features.argomenti
+        if (key === 'sessione') return settings.features.sessione !== false
         if (key === 'studio') return settings.features.studio
         if (key === 'decisioni') return settings.features.decisioni
         if (key === 'assistente') return settings.features.assistente
@@ -100,6 +104,7 @@ export default function App() {
       <main className="main">
         {view === 'home' && <HomeView />}
         {view === 'argomenti' && <ArgomentiView />}
+        {view === 'sessione' && <SessioneView />}
         {view === 'studio' && <StudioView />}
         {view === 'decisioni' && <DecisioniView />}
         {view === 'assistente' && <AssistenteView />}

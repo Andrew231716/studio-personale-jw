@@ -11,6 +11,8 @@ import type {
   AppSettings,
   AppView,
   DecisionItem,
+  StudySessionDraft,
+  StudySessionLog,
   StudyTopic,
   ThemeConfig,
 } from '../types'
@@ -36,6 +38,7 @@ const defaultSettings: AppSettings = {
   features: {
     home: true,
     argomenti: true,
+    sessione: true,
     studio: true,
     decisioni: true,
     assistente: true,
@@ -43,11 +46,39 @@ const defaultSettings: AppSettings = {
     recentJwFeed: true,
     schedule: true,
   },
-  navOrder: ['home', 'argomenti', 'studio', 'decisioni', 'assistente', 'impostazioni'],
+  navOrder: [
+    'home',
+    'sessione',
+    'argomenti',
+    'studio',
+    'decisioni',
+    'assistente',
+    'impostazioni',
+  ],
   brandName: 'JW Studio',
-  tagline: 'Programma, approfondisci e decidi con l’aiuto di jw.org',
+  tagline: 'Studia con cuore, un passo alla volta, con l’aiuto di jw.org',
   studyMethodNotes:
     'Metodo ispirato ai consigli di articoli e video recenti su jw.org: preghiera, obiettivo, materiale aggiornato, meditazione, domande e applicazione pratica.',
+}
+
+function emptyDraft(topicId: string | null = null): StudySessionDraft {
+  return {
+    topicId,
+    step: 0,
+    prayer: '',
+    goal: '',
+    resourceTitle: '',
+    resourceUrl: '',
+    highlight: '',
+    keyVerse: '',
+    reflection: '',
+    question: 'Cosa mi insegna questo su Geova?',
+    answer: '',
+    practice: '',
+    gratitude: '',
+    startedAt: new Date().toISOString(),
+    minutesSpent: 0,
+  }
 }
 
 interface AppState {
@@ -58,6 +89,8 @@ interface AppState {
   activeTopicId: string | null
   activeDecisionId: string | null
   aiMessages: AiMessage[]
+  sessionDraft: StudySessionDraft | null
+  sessionLogs: StudySessionLog[]
   setView: (view: AppView) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   updateTheme: (patch: Partial<ThemeConfig>) => void
@@ -73,6 +106,10 @@ interface AppState {
   recomputeDecisionConclusion: (id: string) => void
   pushAiMessage: (message: AiMessage) => void
   clearAi: () => void
+  startSession: (topicId?: string | null) => void
+  updateSessionDraft: (patch: Partial<StudySessionDraft>) => void
+  completeSession: () => StudySessionLog | null
+  abandonSession: () => void
 }
 
 function seedTopic(title: string, interest = ''): StudyTopic {
@@ -127,6 +164,8 @@ export const useAppStore = create<AppState>()(
       activeTopicId: null,
       activeDecisionId: null,
       aiMessages: [],
+      sessionDraft: null,
+      sessionLogs: [],
       setView: (view) => set({ view }),
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -141,7 +180,8 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           topics: [topic, ...s.topics],
           activeTopicId: topic.id,
-          view: 'studio',
+          view: 'sessione',
+          sessionDraft: emptyDraft(topic.id),
         }))
         return topic.id
       },
@@ -212,9 +252,127 @@ export const useAppStore = create<AppState>()(
       pushAiMessage: (message) =>
         set((s) => ({ aiMessages: [...s.aiMessages, message] })),
       clearAi: () => set({ aiMessages: [] }),
+      startSession: (topicId = null) => {
+        const id = topicId ?? get().activeTopicId
+        const topic = get().topics.find((t) => t.id === id)
+        const draft = emptyDraft(id)
+        if (topic) {
+          draft.goal = topic.objectives[0] || ''
+          draft.question = topic.questions[0]?.question || draft.question
+          draft.practice = topic.practices.find((p) => !p.tried)?.action || ''
+          if (topic.resources[0]) {
+            draft.resourceTitle = topic.resources[0].title
+            draft.resourceUrl = topic.resources[0].url
+            draft.resourceLank = topic.resources[0].lank
+            draft.resourceDocid = topic.resources[0].docid
+          }
+        }
+        set({
+          sessionDraft: draft,
+          activeTopicId: id,
+          view: 'sessione',
+        })
+      },
+      updateSessionDraft: (patch) =>
+        set((s) =>
+          s.sessionDraft
+            ? { sessionDraft: { ...s.sessionDraft, ...patch } }
+            : s,
+        ),
+      completeSession: () => {
+        const draft = get().sessionDraft
+        if (!draft) return null
+        const topic = get().topics.find((t) => t.id === draft.topicId)
+        const started = new Date(draft.startedAt).getTime()
+        const minutes = Math.max(
+          draft.minutesSpent,
+          Math.round((Date.now() - started) / 60000) || 1,
+        )
+        const log: StudySessionLog = {
+          id: uid('sess'),
+          topicId: draft.topicId,
+          topicTitle: topic?.title || draft.goal || 'Studio personale',
+          completedAt: new Date().toISOString(),
+          goal: draft.goal,
+          highlight: draft.highlight || draft.reflection,
+          keyVerse: draft.keyVerse,
+          practice: draft.practice,
+          gratitude: draft.gratitude,
+          minutesSpent: minutes,
+        }
+
+        // Merge insights into topic notebook
+        if (topic) {
+          const reflections = [...topic.reflections]
+          if (draft.reflection.trim()) {
+            reflections.unshift({
+              id: uid('ref'),
+              prompt: 'Dalla sessione di oggi',
+              response: draft.reflection,
+            })
+          }
+          const questions = [...topic.questions]
+          if (draft.answer.trim()) {
+            questions.unshift({
+              id: uid('q'),
+              question: draft.question,
+              answer: draft.answer,
+            })
+          }
+          const practices = [...topic.practices]
+          if (draft.practice.trim()) {
+            practices.unshift({
+              id: uid('prac'),
+              action: draft.practice,
+              tried: false,
+              outcome: '',
+            })
+          }
+          get().updateTopic(topic.id, {
+            status: 'in_corso',
+            reflections,
+            questions,
+            practices,
+            objectives: draft.goal
+              ? [draft.goal, ...topic.objectives.filter((o) => o !== draft.goal)]
+              : topic.objectives,
+          })
+        }
+
+        set((s) => ({
+          sessionLogs: [log, ...s.sessionLogs].slice(0, 100),
+          sessionDraft: null,
+          view: 'home',
+        }))
+        return log
+      },
+      abandonSession: () => set({ sessionDraft: null }),
     }),
     {
       name: 'studio-personale-jw-v1',
+      merge: (persisted, current) => {
+        const p = (persisted || {}) as Partial<AppState>
+        return {
+          ...current,
+          ...p,
+          settings: {
+            ...current.settings,
+            ...(p.settings || {}),
+            features: {
+              ...current.settings.features,
+              ...(p.settings?.features || {}),
+            },
+            navOrder: (() => {
+              const order = p.settings?.navOrder || current.settings.navOrder
+              return order.includes('sessione')
+                ? order
+                : ['home', 'sessione', ...order.filter((v) => v !== 'home')]
+            })(),
+          },
+          sessionLogs: p.sessionLogs || [],
+          sessionDraft: p.sessionDraft || null,
+        }
+      },
       partialize: (s) => ({
         settings: s.settings,
         topics: s.topics,
@@ -222,6 +380,8 @@ export const useAppStore = create<AppState>()(
         activeTopicId: s.activeTopicId,
         activeDecisionId: s.activeDecisionId,
         aiMessages: s.aiMessages,
+        sessionDraft: s.sessionDraft,
+        sessionLogs: s.sessionLogs,
       }),
     },
   ),
@@ -230,7 +390,8 @@ export const useAppStore = create<AppState>()(
 export const VIEW_LABELS: Record<AppView, string> = {
   home: 'Home',
   argomenti: 'Argomenti',
-  studio: 'Studio',
+  sessione: 'Sessione',
+  studio: 'Quaderno',
   decisioni: 'Decisioni',
   assistente: 'Assistente AI',
   impostazioni: 'Impostazioni',

@@ -1,17 +1,32 @@
-import { useEffect, useState } from 'react'
-import { BookOpen, Compass, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { BookOpen, Compass, Flame, PlayCircle, Sparkles } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { fetchLatestVideos, type LatestMediaItem } from '../lib/jwApi'
-import { STUDY_STEPS } from '../lib/studyMethod'
+import {
+  computeStreak,
+  dailyEncouragement,
+  sessionsThisWeek,
+  studiedToday,
+} from '../lib/progress'
 import { useAppStore } from '../store/useAppStore'
 
 export function HomeView() {
   const settings = useAppStore((s) => s.settings)
   const topics = useAppStore((s) => s.topics)
   const decisions = useAppStore((s) => s.decisions)
+  const logs = useAppStore((s) => s.sessionLogs)
   const setView = useAppStore((s) => s.setView)
+  const startSession = useAppStore((s) => s.startSession)
   const [latest, setLatest] = useState<LatestMediaItem[]>([])
   const [feedError, setFeedError] = useState('')
+
+  const streak = useMemo(() => computeStreak(logs), [logs])
+  const weekCount = useMemo(() => sessionsThisWeek(logs), [logs])
+  const todayDone = useMemo(() => studiedToday(logs), [logs])
+  const focusTopic =
+    topics.find((t) => t.status === 'in_corso') ||
+    topics.find((t) => t.status === 'da_iniziare') ||
+    topics[0]
 
   useEffect(() => {
     if (!settings.features.recentJwFeed) return
@@ -41,16 +56,61 @@ export function HomeView() {
         <h1>{settings.brandName}</h1>
         <p>{settings.tagline}</p>
         <div className="hero-actions">
-          <button className="btn accent" type="button" onClick={() => setView('argomenti')}>
-            Inizia uno studio
+          <button
+            className="btn accent"
+            type="button"
+            onClick={() => startSession(focusTopic?.id || null)}
+          >
+            {todayDone ? 'Un altro passo di studio' : 'Inizia la sessione di oggi'}
           </button>
-          <button className="btn ghost" type="button" onClick={() => setView('decisioni')}>
-            Valuta una decisione
-          </button>
-          <button className="btn ghost" type="button" onClick={() => setView('assistente')}>
-            Chiedi all’AI
+          <button className="btn ghost" type="button" onClick={() => setView('argomenti')}>
+            Scegli un argomento
           </button>
         </div>
+      </section>
+
+      <section className="panel invite-panel">
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'start' }}>
+          <div>
+            <h2>{todayDone ? 'Hai già studiato oggi' : 'Il tuo invito di oggi'}</h2>
+            <p className="encourage" style={{ margin: '0.5rem 0 0' }}>
+              <Sparkles size={16} /> {dailyEncouragement()}
+            </p>
+          </div>
+          {(streak > 0 || weekCount > 0) && (
+            <div className="streak-pill">
+              <Flame size={14} />
+              {streak > 0 ? `${streak} giorni di fila` : `${weekCount} sessioni questa settimana`}
+            </div>
+          )}
+        </div>
+        {focusTopic && (
+          <div className="list-item" style={{ marginTop: '0.9rem' }}>
+            <strong>{focusTopic.title}</strong>
+            <p className="muted" style={{ margin: 0 }}>
+              {focusTopic.interest || focusTopic.objectives[0] || 'Pronto per una sessione guidata'}
+            </p>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => startSession(focusTopic.id)}
+            >
+              <span className="row" style={{ gap: 6 }}>
+                <PlayCircle size={16} /> Apri sessione guidata
+              </span>
+            </button>
+          </div>
+        )}
+        {!focusTopic && (
+          <button
+            className="btn"
+            type="button"
+            style={{ marginTop: '0.9rem' }}
+            onClick={() => setView('argomenti')}
+          >
+            Crea il primo argomento
+          </button>
+        )}
       </section>
 
       <div className="grid-3">
@@ -69,33 +129,25 @@ export function HomeView() {
           </button>
         </div>
         <div className="panel">
-          <div className="row"><Sparkles size={18} /><h3>Metodo</h3></div>
-          <p className="muted">Basato su consigli recenti di jw.org</p>
+          <div className="row"><Sparkles size={18} /><h3>Questa settimana</h3></div>
+          <p className="muted">{weekCount} sessioni completate</p>
           <button className="btn secondary" type="button" onClick={() => setView('studio')}>
-            Vedi studio
+            Vedi quaderno
           </button>
         </div>
       </div>
 
-      <section className="panel">
-        <div className="section-head">
-          <div>
-            <h2>Come studiare oggi</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>{settings.studyMethodNotes}</p>
-          </div>
-        </div>
-        <div className="steps">
-          {STUDY_STEPS.map((step, i) => (
-            <div className="step" key={step.id}>
-              <div className="step-num">{i + 1}</div>
-              <div>
-                <strong>{step.title}</strong>
-                <p className="muted" style={{ margin: '0.2rem 0 0' }}>{step.detail}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {logs[0] && (
+        <section className="panel">
+          <h2>Ultima scintilla</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            {logs[0].topicTitle} · {logs[0].minutesSpent} min
+          </p>
+          <p style={{ margin: 0 }}>
+            {logs[0].highlight || logs[0].gratitude || logs[0].goal}
+          </p>
+        </section>
+      )}
 
       {settings.features.recentJwFeed && (
         <section className="panel">
@@ -103,7 +155,7 @@ export function HomeView() {
             <div>
               <h2>Video recenti su jw.org / JW Library</h2>
               <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-                Materiale aggiornato: aprilo sul sito o direttamente nell’app JW Library
+                Materiale fresco da cui partire nella prossima sessione
               </p>
             </div>
           </div>

@@ -101,6 +101,7 @@ export interface AiMessage {
 export type AppView =
   | 'home'
   | 'argomenti'
+  | 'sessione'
   | 'studio'
   | 'decisioni'
   | 'assistente'
@@ -109,12 +110,46 @@ export type AppView =
 export interface FeatureFlags {
   home: boolean
   argomenti: boolean
+  sessione: boolean
   studio: boolean
   decisioni: boolean
   assistente: boolean
   impostazioni: boolean
   recentJwFeed: boolean
   schedule: boolean
+}
+
+export interface StudySessionDraft {
+  topicId: string | null
+  step: number
+  prayer: string
+  goal: string
+  resourceTitle: string
+  resourceUrl: string
+  resourceLank?: string
+  resourceDocid?: string
+  highlight: string
+  keyVerse: string
+  reflection: string
+  question: string
+  answer: string
+  practice: string
+  gratitude: string
+  startedAt: string
+  minutesSpent: number
+}
+
+export interface StudySessionLog {
+  id: string
+  topicId: string | null
+  topicTitle: string
+  completedAt: string
+  goal: string
+  highlight: string
+  keyVerse: string
+  practice: string
+  gratitude: string
+  minutesSpent: number
 }
 
 export interface ThemeConfig {
