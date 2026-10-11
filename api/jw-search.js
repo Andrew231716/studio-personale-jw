@@ -4,10 +4,14 @@ export default async function handler(req, res) {
     return
   }
   try {
-    const parts = [].concat(req.query.path || [])
-    const path = parts.join('/')
-    const query = new URL(req.url, 'http://localhost').search
-    const url = `https://b.jw-cdn.org/apis/search/${path}${query}`
+    const language = String(req.query.language || 'I')
+    const filter = String(req.query.filter || 'all')
+    const q = String(req.query.q || '').trim()
+    if (!q) {
+      res.status(400).json({ error: 'Missing q' })
+      return
+    }
+    const url = `https://b.jw-cdn.org/apis/search/results/${encodeURIComponent(language)}/${encodeURIComponent(filter)}/?q=${encodeURIComponent(q)}`
     const upstream = await fetch(url, {
       headers: {
         Authorization: req.headers.authorization || '',

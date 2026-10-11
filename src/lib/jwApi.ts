@@ -75,7 +75,7 @@ export async function searchJw(
   const language = opts.language || 'I'
   const filter = opts.filter || 'all'
   const token = await getToken()
-  const url = `/api/jw-search/results/${language}/${filter}/?q=${encodeURIComponent(q)}`
+  const url = `/api/jw-search?language=${encodeURIComponent(language)}&filter=${encodeURIComponent(filter)}&q=${encodeURIComponent(q)}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -95,7 +95,9 @@ export interface LatestMediaItem {
 }
 
 export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem[]> {
-  const res = await fetch(`/api/jw-media/categories/${language}/LatestVideos?clientType=www`)
+  const res = await fetch(
+    `/api/jw-media?language=${encodeURIComponent(language)}&category=LatestVideos`,
+  )
   if (!res.ok) throw new Error('Impossibile caricare i video recenti da jw.org')
   const data = await res.json()
   const media = data?.category?.media || []

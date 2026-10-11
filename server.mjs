@@ -17,36 +17,37 @@ app.get('/api/jw-token', async (_req, res) => {
   }
 })
 
-app.use('/api/jw-search', async (req, res) => {
+app.get('/api/jw-search', async (req, res) => {
   try {
-    const suffix = req.originalUrl.replace('/api/jw-search', '')
-    const url = `https://b.jw-cdn.org/apis/search${suffix}`
+    const language = String(req.query.language || 'I')
+    const filter = String(req.query.filter || 'all')
+    const q = String(req.query.q || '')
+    const url = `https://b.jw-cdn.org/apis/search/results/${language}/${filter}/?q=${encodeURIComponent(q)}`
     const upstream = await fetch(url, {
       headers: {
         Authorization: req.header('authorization') || '',
         Accept: 'application/json',
       },
     })
-    const text = await upstream.text()
-    res.status(upstream.status).type('application/json').send(text)
+    res.status(upstream.status).type('application/json').send(await upstream.text())
   } catch (e) {
     res.status(502).json({ error: String(e) })
   }
 })
 
-app.use('/api/jw-media', async (req, res) => {
+app.get('/api/jw-media', async (req, res) => {
   try {
-    const suffix = req.originalUrl.replace('/api/jw-media', '')
-    const url = `https://b.jw-cdn.org/apis/mediator/v1${suffix}`
+    const language = String(req.query.language || 'I')
+    const category = String(req.query.category || 'LatestVideos')
+    const url = `https://b.jw-cdn.org/apis/mediator/v1/categories/${language}/${category}?clientType=www`
     const upstream = await fetch(url)
-    const text = await upstream.text()
-    res.status(upstream.status).type('application/json').send(text)
+    res.status(upstream.status).type('application/json').send(await upstream.text())
   } catch (e) {
     res.status(502).json({ error: String(e) })
   }
 })
 
-app.post('/api/ai/', express.json({ limit: '1mb' }), async (req, res) => {
+app.post('/api/ai', express.json({ limit: '1mb' }), async (req, res) => {
   try {
     const upstream = await fetch('https://text.pollinations.ai/', {
       method: 'POST',
