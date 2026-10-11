@@ -77,21 +77,30 @@ export function buildStudyIcs(event: ScheduledStudy, appUrl = 'https://studio-pe
   return `${lines.map(foldLine).join('\r\n')}\r\n`
 }
 
-/** Scarica/apre un file .ics: su iPhone/Mac si apre in Calendario Apple. */
+/** Scarica/apre un file .ics: su iPhone/iPad/Mac si apre in Calendario Apple. */
 export function downloadAppleCalendarEvent(event: ScheduledStudy): void {
   const ics = buildStudyIcs(event)
   const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
   const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `jw-studio-${event.startsAt.slice(0, 10)}.ics`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  // Su iOS Safari l’apertura diretta del blob aiuta Calendario
+  const isAppleTouch = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+  if (isAppleTouch) {
+    // Su iPad/iPhone Safari il download attribute è inaffidabile:
+    // aprire il blob fa comparire “Aggiungi a Calendario”.
+    window.location.href = url
+  } else {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `jw-studio-${event.startsAt.slice(0, 10)}.ics`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+  }
+
   window.setTimeout(() => {
     URL.revokeObjectURL(url)
-  }, 2500)
+  }, 4000)
 }
 
 export function defaultNextStudyLocalInput(hoursAhead = 24): string {
