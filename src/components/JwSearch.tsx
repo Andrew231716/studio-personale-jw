@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Search, Plus } from 'lucide-react'
 import { SUGGESTED_TOPICS, searchJw } from '../lib/jwApi'
-import { buildJwLibraryShareLink } from '../lib/jwLibrary'
+import { buildJwLibraryShareLink, resolveOpenLinks } from '../lib/jwLibrary'
 import { JwOpenButtons } from './JwOpenButtons'
 import type { ContentKind, JwResult, StudyResource } from '../types'
 import { uid } from '../lib/id'
@@ -37,6 +37,13 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
   }
 
   function add(result: JwResult) {
+    const open = resolveOpenLinks({
+      url: result.url,
+      wolUrl: result.wolUrl,
+      lank: result.lank,
+      docid: result.docid,
+      language,
+    })
     onAddResource?.({
       id: uid('res'),
       title: result.title,
@@ -45,11 +52,10 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
       notes: result.snippet,
       lank: result.lank,
       docid: result.docid,
-      libraryUrl:
-        buildJwLibraryShareLink(
-          { lank: result.lank, docid: result.docid, wtlocale: language },
-          language,
-        ) || undefined,
+      libraryUrl: open.libraryOpenUrl || buildJwLibraryShareLink(
+        { lank: result.lank, docid: result.docid, wtlocale: language },
+        language,
+      ) || undefined,
     })
   }
 

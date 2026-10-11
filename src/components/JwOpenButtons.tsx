@@ -1,4 +1,4 @@
-import { BookOpen, ExternalLink, Smartphone } from 'lucide-react'
+import { ExternalLink, Smartphone } from 'lucide-react'
 import { resolveOpenLinks } from '../lib/jwLibrary'
 
 interface Props {
@@ -10,6 +10,11 @@ interface Props {
   compact?: boolean
 }
 
+/**
+ * Apri in JW Library usa il link ufficiale finder?srcid=jwlshare
+ * (come “Condividi” nell’app). Su telefono/tablet apre il contenuto
+ * specifico; lo schema jwlibrary:// da solo spesso lascia sulla home.
+ */
 export function JwOpenButtons({
   url,
   wolUrl,
@@ -37,39 +42,17 @@ export function JwOpenButtons({
         </a>
       )}
 
-      {links.libraryDeepLink && (
-        <a className={compact ? 'chip' : 'btn accent'} href={links.libraryDeepLink}>
-          <span className="row" style={{ gap: 6 }}>
-            <Smartphone size={14} />
-            {compact ? 'JW Library' : 'Apri in JW Library'}
-          </span>
-        </a>
-      )}
-
-      {!links.libraryDeepLink && links.libraryShareLink && (
+      {links.libraryOpenUrl && (
         <a
           className={compact ? 'chip' : 'btn accent'}
-          href={links.libraryShareLink}
+          href={links.libraryOpenUrl}
           target="_blank"
           rel="noreferrer"
+          title="Apre il contenuto in JW Library (come il pulsante Condividi dell’app)"
         >
           <span className="row" style={{ gap: 6 }}>
             <Smartphone size={14} />
             {compact ? 'JW Library' : 'Apri in JW Library'}
-          </span>
-        </a>
-      )}
-
-      {links.libraryDeepLink && links.libraryShareLink && !compact && (
-        <a
-          className="btn secondary"
-          href={links.libraryShareLink}
-          target="_blank"
-          rel="noreferrer"
-          title="Link di condivisione compatibile con JW Library"
-        >
-          <span className="row" style={{ gap: 6 }}>
-            <BookOpen size={14} /> Link JW Library
           </span>
         </a>
       )}

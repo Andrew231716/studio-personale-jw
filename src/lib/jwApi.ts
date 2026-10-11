@@ -1,5 +1,9 @@
 import type { ContentKind, JwResult } from '../types'
-import { extractJwRefs, buildJwLibraryShareLink } from './jwLibrary'
+import {
+  extractJwRefs,
+  buildJwLibraryShareLink,
+  isMediaLank,
+} from './jwLibrary'
 
 let cachedToken = ''
 let tokenFetchedAt = 0
@@ -43,11 +47,16 @@ function flattenResults(payload: Record<string, unknown>): JwResult[] {
       const url = links['jw.org'] || links.wol || ''
       if (!url) continue
       const image = (item.image as { url?: string } | undefined)?.url
-      const lankFromItem = item.lank ? String(item.lank) : undefined
+      const rawLank = item.lank ? String(item.lank) : undefined
       const refs = extractJwRefs(url)
       const wolRefs = extractJwRefs(links.wol)
-      const lank = lankFromItem || refs.lank || wolRefs.lank
-      const docid = refs.docid || wolRefs.docid
+      // I lank "pa-123..." della ricerca NON vanno a JW Library; usa docid
+      const lank = [rawLank, refs.lank, wolRefs.lank].find(isMediaLank)
+      let docid = refs.docid || wolRefs.docid
+      if (!docid && rawLank) {
+        const nested = rawLank.match(/^pa-(\d{6,})$/i)
+        if (nested) docid = nested[1]
+      }
       out.push({
         id: String(lank || docid || item.title || uidFallback()),
         title: stripHtml(String(item.title || 'Senza titolo')),
