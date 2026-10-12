@@ -103,15 +103,19 @@ export type AppView =
   | 'argomenti'
   | 'sessione'
   | 'studio'
+  | 'diario'
   | 'decisioni'
   | 'assistente'
   | 'impostazioni'
+
+export type SummaryPeriod = 'giorno' | 'settimana' | 'mese'
 
 export interface FeatureFlags {
   home: boolean
   argomenti: boolean
   sessione: boolean
   studio: boolean
+  diario: boolean
   decisioni: boolean
   assistente: boolean
   impostazioni: boolean
@@ -150,6 +154,12 @@ export interface StudySessionLog {
   practice: string
   gratitude: string
   minutesSpent: number
+  prayer?: string
+  reflection?: string
+  question?: string
+  answer?: string
+  resourceTitle?: string
+  resourceUrl?: string
 }
 
 export interface ScheduledStudy {

@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import {
   BookOpenText,
   Compass,
+  History,
   Home,
   MessageSquareText,
   NotebookPen,
@@ -14,6 +15,7 @@ import { HomeView } from './views/HomeView'
 import { ArgomentiView } from './views/ArgomentiView'
 import { SessioneView } from './views/SessioneView'
 import { StudioView } from './views/StudioView'
+import { DiarioView } from './views/DiarioView'
 import { DecisioniView } from './views/DecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
@@ -24,6 +26,7 @@ const ICONS: Record<AppView, typeof Home> = {
   argomenti: BookOpenText,
   sessione: PlayCircle,
   studio: NotebookPen,
+  diario: History,
   decisioni: Compass,
   assistente: MessageSquareText,
   impostazioni: Settings2,
@@ -62,6 +65,7 @@ export default function App() {
         if (key === 'argomenti') return settings.features.argomenti
         if (key === 'sessione') return settings.features.sessione !== false
         if (key === 'studio') return settings.features.studio
+        if (key === 'diario') return settings.features.diario !== false
         if (key === 'decisioni') return settings.features.decisioni
         if (key === 'assistente') return settings.features.assistente
         if (key === 'impostazioni') return settings.features.impostazioni
@@ -105,6 +109,7 @@ export default function App() {
           {view === 'argomenti' && <ArgomentiView />}
           {view === 'sessione' && <SessioneView />}
           {view === 'studio' && <StudioView />}
+          {view === 'diario' && <DiarioView />}
           {view === 'decisioni' && <DecisioniView />}
           {view === 'assistente' && <AssistenteView />}
           {view === 'impostazioni' && <ImpostazioniView />}

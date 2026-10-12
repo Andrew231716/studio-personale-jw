@@ -41,6 +41,7 @@ const defaultSettings: AppSettings = {
     argomenti: true,
     sessione: true,
     studio: true,
+    diario: true,
     decisioni: true,
     assistente: true,
     impostazioni: true,
@@ -52,6 +53,7 @@ const defaultSettings: AppSettings = {
     'sessione',
     'argomenti',
     'studio',
+    'diario',
     'decisioni',
     'assistente',
     'impostazioni',
@@ -304,6 +306,12 @@ export const useAppStore = create<AppState>()(
           practice: draft.practice,
           gratitude: draft.gratitude,
           minutesSpent: minutes,
+          prayer: draft.prayer,
+          reflection: draft.reflection,
+          question: draft.question,
+          answer: draft.answer,
+          resourceTitle: draft.resourceTitle,
+          resourceUrl: draft.resourceUrl,
         }
 
         // Merge insights into topic notebook
@@ -376,10 +384,16 @@ export const useAppStore = create<AppState>()(
               ...(p.settings?.features || {}),
             },
             navOrder: (() => {
-              const order = p.settings?.navOrder || current.settings.navOrder
-              return order.includes('sessione')
-                ? order
-                : ['home', 'sessione', ...order.filter((v) => v !== 'home')]
+              let order = [...(p.settings?.navOrder || current.settings.navOrder)]
+              if (!order.includes('sessione')) {
+                order = ['home', 'sessione', ...order.filter((v) => v !== 'home')]
+              }
+              if (!order.includes('diario')) {
+                const studioIdx = order.indexOf('studio')
+                if (studioIdx >= 0) order.splice(studioIdx + 1, 0, 'diario')
+                else order.push('diario')
+              }
+              return order
             })(),
           },
           sessionLogs: p.sessionLogs || [],
@@ -407,6 +421,7 @@ export const VIEW_LABELS: Record<AppView, string> = {
   argomenti: 'Argomenti',
   sessione: 'Sessione',
   studio: 'Quaderno',
+  diario: 'Diario',
   decisioni: 'Decisioni',
   assistente: 'Assistente AI',
   impostazioni: 'Impostazioni',

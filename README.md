@@ -8,6 +8,7 @@ App web per programmare lo studio personale, approfondire argomenti, riflettere 
 - **Calendario Apple**: programma il prossimo studio e scarica un file `.ics` con promemoria
 - **Argomenti**: elenco personale + ricerca live su jw.org con suggerimenti
 - **Quaderno**: obiettivi, punti di riflessione, domande, pratiche, programma
+- **Diario**: tutti gli studi fatti + riepilogo giorno/settimana/mese in PDF, EPUB o pacchetto `.jwlibrary`
 - **Decisioni**: priorità ponderate, pro/contro, materiale jw.org, conclusione automatica dai dati
 - **Assistente AI gratuito**: ricerca jw.org + elaborazione pensieri (Pollinations, con fallback locale)
 - **Apertura in JW Library**: link di condivisione `finder?srcid=jwlshare` per articoli e video

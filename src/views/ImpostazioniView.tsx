@@ -6,6 +6,7 @@ const FEATURE_KEYS: Array<keyof FeatureFlags> = [
   'argomenti',
   'sessione',
   'studio',
+  'diario',
   'decisioni',
   'assistente',
   'impostazioni',
@@ -221,6 +222,8 @@ function featureLabel(key: keyof FeatureFlags) {
       return 'Sessione guidata'
     case 'studio':
       return 'Quaderno'
+    case 'diario':
+      return 'Diario studi'
     case 'decisioni':
       return 'Decisioni'
     case 'assistente':
