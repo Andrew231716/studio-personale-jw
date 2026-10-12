@@ -7,6 +7,7 @@ import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import JSZip from 'jszip'
 import { encryptDocumentContent, sha1Hex, sha256Hex } from './crypto'
 import { JWPUB_INIT_SQL } from './schema'
+import { getJwpubSection, type JwpubSectionId } from './sections'
 
 export interface JwpubDocument {
   title: string
@@ -26,6 +27,8 @@ export interface JwpubBuildOptions {
   documents: JwpubDocument[]
   /** Se > 0, entra nella chiave di cifratura (edizioni). */
   issueTagNumber?: number
+  /** Sezione JW Library (Libri, Opuscoli, …). */
+  section?: JwpubSectionId
 }
 
 let sqlPromise: Promise<SqlJsStatic> | null = null
@@ -99,6 +102,7 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
   const mepsLanguageIndex = options.mepsLanguageIndex ?? 2
   const languageLetter = options.languageLetter ?? 'I'
   const issueTagNumber = options.issueTagNumber ?? 0
+  const section = getJwpubSection(options.section ?? 'opuscoli')
   const symbol = options.symbol
   const year = options.year
   const title = options.title
@@ -110,7 +114,7 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
   db.exec(JWPUB_INIT_SQL)
   run(db, `INSERT INTO android_metadata VALUES ('it_IT');`)
 
-  // Stesso INSERT usato da html2jwpub (15 placeholder).
+  // Stesso INSERT usato da html2jwpub, con tipo/categoria scelti dall’utente.
   const pubSql = `INSERT INTO Publication (
     PublicationId, VersionNumber, Type, Title, TitleRich, RootSymbol, RootYear, RootMepsLanguageIndex,
     ShortTitle, ShortTitleRich, DisplayTitle, DisplayTitleRich, ReferenceTitle, ReferenceTitleRich,
@@ -120,7 +124,7 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
     HasPublicationChapterNumbers, HasPublicationSectionNumbers, FirstDatedTextDateOffset,
     LastDatedTextDateOffset, MepsBuildNumber
   ) VALUES (
-    1,8,1,?,NULL,?,?,0,?,NULL,?,NULL,?,NULL,?,NULL,?,?,?,?,?,'0',0,'',?,0,?,'Manual/Guidelines','manual','NWTR',1,1,19691231,19691231,?
+    1,8,1,?,NULL,?,?,0,?,NULL,?,NULL,?,NULL,?,NULL,?,?,?,?,?,'0',0,'',?,0,?,?,?,'NWTR',1,1,19691231,19691231,?
   );`
   const refSql = `INSERT INTO RefPublication (
     RefPublicationId, VersionNumber, Type, Title, TitleRich, RootSymbol, RootYear, RootMepsLanguageIndex,
@@ -131,7 +135,7 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
     HasPublicationChapterNumbers, HasPublicationSectionNumbers, FirstDatedTextDateOffset,
     LastDatedTextDateOffset, MepsBuildNumber
   ) VALUES (
-    1,8,1,?,NULL,?,?,0,?,NULL,?,NULL,?,NULL,?,NULL,?,?,?,?,?,'0',0,'',?,0,?,'Manual/Guidelines','manual','NWTR',1,1,19691231,19691231,?
+    1,8,1,?,NULL,?,?,0,?,NULL,?,NULL,?,NULL,?,NULL,?,?,?,?,?,'0',0,'',?,0,?,?,?,'NWTR',1,1,19691231,19691231,?
   );`
 
   const pubParams: Array<string | number> = [
@@ -149,13 +153,21 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
     symbol,
     year,
     mepsLanguageIndex,
+    section.publicationType,
+    section.categorySymbol,
     12345,
   ]
   run(db, pubSql, pubParams)
   run(db, refSql, pubParams)
 
   run(db, `INSERT INTO PublicationAttribute (PublicationAttributeId, PublicationId, Attribute) VALUES (1,1,'PERSONAL');`)
-  run(db, `INSERT INTO PublicationCategory (PublicationCategoryId, PublicationId, Category) VALUES (1,1,'manual');`)
+  section.categories.forEach((category, index) => {
+    run(
+      db,
+      `INSERT INTO PublicationCategory (PublicationCategoryId, PublicationId, Category) VALUES (?,?,?);`,
+      [index + 1, 1, category],
+    )
+  })
   run(db, `INSERT INTO PublicationView (PublicationViewId, Name, Symbol) VALUES (1,'JW App Publication','jwpub');`)
   run(db, `INSERT INTO PublicationViewSchema (PublicationViewSchemaId, SchemaType, DataType) VALUES (1,0,'name');`)
   run(db, `INSERT INTO PublicationYear (PublicationYearId, PublicationId, Year) VALUES (1,1,?);`, [year])
@@ -284,12 +296,12 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
       year,
       issueId: 0,
       issueNumber: issueTagNumber || 0,
-      publicationType: 'Manual/Guidelines',
+      publicationType: section.publicationType,
       rootSymbol: symbol,
       rootYear: year,
       rootLanguage: mepsLanguageIndex,
       images: [] as string[],
-      categories: ['manual'],
+      categories: section.categories,
       attributes: ['PERSONAL'],
     },
   }

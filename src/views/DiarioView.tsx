@@ -5,6 +5,7 @@ import {
   exportSummaryJwpub,
   exportSummaryPdf,
 } from '../lib/exportStudy'
+import { JWPUB_SECTIONS, type JwpubSectionId } from '../lib/jwpub'
 import { buildStudySummary, type StudySummary } from '../lib/studySummary'
 import type { SummaryPeriod } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -17,8 +18,12 @@ export function DiarioView() {
 
   const [period, setPeriod] = useState<SummaryPeriod>('settimana')
   const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10))
+  const [jwpubSection, setJwpubSection] = useState<JwpubSectionId>('opuscoli')
   const [busy, setBusy] = useState<'pdf' | 'epub' | 'jwpub' | null>(null)
   const [message, setMessage] = useState('')
+
+  const selectedSection =
+    JWPUB_SECTIONS.find((s) => s.id === jwpubSection) ?? JWPUB_SECTIONS[1]
 
   const summary: StudySummary = useMemo(
     () =>
@@ -43,10 +48,10 @@ export function DiarioView() {
     try {
       if (kind === 'pdf') await exportSummaryPdf(summary)
       if (kind === 'epub') await exportSummaryEpub(summary)
-      if (kind === 'jwpub') await exportSummaryJwpub(summary)
+      if (kind === 'jwpub') await exportSummaryJwpub(summary, jwpubSection)
       setMessage(
         kind === 'jwpub'
-          ? 'Pubblicazione .jwpub scaricata. Aprila con JW Library, poi aggiungila ai Preferiti.'
+          ? `Pubblicazione .jwpub scaricata (sezione ${selectedSection.label}). Aprila con JW Library, poi aggiungila ai Preferiti.`
           : `File ${kind.toUpperCase()} scaricato.`,
       )
     } catch (e) {
@@ -162,6 +167,24 @@ export function DiarioView() {
           </p>
         </div>
 
+        <div className="field" style={{ marginBottom: '0.85rem' }}>
+          <label htmlFor="jwpub-section">Sezione JW Library (per .jwpub)</label>
+          <select
+            id="jwpub-section"
+            value={jwpubSection}
+            onChange={(e) => setJwpubSection(e.target.value as JwpubSectionId)}
+          >
+            {JWPUB_SECTIONS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+            {selectedSection.hint}. In JW Library: Pubblicazioni → Per tipo → {selectedSection.label}.
+          </p>
+        </div>
+
         <div className="row">
           <button
             className="btn accent"
@@ -192,8 +215,9 @@ export function DiarioView() {
 
         <p className="footnote" style={{ marginTop: '0.9rem' }}>
           Il file <strong>.jwpub</strong> è una pubblicazione personale da importare in JW Library
-          (Apri con / Condividi → JW Library). Una volta installata puoi aprirla e aggiungerla ai
-          Preferiti. Non è un backup delle note ufficiali e non sostituisce le pubblicazioni di jw.org.
+          (Apri con / Condividi → JW Library). Scegli la sezione sopra (Libri, Opuscoli, …) così
+          compare nel gruppo giusto; poi puoi aggiungerla ai Preferiti. Non è un backup delle note
+          ufficiali e non sostituisce le pubblicazioni di jw.org.
         </p>
         {message && <p className="muted">{message}</p>}
       </section>

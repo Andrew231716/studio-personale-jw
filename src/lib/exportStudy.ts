@@ -3,7 +3,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import type { StudySummary } from './studySummary'
 import { summaryToHtml, summaryToPlainText } from './studySummary'
-import { buildJwpub } from './jwpub'
+import { buildJwpub, type JwpubSectionId } from './jwpub'
 
 function slugPeriod(summary: StudySummary): string {
   const d = summary.range.start.toISOString().slice(0, 10)
@@ -252,7 +252,10 @@ function summaryToJwpubDocuments(summary: StudySummary): Array<{ title: string; 
  * Dopo l’import in JW Library puoi aprirla e aggiungerla ai Preferiti.
  * Non è un backup note (.jwlibrary).
  */
-export async function exportSummaryJwpub(summary: StudySummary): Promise<void> {
+export async function exportSummaryJwpub(
+  summary: StudySummary,
+  section: JwpubSectionId = 'opuscoli',
+): Promise<void> {
   const start = summary.range.start
   const yy = String(start.getFullYear()).slice(2)
   const mm = String(start.getMonth() + 1).padStart(2, '0')
@@ -270,12 +273,16 @@ export async function exportSummaryJwpub(summary: StudySummary): Promise<void> {
     mepsLanguageIndex: 2, // Italiano
     languageLetter: 'I',
     documents,
+    section,
   })
 
   saveAs(blob, `${symbol}_I.jwpub`)
 }
 
 /** @deprecated Usa exportSummaryJwpub — pubblicazione, non backup note. */
-export async function exportSummaryJwlibraryPackage(summary: StudySummary): Promise<void> {
-  return exportSummaryJwpub(summary)
+export async function exportSummaryJwlibraryPackage(
+  summary: StudySummary,
+  section: JwpubSectionId = 'opuscoli',
+): Promise<void> {
+  return exportSummaryJwpub(summary, section)
 }
