@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { BookMarked, Download, FileText } from 'lucide-react'
 import {
   exportSummaryEpub,
-  exportSummaryJwlibraryPackage,
+  exportSummaryJwpub,
   exportSummaryPdf,
 } from '../lib/exportStudy'
 import { buildStudySummary, type StudySummary } from '../lib/studySummary'
@@ -17,7 +17,7 @@ export function DiarioView() {
 
   const [period, setPeriod] = useState<SummaryPeriod>('settimana')
   const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10))
-  const [busy, setBusy] = useState<'pdf' | 'epub' | 'jwlibrary' | null>(null)
+  const [busy, setBusy] = useState<'pdf' | 'epub' | 'jwpub' | null>(null)
   const [message, setMessage] = useState('')
 
   const summary: StudySummary = useMemo(
@@ -37,16 +37,16 @@ export function DiarioView() {
     [sessions],
   )
 
-  async function runExport(kind: 'pdf' | 'epub' | 'jwlibrary') {
+  async function runExport(kind: 'pdf' | 'epub' | 'jwpub') {
     setBusy(kind)
     setMessage('')
     try {
       if (kind === 'pdf') await exportSummaryPdf(summary)
       if (kind === 'epub') await exportSummaryEpub(summary)
-      if (kind === 'jwlibrary') await exportSummaryJwlibraryPackage(summary)
+      if (kind === 'jwpub') await exportSummaryJwpub(summary)
       setMessage(
-        kind === 'jwlibrary'
-          ? 'Pacchetto .jwlibrary scaricato (archivio personale delle tue note).'
+        kind === 'jwpub'
+          ? 'Pubblicazione .jwpub scaricata. Aprila con JW Library, poi aggiungila ai Preferiti.'
           : `File ${kind.toUpperCase()} scaricato.`,
       )
     } catch (e) {
@@ -183,17 +183,17 @@ export function DiarioView() {
             className="btn secondary"
             type="button"
             disabled={!!busy}
-            onClick={() => void runExport('jwlibrary')}
+            onClick={() => void runExport('jwpub')}
           >
             <Download size={16} />
-            {busy === 'jwlibrary' ? 'Creo pacchetto…' : 'Pacchetto .jwlibrary'}
+            {busy === 'jwpub' ? 'Creo pubblicazione…' : 'Pubblicazione .jwpub'}
           </button>
         </div>
 
         <p className="footnote" style={{ marginTop: '0.9rem' }}>
-          Il file <strong>.jwlibrary</strong> qui è un archivio personale delle tue note (testo + JSON).
-          JW Library importa solo i backup generati dall’app ufficiale, quindi potrebbe non aprirlo:
-          per rileggere e condividere usa PDF o EPUB.
+          Il file <strong>.jwpub</strong> è una pubblicazione personale da importare in JW Library
+          (Apri con / Condividi → JW Library). Una volta installata puoi aprirla e aggiungerla ai
+          Preferiti. Non è un backup delle note ufficiali e non sostituisce le pubblicazioni di jw.org.
         </p>
         {message && <p className="muted">{message}</p>}
       </section>

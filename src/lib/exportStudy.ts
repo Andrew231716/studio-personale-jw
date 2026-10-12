@@ -3,6 +3,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import type { StudySummary } from './studySummary'
 import { summaryToHtml, summaryToPlainText } from './studySummary'
+import { buildJwpub } from './jwpub'
 
 function slugPeriod(summary: StudySummary): string {
   const d = summary.range.start.toISOString().slice(0, 10)
@@ -138,74 +139,143 @@ h1,h2{letter-spacing:-0.02em}
   saveAs(blob, `${slugPeriod(summary)}.epub`)
 }
 
+function escapePubHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function paragraph(text: string, pid: { n: number }): string {
+  pid.n += 1
+  return `<p id="p${pid.n}" data-pid="${pid.n}">${escapePubHtml(text)}</p>`
+}
+
+function heading(text: string, pid: { n: number }): string {
+  pid.n += 1
+  return `<h2 id="p${pid.n}" data-pid="${pid.n}">${escapePubHtml(text)}</h2>`
+}
+
+/** HTML per documenti della pubblicazione JW Library. */
+function summaryToJwpubDocuments(summary: StudySummary): Array<{ title: string; html: string }> {
+  const docs: Array<{ title: string; html: string }> = []
+  const introPid = { n: 0 }
+  const introParts = [
+    heading('Riepilogo studio personale', introPid),
+    paragraph(summary.range.label, introPid),
+    paragraph(
+      `Generato il ${new Date(summary.generatedAt).toLocaleString('it-IT')}. Sessioni: ${summary.sessions.length}. Minuti: ${summary.totalMinutes}.`,
+      introPid,
+    ),
+    paragraph(
+      'Pubblicazione personale creata con JW Studio. Non è materiale ufficiale di jw.org. Puoi aggiungerla ai Preferiti in JW Library.',
+      introPid,
+    ),
+  ]
+  if (!summary.sessions.length && !summary.topics.length && !summary.decisions.length) {
+    introParts.push(paragraph('Nessuno studio registrato in questo periodo.', introPid))
+  }
+  docs.push({ title: 'Introduzione', html: introParts.join('\n') })
+
+  summary.sessions.forEach((s, i) => {
+    const pid = { n: 0 }
+    const parts = [
+      heading(s.topicTitle, pid),
+      paragraph(
+        `${new Date(s.completedAt).toLocaleString('it-IT')} · ${s.minutesSpent} min`,
+        pid,
+      ),
+    ]
+    const fields: Array<[string, string | undefined]> = [
+      ['Preghiera', s.prayer],
+      ['Obiettivo', s.goal],
+      ['Materiale', s.resourceTitle],
+      ['Scrittura', s.keyVerse],
+      ['Highlight', s.highlight],
+      ['Riflessione', s.reflection],
+      ['Domanda', s.question],
+      ['Risposta', s.answer],
+      ['Pratica', s.practice],
+      ['Gratitudine', s.gratitude],
+    ]
+    fields.forEach(([label, value]) => {
+      if (value?.trim()) parts.push(paragraph(`${label}: ${value}`, pid))
+    })
+    docs.push({ title: `Sessione ${i + 1}: ${s.topicTitle}`, html: parts.join('\n') })
+  })
+
+  summary.topics.forEach((t) => {
+    const pid = { n: 0 }
+    const parts = [heading(t.title, pid)]
+    if (t.interest) parts.push(paragraph(`Interesse: ${t.interest}`, pid))
+    t.objectives.filter(Boolean).forEach((o) => parts.push(paragraph(`Obiettivo: ${o}`, pid)))
+    t.reflections
+      .filter((r) => r.response.trim())
+      .forEach((r) => {
+        parts.push(paragraph(r.prompt, pid))
+        parts.push(paragraph(r.response, pid))
+      })
+    t.questions
+      .filter((q) => q.question.trim() || q.answer.trim())
+      .forEach((q) => {
+        if (q.question) parts.push(paragraph(`Domanda: ${q.question}`, pid))
+        if (q.answer) parts.push(paragraph(`Risposta: ${q.answer}`, pid))
+      })
+    t.practices
+      .filter((p) => p.action.trim())
+      .forEach((p) =>
+        parts.push(
+          paragraph(
+            `Pratica${p.tried ? ' (provata)' : ''}: ${p.action}${p.outcome ? ` → ${p.outcome}` : ''}`,
+            pid,
+          ),
+        ),
+      )
+    docs.push({ title: `Quaderno: ${t.title}`, html: parts.join('\n') })
+  })
+
+  summary.decisions.forEach((d) => {
+    const pid = { n: 0 }
+    const parts = [heading(`${d.title} (${d.scale})`, pid)]
+    if (d.context) parts.push(paragraph(`Contesto: ${d.context}`, pid))
+    if (d.conclusion) parts.push(paragraph(`Conclusione: ${d.conclusion}`, pid))
+    if (d.prayerNotes) parts.push(paragraph(`Preghiera: ${d.prayerNotes}`, pid))
+    docs.push({ title: `Decisione: ${d.title}`, html: parts.join('\n') })
+  })
+
+  return docs
+}
+
 /**
- * Pacchetto personale .jwlibrary (ZIP):
- * contiene le tue note in formato leggibile + JSON.
- * Non è un backup ufficiale generato da JW Library: l’app ufficiale
- * potrebbe non importarlo. Serve come archivio personale delle note.
+ * Esporta il riepilogo come pubblicazione .jwpub per JW Library.
+ * Dopo l’import in JW Library puoi aprirla e aggiungerla ai Preferiti.
+ * Non è un backup note (.jwlibrary).
  */
+export async function exportSummaryJwpub(summary: StudySummary): Promise<void> {
+  const start = summary.range.start
+  const yy = String(start.getFullYear()).slice(2)
+  const mm = String(start.getMonth() + 1).padStart(2, '0')
+  const dd = String(start.getDate()).padStart(2, '0')
+  // Simbolo personalizzato (non ufficiale) + data periodo, per evitare collisioni.
+  const symbol = `jws${yy}${mm}${dd}`.slice(0, 12)
+  const year = start.getFullYear()
+  const title = `JW Studio — ${summary.range.label}`
+  const documents = summaryToJwpubDocuments(summary)
+
+  const blob = await buildJwpub({
+    symbol,
+    title,
+    year,
+    mepsLanguageIndex: 2, // Italiano
+    languageLetter: 'I',
+    documents,
+  })
+
+  saveAs(blob, `${symbol}_I.jwpub`)
+}
+
+/** @deprecated Usa exportSummaryJwpub — pubblicazione, non backup note. */
 export async function exportSummaryJwlibraryPackage(summary: StudySummary): Promise<void> {
-  const zip = new JSZip()
-  const plain = summaryToPlainText(summary)
-  const html = summaryToHtml(summary)
-
-  zip.file(
-    'manifest.json',
-    JSON.stringify(
-      {
-        name: 'JW Studio — esportazione note personali',
-        type: 'jw-studio-notes-export',
-        version: 1,
-        created: summary.generatedAt,
-        period: summary.period,
-        label: summary.range.label,
-        sessions: summary.sessions.length,
-        notice:
-          'Questo file raccoglie le tue note di studio personali. Non è un backup ufficiale di JW Library e potrebbe non essere importabile dall’app.',
-      },
-      null,
-      2,
-    ),
-  )
-  zip.file('LEGGIMI.txt', `JW Studio — pacchetto note (.jwlibrary)
-
-Questo archivio contiene il riepilogo del tuo studio personale per:
-${summary.range.label}
-
-Formati inclusi:
-- notes.md / notes.txt : testo
-- notes.html : pagina leggibile
-- sessions.json : dati strutturati
-
-Nota importante:
-JW Library importa solo i backup che genera l’app stessa.
-Questo pacchetto serve come archivio personale delle tue risposte e riflessioni.
-Per rileggere o stampare usa il PDF o l’EPUB esportati da JW Studio.
-`)
-  zip.file('notes.txt', plain)
-  zip.file('notes.md', `# ${summary.range.label}\n\n${plain}`)
-  zip.file('notes.html', html)
-  zip.file(
-    'sessions.json',
-    JSON.stringify(
-      {
-        generatedAt: summary.generatedAt,
-        period: summary.period,
-        range: {
-          start: summary.range.start.toISOString(),
-          end: summary.range.end.toISOString(),
-          label: summary.range.label,
-        },
-        totalMinutes: summary.totalMinutes,
-        sessions: summary.sessions,
-        topics: summary.topics,
-        decisions: summary.decisions,
-      },
-      null,
-      2,
-    ),
-  )
-
-  const blob = await zip.generateAsync({ type: 'blob' })
-  saveAs(blob, `${slugPeriod(summary)}.jwlibrary`)
+  return exportSummaryJwpub(summary)
 }
