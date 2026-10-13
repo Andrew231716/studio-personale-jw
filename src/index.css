@@ -179,6 +179,9 @@ img {
 .main-inner {
   width: min(100%, var(--content-max));
   margin: 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
 /* iPad / tablet: sidebar più compatta, tocchi più grandi */
@@ -306,6 +309,8 @@ img {
 .stack {
   display: grid;
   gap: 1.35rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .section {
@@ -355,6 +360,8 @@ img {
   padding: clamp(1.05rem, 2vw, 1.45rem);
   box-shadow: var(--shadow);
   animation: rise 0.45s ease both;
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 .panel.flat {
@@ -545,6 +552,8 @@ img {
   display: grid;
   gap: 0.35rem;
   margin-bottom: 0.85rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .field:last-child {
@@ -562,12 +571,33 @@ img {
 .field select,
 .inline-control {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface) 78%, white);
   border-radius: 12px;
   padding: 0.72rem 0.85rem;
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* iOS/Safari: datetime-local ha min-width intrinseca e sborda dalla card */
+.field input[type='datetime-local'],
+.field input[type='date'],
+.field input[type='time'] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  padding-inline: 0.65rem;
+}
+
+.field input[type='datetime-local']::-webkit-calendar-picker-indicator,
+.field input[type='date']::-webkit-calendar-picker-indicator,
+.field input[type='time']::-webkit-calendar-picker-indicator {
+  margin-inline-start: 0;
 }
 
 .field textarea {
@@ -593,6 +623,12 @@ img {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.grid-2 > * {
+  min-width: 0;
 }
 
 .grid-3 {

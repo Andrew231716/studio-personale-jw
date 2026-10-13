@@ -80,16 +80,18 @@ export function ScheduleNextStudy({
         </p>
       </div>
 
+      {/* Data/ora a tutta larghezza: su iOS datetime-local sborda se stretto in griglia */}
+      <div className="field">
+        <label htmlFor="sched-when">Data e ora</label>
+        <input
+          id="sched-when"
+          type="datetime-local"
+          value={when}
+          onChange={(e) => setWhen(e.target.value)}
+        />
+      </div>
+
       <div className="grid-2">
-        <div className="field">
-          <label htmlFor="sched-when">Data e ora</label>
-          <input
-            id="sched-when"
-            type="datetime-local"
-            value={when}
-            onChange={(e) => setWhen(e.target.value)}
-          />
-        </div>
         <div className="field">
           <label htmlFor="sched-min">Durata (minuti)</label>
           <input
@@ -99,17 +101,6 @@ export function ScheduleNextStudy({
             max={180}
             value={minutes}
             onChange={(e) => setMinutes(Number(e.target.value) || 25)}
-          />
-        </div>
-      </div>
-
-      <div className="grid-2">
-        <div className="field">
-          <label htmlFor="sched-title">Titolo evento</label>
-          <input
-            id="sched-title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
           />
         </div>
         <div className="field">
@@ -126,6 +117,15 @@ export function ScheduleNextStudy({
             <option value={1440}>1 giorno</option>
           </select>
         </div>
+      </div>
+
+      <div className="field">
+        <label htmlFor="sched-title">Titolo evento</label>
+        <input
+          id="sched-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
       </div>
 
       {topics.length > 0 && (
