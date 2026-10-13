@@ -9,7 +9,7 @@ import {
   PlayCircle,
   Settings2,
 } from 'lucide-react'
-import { startICloudSync } from './lib/icloud'
+import { startCloudSync } from './lib/cloudSync'
 import type { AppView } from './types'
 import { useAppStore, VIEW_LABELS } from './store/useAppStore'
 import { HomeView } from './views/HomeView'
@@ -60,9 +60,9 @@ export default function App() {
   }, [settings.theme, settings.brandName])
 
   useEffect(() => {
-    // Avvia sync iCloud dopo l’idratazione dello store locale
+    // Avvia sync cloud dopo l’idratazione dello store locale
     const boot = () => {
-      void startICloudSync()
+      void startCloudSync()
     }
     const persistor = useAppStore.persist
     if (persistor.hasHydrated()) boot()

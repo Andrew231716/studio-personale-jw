@@ -1,4 +1,4 @@
-import { ICloudSyncPanel } from '../components/ICloudSyncPanel'
+import { CloudSyncPanel } from '../components/CloudSyncPanel'
 import type { AppView, FeatureFlags } from '../types'
 import { useAppStore, VIEW_LABELS } from '../store/useAppStore'
 
@@ -32,7 +32,7 @@ export function ImpostazioniView() {
 
   return (
     <div className="stack">
-      <ICloudSyncPanel />
+      <CloudSyncPanel />
 
       <section className="panel">
         <h2>Identità dell’app</h2>

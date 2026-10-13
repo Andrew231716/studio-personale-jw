@@ -61,6 +61,31 @@ app.post('/api/ai', express.json({ limit: '1mb' }), async (req, res) => {
   }
 })
 
+app.options('/api/sync', (_req, res) => {
+  res.set('Access-Control-Allow-Origin', '*')
+  res.set('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS')
+  res.set('Access-Control-Allow-Headers', 'Content-Type')
+  res.status(204).end()
+})
+
+app.get('/api/sync', async (req, res) => {
+  try {
+    const { default: handler } = await import('./api/sync.js')
+    await handler(req, res)
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
+})
+
+app.put('/api/sync', express.json({ limit: '4mb' }), async (req, res) => {
+  try {
+    const { default: handler } = await import('./api/sync.js')
+    await handler(req, res)
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
+})
+
 if (existsSync(dist)) {
   app.use(express.static(dist))
   app.get(/.*/, (_req, res) => {

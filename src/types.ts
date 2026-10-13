@@ -196,6 +196,12 @@ export interface ICloudSettings {
   environment: 'development' | 'production'
 }
 
+/** Sync cloud tra dispositivi (chiave JWS-…), gestita dal server. */
+export interface CloudSyncSettings {
+  enabled: boolean
+  syncKey: string
+}
+
 export interface AppSettings {
   language: 'I' | 'E'
   theme: ThemeConfig
@@ -204,6 +210,8 @@ export interface AppSettings {
   brandName: string
   tagline: string
   studyMethodNotes: string
-  /** Sync database privato iCloud (CloudKit). */
+  /** Sync database privato iCloud (CloudKit) — opzionale avanzato. */
   iCloud?: ICloudSettings
+  /** Sync cloud automatica tra dispositivi. */
+  cloudSync?: CloudSyncSettings
 }

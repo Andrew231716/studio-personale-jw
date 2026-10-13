@@ -58,6 +58,19 @@ function localApiPlugin(): Plugin {
             res.end(text)
             return
           }
+          if (url.pathname === '/api/sync') {
+            // In dev, inoltra all’handler Vercel-like via import dinamico non disponibile:
+            // rispondi con istruzione chiara se mancano env.
+            res.statusCode = 501
+            res.setHeader('Content-Type', 'application/json')
+            res.end(
+              JSON.stringify({
+                error:
+                  'In locale /api/sync richiede `vercel dev` oppure le variabili SUPABASE_URL e SUPABASE_SERVICE_ROLE.',
+              }),
+            )
+            return
+          }
         } catch (error) {
           res.statusCode = 502
           res.end(String(error))

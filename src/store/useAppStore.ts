@@ -63,13 +63,17 @@ const defaultSettings: AppSettings = {
   studyMethodNotes:
     'Metodo ispirato ai consigli di articoli e video recenti su jw.org: preghiera, obiettivo, materiale aggiornato, meditazione, domande e applicazione pratica.',
   iCloud: {
-    enabled: true,
+    enabled: false,
     containerId: String(import.meta.env.VITE_CLOUDKIT_CONTAINER_ID || ''),
     apiToken: String(import.meta.env.VITE_CLOUDKIT_API_TOKEN || ''),
     environment:
       import.meta.env.VITE_CLOUDKIT_ENVIRONMENT === 'production'
         ? 'production'
         : 'development',
+  },
+  cloudSync: {
+    enabled: true,
+    syncKey: '',
   },
 }
 
@@ -395,6 +399,10 @@ export const useAppStore = create<AppState>()(
             iCloud: {
               ...current.settings.iCloud!,
               ...(p.settings?.iCloud || {}),
+            },
+            cloudSync: {
+              ...current.settings.cloudSync!,
+              ...(p.settings?.cloudSync || {}),
             },
             navOrder: (() => {
               let order = [...(p.settings?.navOrder || current.settings.navOrder)]
