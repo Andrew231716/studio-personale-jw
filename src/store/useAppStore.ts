@@ -62,6 +62,15 @@ const defaultSettings: AppSettings = {
   tagline: 'Studia con cuore, un passo alla volta, con l’aiuto di jw.org',
   studyMethodNotes:
     'Metodo ispirato ai consigli di articoli e video recenti su jw.org: preghiera, obiettivo, materiale aggiornato, meditazione, domande e applicazione pratica.',
+  iCloud: {
+    enabled: true,
+    containerId: String(import.meta.env.VITE_CLOUDKIT_CONTAINER_ID || ''),
+    apiToken: String(import.meta.env.VITE_CLOUDKIT_API_TOKEN || ''),
+    environment:
+      import.meta.env.VITE_CLOUDKIT_ENVIRONMENT === 'production'
+        ? 'production'
+        : 'development',
+  },
 }
 
 function emptyDraft(topicId: string | null = null): StudySessionDraft {
@@ -382,6 +391,10 @@ export const useAppStore = create<AppState>()(
             features: {
               ...current.settings.features,
               ...(p.settings?.features || {}),
+            },
+            iCloud: {
+              ...current.settings.iCloud!,
+              ...(p.settings?.iCloud || {}),
             },
             navOrder: (() => {
               let order = [...(p.settings?.navOrder || current.settings.navOrder)]

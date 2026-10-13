@@ -189,6 +189,13 @@ export interface ThemeConfig {
   heroStyle: 'pieno' | 'morbido'
 }
 
+export interface ICloudSettings {
+  enabled: boolean
+  containerId: string
+  apiToken: string
+  environment: 'development' | 'production'
+}
+
 export interface AppSettings {
   language: 'I' | 'E'
   theme: ThemeConfig
@@ -197,4 +204,6 @@ export interface AppSettings {
   brandName: string
   tagline: string
   studyMethodNotes: string
+  /** Sync database privato iCloud (CloudKit). */
+  iCloud?: ICloudSettings
 }
