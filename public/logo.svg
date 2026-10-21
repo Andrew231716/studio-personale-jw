@@ -1,57 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="JW Studio">
   <defs>
-    <linearGradient id="bg" x1="18" y1="8" x2="112" y2="120" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#1A5C5A"/>
-      <stop offset="0.55" stop-color="#124A4A"/>
-      <stop offset="1" stop-color="#0D3838"/>
+    <linearGradient id="bg" x1="12" y1="2" x2="118" y2="126" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1C6461"/>
+      <stop offset="0.52" stop-color="#124A4A"/>
+      <stop offset="1" stop-color="#0A2E2E"/>
     </linearGradient>
-    <linearGradient id="ink" x1="30" y1="28" x2="98" y2="92" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F7F1E4"/>
-      <stop offset="1" stop-color="#E7D7B5"/>
+    <linearGradient id="ink" x1="24" y1="24" x2="104" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF9EF"/>
+      <stop offset="1" stop-color="#EAD7B4"/>
     </linearGradient>
-    <linearGradient id="gold" x1="86" y1="18" x2="108" y2="40" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#E2C27A"/>
+    <linearGradient id="gold" x1="18" y1="18" x2="110" y2="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8CF86"/>
       <stop offset="1" stop-color="#C4A35A"/>
     </linearGradient>
   </defs>
 
   <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
-  <rect x="10" y="10" width="108" height="108" rx="24" fill="none" stroke="#2F6F6A" stroke-opacity="0.45" stroke-width="2"/>
+  <rect x="10.5" y="10.5" width="107" height="107" rx="24" fill="none" stroke="#4A948E" stroke-opacity="0.42" stroke-width="1.4"/>
 
-  <!-- Open-book arc -->
-  <path
-    d="M30 84c13-9 26-9 34 0 8-9 21-9 34 0"
-    fill="none"
-    stroke="#C4A35A"
-    stroke-opacity="0.55"
-    stroke-width="3"
-    stroke-linecap="round"
-  />
+  <!-- Clear JW monogram: separated letters, no ambiguous joins -->
+  <g fill="none" stroke="url(#ink)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- J -->
+    <path d="M28 36h24" stroke-width="8"/>
+    <path d="M40 36v32c0 9.5-5.5 15-14.5 15" stroke-width="8"/>
+    <!-- W with open center valley -->
+    <path d="M58 36l10 38 10.5-30 10.5 30 10-38" stroke-width="7.6"/>
+  </g>
 
-  <!-- Clear JW letters -->
-  <text
-    x="64"
-    y="72"
-    text-anchor="middle"
-    fill="url(#ink)"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="52"
-    font-weight="700"
-    letter-spacing="-1"
-  >JW</text>
+  <!-- Corner accent (not a letter tittle) -->
+  <circle cx="102" cy="24" r="5" fill="url(#gold)"/>
+  <circle cx="102" cy="24" r="1.9" fill="#FFF9EF" fill-opacity="0.92"/>
 
-  <!-- Accent -->
-  <circle cx="100" cy="30" r="6.5" fill="url(#gold)"/>
-  <circle cx="100" cy="30" r="2.6" fill="#F7F1E4" fill-opacity="0.85"/>
+  <!-- Open-book cue -->
+  <path d="M30 88c14-7 25-7 34 0 9-7 20-7 34 0" fill="none" stroke="url(#gold)" stroke-width="2.7" stroke-linecap="round"/>
 
-  <text
-    x="64"
-    y="108"
-    text-anchor="middle"
-    fill="#C4A35A"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="12"
-    font-weight="700"
-    letter-spacing="3.5"
-  >STUDIO</text>
+  <text x="64" y="111" text-anchor="middle" fill="#C9AC66" font-family="Georgia, 'Times New Roman', serif" font-size="11" font-weight="700" letter-spacing="3.8">STUDIO</text>
 </svg>

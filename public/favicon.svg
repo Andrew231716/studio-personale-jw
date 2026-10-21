@@ -1,54 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="JW Studio">
   <defs>
-    <linearGradient id="bg" x1="18" y1="8" x2="112" y2="120" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#1A5C5A"/>
-      <stop offset="0.55" stop-color="#124A4A"/>
-      <stop offset="1" stop-color="#0D3838"/>
+    <linearGradient id="bg" x1="12" y1="2" x2="118" y2="126" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1C6461"/>
+      <stop offset="0.52" stop-color="#124A4A"/>
+      <stop offset="1" stop-color="#0A2E2E"/>
     </linearGradient>
-    <linearGradient id="ink" x1="30" y1="28" x2="98" y2="92" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F7F1E4"/>
-      <stop offset="1" stop-color="#E7D7B5"/>
+    <linearGradient id="ink" x1="24" y1="24" x2="104" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF9EF"/>
+      <stop offset="1" stop-color="#EAD7B4"/>
     </linearGradient>
-    <linearGradient id="gold" x1="86" y1="18" x2="108" y2="40" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#E2C27A"/>
+    <linearGradient id="gold" x1="18" y1="18" x2="110" y2="40" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E8CF86"/>
       <stop offset="1" stop-color="#C4A35A"/>
     </linearGradient>
   </defs>
 
   <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
-  <rect x="10" y="10" width="108" height="108" rx="24" fill="none" stroke="#2F6F6A" stroke-opacity="0.45" stroke-width="2"/>
 
-  <path
-    d="M30 84c13-9 26-9 34 0 8-9 21-9 34 0"
-    fill="none"
-    stroke="#C4A35A"
-    stroke-opacity="0.55"
-    stroke-width="3"
-    stroke-linecap="round"
-  />
+  <!-- Favicon: bold JW only for clarity at 16–32px -->
+  <g fill="none" stroke="url(#ink)" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M26 34h28" stroke-width="10"/>
+    <path d="M40 34v36c0 11-6.5 17-17 17" stroke-width="10"/>
+    <path d="M56 34l11.5 42 11.5-33 11.5 33 11.5-42" stroke-width="9.2"/>
+  </g>
 
-  <text
-    x="64"
-    y="72"
-    text-anchor="middle"
-    fill="url(#ink)"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="52"
-    font-weight="700"
-    letter-spacing="-1"
-  >JW</text>
-
-  <circle cx="100" cy="30" r="6.5" fill="url(#gold)"/>
-  <circle cx="100" cy="30" r="2.6" fill="#F7F1E4" fill-opacity="0.85"/>
-
-  <text
-    x="64"
-    y="108"
-    text-anchor="middle"
-    fill="#C4A35A"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="12"
-    font-weight="700"
-    letter-spacing="3.5"
-  >STUDIO</text>
+  <circle cx="103" cy="23" r="5.5" fill="url(#gold)"/>
+  <path d="M28 96c15-8 27-8 36 0 9-8 21-8 36 0" fill="none" stroke="url(#gold)" stroke-width="3.2" stroke-linecap="round"/>
 </svg>
