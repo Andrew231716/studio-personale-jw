@@ -214,10 +214,9 @@ export function DiarioView() {
         </div>
 
         <p className="footnote" style={{ marginTop: '0.9rem' }}>
-          Il file <strong>.jwpub</strong> è una pubblicazione personale da importare in JW Library
-          (Apri con / Condividi → JW Library). La trovi in Pubblicazioni → Manuali / linee guida;
-          poi puoi aggiungerla ai Preferiti. Non è un backup delle note ufficiali e non sostituisce
-          le pubblicazioni di jw.org.
+          Il file <strong>.jwpub</strong> è una pubblicazione personale. Da JW Library 15.6+ i file
+          non firmati vengono spesso rifiutati su iPhone/iPad: in quel caso usa PDF/EPUB. Non
+          sostituisce le pubblicazioni di jw.org.
         </p>
         {message && <p className="muted">{message}</p>}
       </section>

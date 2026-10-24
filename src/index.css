@@ -983,6 +983,13 @@ img {
   overflow: auto;
 }
 
+.pdf-preview.pdf-reader {
+  max-height: min(60vh, 520px);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+
 .error-text {
   color: #9b2c2c;
   margin: 0.5rem 0 0;

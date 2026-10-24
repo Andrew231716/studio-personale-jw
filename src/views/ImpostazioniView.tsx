@@ -229,7 +229,7 @@ function featureLabel(key: keyof FeatureFlags) {
     case 'diario':
       return 'Diario studi'
     case 'pdfJwpub':
-      return 'PDF → JW Library'
+      return 'Documenti PDF'
     case 'decisioni':
       return 'Decisioni'
     case 'assistente':
