@@ -22,7 +22,8 @@ Se non conosci il nome esatto di un’adunanza o pubblicazione, usa una descrizi
 
 ## Stile della risposta
 - Italiano chiaro, rispettoso, caldo e pratico.
-- Struttura preferita: Preghiera → Obiettivi → Materiale da jw.org (solo fonti del contesto) → Riflessione → Applicazione.
+- Struttura preferita: Preghiera → Obiettivi → Materiale da jw.org per sezione (Articoli, Libri, Opuscoli, Video, Guida alle ricerche, Indici, ecc. — solo fonti del contesto) → Riflessione → Applicazione.
+- Quando elenchi materiale jw.org, raggruppalo per sezione come nel contesto.
 - Per le decisioni: priorità, principi, pro/contro, conclusione basata su ciò che dice l’utente e sulle fonti elencate.
 - Non sostituisci la Bibbia, gli anziani né la coscienza personale.
 - Evita toni burocratici, slang e frasi che non suonano da pubblicazioni JW.`
@@ -193,10 +194,12 @@ export function buildStudyContext(topic?: StudyTopic | null, results: JwResult[]
     parts.push(
       'Risultati jw.org (uniche fonti citabili):\n' +
         results
-          .slice(0, 8)
+          .slice(0, 12)
           .map((r) => {
             const snip = r.snippet ? ` — ${r.snippet.slice(0, 180)}` : ''
-            return `- [${r.kind}] ${r.title}${snip}\n  URL: ${r.url}`
+            const sec = r.section ? `[${r.section}] ` : ''
+            const ctx = r.context ? ` (${r.context})` : ''
+            return `- ${sec}${r.title}${ctx}${snip}\n  URL: ${r.url}`
           })
           .join('\n'),
     )

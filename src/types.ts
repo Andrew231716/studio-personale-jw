@@ -1,17 +1,58 @@
-export type ContentKind = 'article' | 'video' | 'audio' | 'index' | 'other'
+export type ContentKind =
+  | 'article'
+  | 'video'
+  | 'audio'
+  | 'index'
+  | 'book'
+  | 'brochure'
+  | 'bible'
+  | 'other'
+
+/** Sezioni come sulla ricerca / biblioteca di jw.org */
+export type JwSectionId =
+  | 'articoli'
+  | 'libri'
+  | 'opuscoli'
+  | 'video'
+  | 'audio'
+  | 'guida_ricerche'
+  | 'indici'
+  | 'bibbia'
+  | 'volantini'
+  | 'programmi'
+  | 'altro'
 
 export interface JwResult {
   id: string
   title: string
   snippet: string
   kind: ContentKind
+  section: JwSectionId
   url: string
   wolUrl?: string
   lank?: string
   docid?: string
   image?: string
   duration?: string
+  /** Contesto pubblicazione dall’API (es. «LIBRI», «LA TORRE DI GUARDIA») */
   context?: string
+  subtype?: string
+  rank?: number
+  themeScore?: number
+  matchedQueries?: string[]
+}
+
+export interface JwResultSection {
+  id: JwSectionId
+  label: string
+  items: JwResult[]
+}
+
+export interface JwDeepSearchResult {
+  sections: JwResultSection[]
+  flat: JwResult[]
+  queriesUsed: string[]
+  themeTokens: string[]
 }
 
 export interface StudyResource {

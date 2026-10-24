@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { askAi, buildDecisionContext, buildStudyContext, createMessage } from '../lib/ai'
-import { searchJw } from '../lib/jwApi'
+import { searchJwDeep } from '../lib/jwApi'
+import { SECTION_LABELS } from '../lib/jwSections'
 import { useAppStore } from '../store/useAppStore'
+import type { JwResultSection } from '../types'
 
 const QUICK = [
   'Aiutami a trovare articoli e video su jw.org per rafforzare la mia fede',
@@ -22,9 +24,8 @@ export function AssistenteView() {
   const language = useAppStore((s) => s.settings.language)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [foundLinks, setFoundLinks] = useState<
-    Array<{ title: string; url: string; lank?: string; docid?: string }>
-  >([])
+  const [sections, setSections] = useState<JwResultSection[]>([])
+  const [queriesUsed, setQueriesUsed] = useState<string[]>([])
 
   const topic = topics.find((t) => t.id === activeTopicId) || topics[0]
   const decision = decisions.find((d) => d.id === activeDecisionId) || decisions[0]
@@ -36,24 +37,45 @@ export function AssistenteView() {
     setInput('')
     pushAiMessage(createMessage('user', prompt))
 
-    let topResults: Awaited<ReturnType<typeof searchJw>> = []
+    let flat: Awaited<ReturnType<typeof searchJwDeep>>['flat'] = []
+    let deepSections: JwResultSection[] = []
+    let used: string[] = []
     try {
-      const results = await searchJw(prompt, { language })
-      topResults = results.slice(0, 8)
-      setFoundLinks(
-        topResults.map((r) => ({ title: r.title, url: r.url, lank: r.lank, docid: r.docid })),
-      )
+      const deep = await searchJwDeep(prompt, { language, perSection: 5 })
+      flat = deep.flat
+      deepSections = deep.sections
+      used = deep.queriesUsed
+      setSections(deepSections)
+      setQueriesUsed(used)
     } catch {
-      setFoundLinks([])
-      topResults = []
+      setSections([])
+      setQueriesUsed([])
+      flat = []
+      deepSections = []
     }
 
+    const sectionBlock = deepSections.length
+      ? 'Risultati jw.org per sezione (uniche fonti citabili):\n' +
+        deepSections
+          .map(
+            (s) =>
+              `### ${s.label}\n` +
+              s.items
+                .map((r) => {
+                  const snip = r.snippet ? ` — ${r.snippet.slice(0, 160)}` : ''
+                  const ctx = r.context ? ` (${r.context})` : ''
+                  return `- ${r.title}${ctx}${snip}\n  URL: ${r.url}`
+                })
+                .join('\n'),
+          )
+          .join('\n\n')
+      : 'Nessun risultato jw.org trovato per questa richiesta: non inventare titoli né URL.'
+
     const context = [
-      buildStudyContext(topic, topResults),
+      buildStudyContext(topic, []),
       buildDecisionContext(decision, []),
-      topResults.length
-        ? ''
-        : 'Nessun risultato jw.org trovato per questa richiesta: non inventare titoli né URL.',
+      used.length ? `Query tematiche usate: ${used.join(' | ')}` : '',
+      sectionBlock,
     ]
       .filter(Boolean)
       .join('\n\n')
@@ -63,7 +85,7 @@ export function AssistenteView() {
         prompt,
         history: useAppStore.getState().aiMessages,
         context,
-        allowedUrls: topResults.map((r) => r.url),
+        allowedUrls: flat.map((r) => r.url),
       })
       pushAiMessage(createMessage('assistant', answer))
     } catch (e) {
@@ -85,8 +107,8 @@ export function AssistenteView() {
           <div>
             <h2>Assistente AI gratuito</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Usa i risultati di jw.org e un linguaggio tipico delle pubblicazioni. Non inventa
-              articoli né termini estranei. Se la rete AI non è disponibile, usa un coach locale.
+              Ricerca approfondita su jw.org per tema e contesto, con risultati divisi per sezione
+              (libri, opuscoli, articoli, video, guida alle ricerche…).
             </p>
           </div>
           <button className="btn secondary" type="button" onClick={clearAi}>
@@ -136,24 +158,44 @@ export function AssistenteView() {
       </section>
 
       <section className="panel">
-        <h3>Collegamenti trovati</h3>
+        <h3>Collegamenti per sezione</h3>
         <p className="muted">
-          Risultati da jw.org, apribili anche in JW Library quando l’app è installata.
+          Risultati tematici da jw.org, apribili anche in JW Library.
         </p>
-        <div className="list">
-          {foundLinks.map((l) => (
-            <div key={`${l.url}-${l.lank || l.docid || ''}`} className="list-item">
-              <strong>{l.title}</strong>
-              <JwOpenButtons
-                url={l.url}
-                lank={l.lank}
-                docid={l.docid}
-                language={language}
-                compact
-              />
-            </div>
+        {queriesUsed.length > 1 && (
+          <p className="muted search-meta">
+            Ricerche: {queriesUsed.map((q) => `«${q}»`).join(' · ')}
+          </p>
+        )}
+        <div className="search-sections">
+          {sections.map((sec) => (
+            <section key={sec.id} className="search-section">
+              <header className="search-section-head">
+                <h4>{sec.label || SECTION_LABELS[sec.id]}</h4>
+                <span className="badge">{sec.items.length}</span>
+              </header>
+              <div className="list">
+                {sec.items.map((l) => (
+                  <div key={`${sec.id}-${l.url}-${l.lank || l.docid || ''}`} className="list-item">
+                    <strong>{l.title}</strong>
+                    {l.context && (
+                      <p className="muted result-context" style={{ margin: 0 }}>
+                        {l.context}
+                      </p>
+                    )}
+                    <JwOpenButtons
+                      url={l.url}
+                      lank={l.lank}
+                      docid={l.docid}
+                      language={language}
+                      compact
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
-          {foundLinks.length === 0 && (
+          {sections.length === 0 && (
             <div className="empty">I collegamenti appariranno dopo la prossima richiesta.</div>
           )}
         </div>

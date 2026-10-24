@@ -1,9 +1,11 @@
-import type { ContentKind, JwResult } from '../types'
+import type { ContentKind, JwDeepSearchResult, JwResult } from '../types'
 import {
   extractJwRefs,
   buildJwLibraryShareLink,
   isMediaLank,
 } from './jwLibrary'
+import { classifySection, groupResultsBySection, sectionToKind } from './jwSections'
+import { buildThematicQueries, scoreThemeMatch } from './jwThemeSearch'
 
 let cachedToken = ''
 let tokenFetchedAt = 0
@@ -18,13 +20,9 @@ async function getToken(): Promise<string> {
   return cachedToken
 }
 
-function mapKind(subtype?: string, layoutHints: string[] = []): ContentKind {
-  const s = (subtype || '').toLowerCase()
-  if (s.includes('video') || layoutHints.includes('videos')) return 'video'
-  if (s.includes('audio') || layoutHints.includes('audio')) return 'audio'
-  if (s.includes('index')) return 'index'
-  if (s.includes('article') || s.includes('publication')) return 'article'
-  return 'other'
+function mapKindLegacy(subtype?: string, layoutHints: string[] = []): ContentKind {
+  const section = classifySection({ subtype, layoutHints })
+  return sectionToKind(section, subtype)
 }
 
 function flattenResults(payload: Record<string, unknown>): JwResult[] {
@@ -34,6 +32,7 @@ function flattenResults(payload: Record<string, unknown>): JwResult[] {
 
   for (const entry of top as Array<Record<string, unknown>>) {
     const groupLayout = Array.isArray(entry.layout) ? (entry.layout as string[]) : layout
+    const groupLabel = entry.label ? stripHtml(String(entry.label)) : undefined
     const items =
       entry.type === 'group' && Array.isArray(entry.results)
         ? (entry.results as Array<Record<string, unknown>>)
@@ -50,25 +49,36 @@ function flattenResults(payload: Record<string, unknown>): JwResult[] {
       const rawLank = item.lank ? String(item.lank) : undefined
       const refs = extractJwRefs(url)
       const wolRefs = extractJwRefs(links.wol)
-      // I lank "pa-123..." della ricerca NON vanno a JW Library; usa docid
       const lank = [rawLank, refs.lank, wolRefs.lank].find(isMediaLank)
       let docid = refs.docid || wolRefs.docid
       if (!docid && rawLank) {
         const nested = rawLank.match(/^pa-(\d{6,})$/i)
         if (nested) docid = nested[1]
       }
+      const subtype = item.subtype ? String(item.subtype) : undefined
+      const context = item.context ? stripHtml(String(item.context)) : undefined
+      const section = classifySection({
+        subtype,
+        context,
+        groupLabel,
+        layoutHints: groupLayout,
+      })
+      const insight = item.insight as { rank?: number } | undefined
       out.push({
         id: String(lank || docid || item.title || uidFallback()),
         title: stripHtml(String(item.title || 'Senza titolo')),
         snippet: stripHtml(String(item.snippet || '')),
-        kind: mapKind(String(item.subtype || ''), groupLayout),
+        kind: sectionToKind(section, subtype) || mapKindLegacy(subtype, groupLayout),
+        section,
         url,
         wolUrl: links.wol,
         lank,
         docid,
         image,
         duration: item.duration ? String(item.duration) : undefined,
-        context: item.context ? String(item.context) : undefined,
+        context,
+        subtype,
+        rank: typeof insight?.rank === 'number' ? insight.rank : undefined,
       })
     }
   }
@@ -83,9 +93,17 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 }
 
+export type JwSearchFilter =
+  | 'all'
+  | 'publications'
+  | 'videos'
+  | 'audio'
+  | 'bible'
+  | 'indexes'
+
 export async function searchJw(
   query: string,
-  opts: { language?: string; filter?: string } = {},
+  opts: { language?: string; filter?: JwSearchFilter | string } = {},
 ): Promise<JwResult[]> {
   const q = query.trim()
   if (!q) return []
@@ -99,6 +117,98 @@ export async function searchJw(
   if (!res.ok) throw new Error(`Ricerca jw.org non riuscita (${res.status})`)
   const data = (await res.json()) as Record<string, unknown>
   return flattenResults(data)
+}
+
+/**
+ * Ricerca approfondita: più query tematiche + filtri del sito,
+ * punteggio sul contesto (titolo/snippet) e risultati divisi per sezione.
+ */
+export async function searchJwDeep(
+  userText: string,
+  opts: {
+    language?: string
+    /** Filtri API da interrogare in parallelo */
+    filters?: JwSearchFilter[]
+    maxQueries?: number
+    perSection?: number
+    minThemeScore?: number
+  } = {},
+): Promise<JwDeepSearchResult> {
+  const language = opts.language || 'I'
+  const filters = opts.filters || ['publications', 'videos', 'indexes', 'audio']
+  const { queries, themeTokens } = buildThematicQueries(userText, opts.maxQueries ?? 5)
+  if (!queries.length) {
+    return { sections: [], flat: [], queriesUsed: [], themeTokens: [] }
+  }
+
+  const jobs = queries.flatMap((q) =>
+    filters.map(async (filter) => {
+      try {
+        const rows = await searchJw(q, { language, filter })
+        return rows.map((r) => ({
+          ...r,
+          themeScore: scoreThemeMatch(r, themeTokens, q),
+          matchedQueries: [q],
+        }))
+      } catch {
+        return [] as JwResult[]
+      }
+    }),
+  )
+
+  const batches = await Promise.all(jobs)
+  const byKey = new Map<string, JwResult>()
+
+  for (const row of batches.flat()) {
+    const key = `${row.docid || ''}|${row.lank || ''}|${row.url}`
+    const prev = byKey.get(key)
+    if (!prev) {
+      byKey.set(key, row)
+      continue
+    }
+    const mergedQueries = Array.from(
+      new Set([...(prev.matchedQueries || []), ...(row.matchedQueries || [])]),
+    )
+    byKey.set(key, {
+      ...prev,
+      themeScore: Math.max(prev.themeScore || 0, row.themeScore || 0),
+      rank: Math.min(prev.rank ?? 999, row.rank ?? 999),
+      matchedQueries: mergedQueries,
+      snippet: (row.snippet?.length || 0) > (prev.snippet?.length || 0) ? row.snippet : prev.snippet,
+    })
+  }
+
+  const minScore = opts.minThemeScore ?? 2
+  let flat = Array.from(byKey.values())
+    .filter((r) => (r.themeScore || 0) >= minScore || (r.rank !== undefined && r.rank <= 3))
+    .sort(
+      (a, b) =>
+        (b.themeScore || 0) - (a.themeScore || 0) || (a.rank || 99) - (b.rank || 99),
+    )
+
+  // Se il filtro tematico è troppo aggressivo, tieni comunque i migliori
+  if (flat.length < 6) {
+    flat = Array.from(byKey.values())
+      .sort(
+        (a, b) =>
+          (b.themeScore || 0) - (a.themeScore || 0) || (a.rank || 99) - (b.rank || 99),
+      )
+      .slice(0, 40)
+  }
+
+  const perSection = opts.perSection ?? 8
+  const sections = groupResultsBySection(flat).map((s) => ({
+    ...s,
+    items: s.items.slice(0, perSection),
+  }))
+  const cappedFlat = sections.flatMap((s) => s.items)
+
+  return {
+    sections,
+    flat: cappedFlat,
+    queriesUsed: queries,
+    themeTokens,
+  }
 }
 
 export interface LatestMediaItem {
@@ -157,4 +267,6 @@ export const SUGGESTED_TOPICS = [
   'perdono',
   'ansia',
   'speranza',
+  'congregazione e territorio',
+  'adunanze',
 ]
