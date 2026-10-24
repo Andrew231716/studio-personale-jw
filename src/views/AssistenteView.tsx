@@ -36,24 +36,24 @@ export function AssistenteView() {
     setInput('')
     pushAiMessage(createMessage('user', prompt))
 
-    let resultsSnippet = ''
+    let topResults: Awaited<ReturnType<typeof searchJw>> = []
     try {
       const results = await searchJw(prompt, { language })
-      const top = results.slice(0, 6)
+      topResults = results.slice(0, 8)
       setFoundLinks(
-        top.map((r) => ({ title: r.title, url: r.url, lank: r.lank, docid: r.docid })),
+        topResults.map((r) => ({ title: r.title, url: r.url, lank: r.lank, docid: r.docid })),
       )
-      resultsSnippet = top
-        .map((r) => `- [${r.kind}] ${r.title}: ${r.url}${r.lank ? ` (lank ${r.lank})` : ''}`)
-        .join('\n')
     } catch {
       setFoundLinks([])
+      topResults = []
     }
 
     const context = [
-      buildStudyContext(topic, []),
+      buildStudyContext(topic, topResults),
       buildDecisionContext(decision, []),
-      resultsSnippet ? `Risultati ricerca jw.org correlati:\n${resultsSnippet}` : '',
+      topResults.length
+        ? ''
+        : 'Nessun risultato jw.org trovato per questa richiesta: non inventare titoli né URL.',
     ]
       .filter(Boolean)
       .join('\n\n')
@@ -63,6 +63,7 @@ export function AssistenteView() {
         prompt,
         history: useAppStore.getState().aiMessages,
         context,
+        allowedUrls: topResults.map((r) => r.url),
       })
       pushAiMessage(createMessage('assistant', answer))
     } catch (e) {
@@ -84,7 +85,8 @@ export function AssistenteView() {
           <div>
             <h2>Assistente AI gratuito</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Cerca su jw.org e ti aiuta a elaborare pensieri, azioni e decisioni. Se la rete AI non è disponibile, usa un coach locale.
+              Usa i risultati di jw.org e un linguaggio tipico delle pubblicazioni. Non inventa
+              articoli né termini estranei. Se la rete AI non è disponibile, usa un coach locale.
             </p>
           </div>
           <button className="btn secondary" type="button" onClick={clearAi}>
