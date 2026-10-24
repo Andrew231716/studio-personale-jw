@@ -451,7 +451,7 @@ export const VIEW_LABELS: Record<AppView, string> = {
   sessione: 'Sessione',
   studio: 'Quaderno',
   diario: 'Diario',
-  pdfJwpub: 'Documenti PDF',
+  pdfJwpub: 'PDF → EPUB',
   decisioni: 'Decisioni',
   assistente: 'Assistente AI',
   impostazioni: 'Impostazioni',

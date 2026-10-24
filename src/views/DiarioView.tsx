@@ -1,11 +1,6 @@
 import { useMemo, useState } from 'react'
-import { BookMarked, Download, FileText } from 'lucide-react'
-import {
-  exportSummaryEpub,
-  exportSummaryJwpub,
-  exportSummaryPdf,
-} from '../lib/exportStudy'
-import { JWPUB_SECTIONS, type JwpubSectionId } from '../lib/jwpub'
+import { BookMarked, FileText } from 'lucide-react'
+import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
 import { buildStudySummary, type StudySummary } from '../lib/studySummary'
 import type { SummaryPeriod } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -18,12 +13,8 @@ export function DiarioView() {
 
   const [period, setPeriod] = useState<SummaryPeriod>('settimana')
   const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10))
-  const [jwpubSection, setJwpubSection] = useState<JwpubSectionId>('manuali')
-  const [busy, setBusy] = useState<'pdf' | 'epub' | 'jwpub' | null>(null)
+  const [busy, setBusy] = useState<'pdf' | 'epub' | null>(null)
   const [message, setMessage] = useState('')
-
-  const selectedSection =
-    JWPUB_SECTIONS.find((s) => s.id === jwpubSection) ?? JWPUB_SECTIONS[1]
 
   const summary: StudySummary = useMemo(
     () =>
@@ -42,17 +33,16 @@ export function DiarioView() {
     [sessions],
   )
 
-  async function runExport(kind: 'pdf' | 'epub' | 'jwpub') {
+  async function runExport(kind: 'pdf' | 'epub') {
     setBusy(kind)
     setMessage('')
     try {
       if (kind === 'pdf') await exportSummaryPdf(summary)
       if (kind === 'epub') await exportSummaryEpub(summary)
-      if (kind === 'jwpub') await exportSummaryJwpub(summary, jwpubSection)
       setMessage(
-        kind === 'jwpub'
-          ? 'Pubblicazione .jwpub scaricata. Aprila con JW Library: Pubblicazioni → Manuali / linee guida, poi Preferiti.'
-          : `File ${kind.toUpperCase()} scaricato.`,
+        kind === 'epub'
+          ? 'EPUB scaricato. Aprilo con Libri / Apple Books.'
+          : 'File PDF scaricato.',
       )
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Esportazione non riuscita')
@@ -90,7 +80,11 @@ export function DiarioView() {
                 <p className="muted" style={{ margin: 0 }}>
                   {new Date(s.completedAt).toLocaleString('it-IT')}
                 </p>
-                {s.goal && <p style={{ margin: 0 }}><strong>Obiettivo:</strong> {s.goal}</p>}
+                {s.goal && (
+                  <p style={{ margin: 0 }}>
+                    <strong>Obiettivo:</strong> {s.goal}
+                  </p>
+                )}
                 {(s.highlight || s.reflection) && (
                   <p style={{ margin: 0 }}>{s.highlight || s.reflection}</p>
                 )}
@@ -167,35 +161,9 @@ export function DiarioView() {
           </p>
         </div>
 
-        <div className="field" style={{ marginBottom: '0.85rem' }}>
-          <label htmlFor="jwpub-section">Tipo pubblicazione personale</label>
-          <select
-            id="jwpub-section"
-            value={jwpubSection}
-            onChange={(e) => setJwpubSection(e.target.value as JwpubSectionId)}
-          >
-            {JWPUB_SECTIONS.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            Le pubblicazioni personali si installano come Manuali ({selectedSection.hint}).
-          </p>
-        </div>
-
         <div className="row">
           <button
             className="btn accent"
-            type="button"
-            disabled={!!busy}
-            onClick={() => void runExport('pdf')}
-          >
-            <FileText size={16} /> {busy === 'pdf' ? 'Creo PDF…' : 'Scarica PDF'}
-          </button>
-          <button
-            className="btn"
             type="button"
             disabled={!!busy}
             onClick={() => void runExport('epub')}
@@ -203,20 +171,18 @@ export function DiarioView() {
             <BookMarked size={16} /> {busy === 'epub' ? 'Creo EPUB…' : 'Scarica EPUB'}
           </button>
           <button
-            className="btn secondary"
+            className="btn"
             type="button"
             disabled={!!busy}
-            onClick={() => void runExport('jwpub')}
+            onClick={() => void runExport('pdf')}
           >
-            <Download size={16} />
-            {busy === 'jwpub' ? 'Creo pubblicazione…' : 'Pubblicazione .jwpub'}
+            <FileText size={16} /> {busy === 'pdf' ? 'Creo PDF…' : 'Scarica PDF'}
           </button>
         </div>
 
         <p className="footnote" style={{ marginTop: '0.9rem' }}>
-          Il file <strong>.jwpub</strong> è una pubblicazione personale. Da JW Library 15.6+ i file
-          non firmati vengono spesso rifiutati su iPhone/iPad: in quel caso usa PDF/EPUB. Non
-          sostituisce le pubblicazioni di jw.org.
+          L’<strong>EPUB</strong> si apre con Libri / Apple Books. Il PDF è comodo da stampare o
+          condividere.
         </p>
         {message && <p className="muted">{message}</p>}
       </section>

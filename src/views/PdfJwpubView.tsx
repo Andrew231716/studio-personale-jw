@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
-import { BookOpen, FileUp, Library, Share2 } from 'lucide-react'
+import { BookOpen, Library, FileUp } from 'lucide-react'
 import type { PdfExtractResult } from '../lib/pdfExtract'
 
 const MAX_MB = 40
 
-type BusyKind = 'read' | 'epub' | 'jwpub' | null
+type BusyKind = 'read' | 'epub' | null
 
 export function PdfJwpubView() {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -110,48 +110,11 @@ export function PdfJwpubView() {
     }
   }
 
-  async function runJwpub(share: boolean) {
-    if (!file) {
-      setError('Carica prima un PDF.')
-      return
-    }
-    setBusy('jwpub')
-    setError('')
-    setMessage('')
-    setProgress('Creo .jwpub…')
-    try {
-      const { convertPdfToJwpub } = await import('../lib/pdfToJwpub')
-      const result = await convertPdfToJwpub({
-        file,
-        fileName: file.name,
-        title: title.trim() || undefined,
-        section: 'manuali',
-        share,
-      })
-      setExtract(result.extract)
-      setProgress('')
-      setMessage(
-        [
-          `File ${result.fileName} creato.`,
-          result.shared
-            ? 'Foglio di condivisione aperto.'
-            : 'File scaricato.',
-          'Attenzione: da JW Library 15.6 (dicembre 2025) i .jwpub personali non firmati vengono rifiutati su iPhone/iPad. Usa EPUB o la lettura in app.',
-        ].join(' '),
-      )
-    } catch (e) {
-      setProgress('')
-      setError(e instanceof Error ? e.message : 'Creazione .jwpub non riuscita')
-    } finally {
-      setBusy(null)
-    }
-  }
-
   return (
     <div className="stack">
       <section className="panel">
         <p className="section-kicker">Documenti</p>
-        <h2>PDF → studio</h2>
+        <h2>PDF → EPUB</h2>
         <p className="lede">
           Carica un PDF con testo, leggilo qui oppure esportalo in EPUB per Libri / Apple Books.
         </p>
@@ -209,25 +172,29 @@ export function PdfJwpubView() {
             className="btn accent"
             type="button"
             disabled={!file || !!busy}
-            onClick={() => void runRead()}
+            onClick={() => void runEpub()}
           >
-            <BookOpen size={16} />
-            {busy === 'read' ? 'Leggo…' : 'Leggi nell’app'}
+            <Library size={16} />
+            {busy === 'epub' ? 'Creo EPUB…' : 'Crea EPUB'}
           </button>
           <button
             className="btn"
             type="button"
             disabled={!file || !!busy}
-            onClick={() => void runEpub()}
+            onClick={() => void runRead()}
           >
-            <Library size={16} />
-            {busy === 'epub' ? 'Creo EPUB…' : 'Scarica EPUB'}
+            <BookOpen size={16} />
+            {busy === 'read' ? 'Leggo…' : 'Leggi nell’app'}
           </button>
         </div>
 
         {progress && <p className="muted">{progress}</p>}
         {error && <p className="error-text">{error}</p>}
         {message && <p className="muted">{message}</p>}
+        <p className="footnote" style={{ marginTop: '0.9rem' }}>
+          L’EPUB si apre con l’app Libri (iPhone/iPad). Funziona con PDF che contengono testo; se è
+          una scansione solo immagini, prima applica OCR.
+        </p>
       </section>
 
       {page && extract && (
@@ -258,31 +225,6 @@ export function PdfJwpubView() {
           <pre className="pdf-preview pdf-reader">{page.text || '(Nessun testo in questa pagina)'}</pre>
         </section>
       )}
-
-      <section className="panel">
-        <p className="section-kicker">Avanzato</p>
-        <h2>File .jwpub (JW Library)</h2>
-        <p className="lede">
-          Da dicembre 2025 JW Library (15.6+) richiede una firma digitale ufficiale (JASPER) e
-          rifiuta i .jwpub personali su iPhone e iPad. Puoi comunque scaricare il file, ma
-          l’installazione probabilmente fallirà.
-        </p>
-        <div className="row">
-          <button
-            className="btn secondary"
-            type="button"
-            disabled={!file || !!busy}
-            onClick={() => void runJwpub(false)}
-          >
-            <Share2 size={16} />
-            {busy === 'jwpub' ? 'Creo…' : 'Scarica .jwpub comunque'}
-          </button>
-        </div>
-        <p className="footnote" style={{ marginTop: '0.85rem' }}>
-          Percorso consigliato: <strong>Leggi nell’app</strong> oppure <strong>EPUB</strong> (Libri).
-          Il .jwpub resta solo per chi usa versioni vecchie di JW Library o strumenti desktop.
-        </p>
-      </section>
     </div>
   )
 }
