@@ -104,6 +104,7 @@ export type AppView =
   | 'sessione'
   | 'studio'
   | 'diario'
+  | 'pdfJwpub'
   | 'decisioni'
   | 'assistente'
   | 'impostazioni'
@@ -116,6 +117,7 @@ export interface FeatureFlags {
   sessione: boolean
   studio: boolean
   diario: boolean
+  pdfJwpub: boolean
   decisioni: boolean
   assistente: boolean
   impostazioni: boolean

@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import {
   BookOpenText,
   Compass,
+  FileUp,
   History,
   Home,
   MessageSquareText,
@@ -17,6 +18,7 @@ import { ArgomentiView } from './views/ArgomentiView'
 import { SessioneView } from './views/SessioneView'
 import { StudioView } from './views/StudioView'
 import { DiarioView } from './views/DiarioView'
+import { PdfJwpubView } from './views/PdfJwpubView'
 import { DecisioniView } from './views/DecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
@@ -28,6 +30,7 @@ const ICONS: Record<AppView, typeof Home> = {
   sessione: PlayCircle,
   studio: NotebookPen,
   diario: History,
+  pdfJwpub: FileUp,
   decisioni: Compass,
   assistente: MessageSquareText,
   impostazioni: Settings2,
@@ -77,6 +80,7 @@ export default function App() {
         if (key === 'sessione') return settings.features.sessione !== false
         if (key === 'studio') return settings.features.studio
         if (key === 'diario') return settings.features.diario !== false
+        if (key === 'pdfJwpub') return settings.features.pdfJwpub !== false
         if (key === 'decisioni') return settings.features.decisioni
         if (key === 'assistente') return settings.features.assistente
         if (key === 'impostazioni') return settings.features.impostazioni
@@ -121,6 +125,7 @@ export default function App() {
           {view === 'sessione' && <SessioneView />}
           {view === 'studio' && <StudioView />}
           {view === 'diario' && <DiarioView />}
+          {view === 'pdfJwpub' && <PdfJwpubView />}
           {view === 'decisioni' && <DecisioniView />}
           {view === 'assistente' && <AssistenteView />}
           {view === 'impostazioni' && <ImpostazioniView />}

@@ -42,6 +42,7 @@ const defaultSettings: AppSettings = {
     sessione: true,
     studio: true,
     diario: true,
+    pdfJwpub: true,
     decisioni: true,
     assistente: true,
     impostazioni: true,
@@ -54,6 +55,7 @@ const defaultSettings: AppSettings = {
     'argomenti',
     'studio',
     'diario',
+    'pdfJwpub',
     'decisioni',
     'assistente',
     'impostazioni',
@@ -395,6 +397,7 @@ export const useAppStore = create<AppState>()(
             features: {
               ...current.settings.features,
               ...(p.settings?.features || {}),
+              pdfJwpub: p.settings?.features?.pdfJwpub !== false,
             },
             iCloud: {
               ...current.settings.iCloud!,
@@ -413,6 +416,11 @@ export const useAppStore = create<AppState>()(
                 const studioIdx = order.indexOf('studio')
                 if (studioIdx >= 0) order.splice(studioIdx + 1, 0, 'diario')
                 else order.push('diario')
+              }
+              if (!order.includes('pdfJwpub')) {
+                const diarioIdx = order.indexOf('diario')
+                if (diarioIdx >= 0) order.splice(diarioIdx + 1, 0, 'pdfJwpub')
+                else order.push('pdfJwpub')
               }
               return order
             })(),
@@ -443,6 +451,7 @@ export const VIEW_LABELS: Record<AppView, string> = {
   sessione: 'Sessione',
   studio: 'Quaderno',
   diario: 'Diario',
+  pdfJwpub: 'PDF → JWPub',
   decisioni: 'Decisioni',
   assistente: 'Assistente AI',
   impostazioni: 'Impostazioni',
