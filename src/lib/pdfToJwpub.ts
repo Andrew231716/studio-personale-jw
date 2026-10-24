@@ -2,7 +2,7 @@
  * Converte un PDF (testo estraibile) in pubblicazione .jwpub per JW Library.
  */
 import { saveAs } from 'file-saver'
-import { buildJwpub, type JwpubDocument, type JwpubSectionId } from './jwpub'
+import { buildJwpub, mepsLanguageIndex, type JwpubDocument, type JwpubSectionId } from './jwpub'
 import { extractTextFromPdf, type PdfExtractResult } from './pdfExtract'
 
 const MAX_CHARS_PER_DOC = 4500
@@ -128,13 +128,14 @@ export function pagesToJwpubDocuments(
 }
 
 function makeSymbol(fileName: string): string {
+  // Simbolo corto alfanumerico (come html2jwpub): evita collisioni e nomi lunghi.
   const base = fileName
     .replace(/\.pdf$/i, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '')
-    .slice(0, 6)
-  const stamp = Date.now().toString(36).slice(-5)
-  return (`pdf${base}${stamp}` || `pdf${stamp}`).slice(0, 12)
+    .slice(0, 4)
+  const stamp = Date.now().toString(36).slice(-4)
+  return (`jws${base}${stamp}` || `jws${stamp}`).slice(0, 12)
 }
 
 async function tryShareFile(blob: Blob, fileName: string, title: string): Promise<boolean> {
@@ -160,7 +161,7 @@ export async function convertPdfToJwpub(options: PdfToJwpubOptions): Promise<Pdf
   const buffer = await options.file.arrayBuffer()
   const extract = await extractTextFromPdf(buffer, fileName)
   const title = (options.title || extract.title).trim() || 'Documento PDF'
-  const section = options.section ?? 'opuscoli'
+  const section = options.section ?? 'manuali'
   const documents = pagesToJwpubDocuments(extract, title)
   const year = new Date().getFullYear()
   const symbol = makeSymbol(fileName)
@@ -169,7 +170,7 @@ export async function convertPdfToJwpub(options: PdfToJwpubOptions): Promise<Pdf
     symbol,
     title,
     year,
-    mepsLanguageIndex: 2,
+    mepsLanguageIndex: mepsLanguageIndex('I'),
     languageLetter: 'I',
     documents,
     section,

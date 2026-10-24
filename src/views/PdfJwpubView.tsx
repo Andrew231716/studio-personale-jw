@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { FileUp, Library, Share2 } from 'lucide-react'
 import { JWPUB_SECTIONS, type JwpubSectionId } from '../lib/jwpub'
 
@@ -8,17 +8,12 @@ export function PdfJwpubView() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
-  const [section, setSection] = useState<JwpubSectionId>('opuscoli')
+  const [section, setSection] = useState<JwpubSectionId>('manuali')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [preview, setPreview] = useState('')
-
-  const selectedSection = useMemo(
-    () => JWPUB_SECTIONS.find((s) => s.id === section) ?? JWPUB_SECTIONS[1],
-    [section],
-  )
 
   function onPick(next: File | null) {
     setError('')
@@ -63,15 +58,13 @@ export function PdfJwpubView() {
       const sample = result.extract.fullText.slice(0, 400)
       setPreview(sample + (result.extract.fullText.length > 400 ? '…' : ''))
       setProgress('')
-      setMessage(
+          setMessage(
         [
-          `Creato ${result.fileName}: ${result.pageCount} pagine → ${result.documentCount} documenti in «${selectedSection.label}».`,
+          `Creato ${result.fileName}: ${result.pageCount} pagine → ${result.documentCount} documenti.`,
           result.shared
             ? 'Foglio di condivisione aperto: scegli JW Library se compare nell’elenco.'
             : 'File scaricato. Aprilo con JW Library (Condividi → JW Library, oppure Apri con).',
-          'In JW Library: Pubblicazioni → Per tipo → ' +
-            selectedSection.label +
-            ', poi puoi aggiungerla ai Preferiti.',
+          'In JW Library: Pubblicazioni → Per tipo → Manuali / linee guida, poi Preferiti se vuoi.',
         ].join(' '),
       )
     } catch (e) {
@@ -141,7 +134,7 @@ export function PdfJwpubView() {
             />
           </div>
           <div className="field">
-            <label htmlFor="pdf-section">Sezione JW Library</label>
+            <label htmlFor="pdf-section">Dove la trovi in JW Library</label>
             <select
               id="pdf-section"
               value={section}
@@ -155,7 +148,8 @@ export function PdfJwpubView() {
               ))}
             </select>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              {selectedSection.hint}
+              Le pubblicazioni personali si installano come Manuali. Cercale in Pubblicazioni → Per
+              tipo → Manuali / linee guida.
             </p>
           </div>
         </div>
@@ -200,16 +194,18 @@ export function PdfJwpubView() {
         <h2>Dopo la conversione</h2>
         <ol className="howto">
           <li>Scarica (o condividi) il file <code>.jwpub</code>.</li>
-          <li>Aprilo con <strong>JW Library</strong> (su iPhone: Condividi → JW Library).</li>
+          <li>Aprilo con <strong>JW Library</strong> (su iPad/iPhone: Condividi → JW Library).</li>
           <li>
-            Vai in Pubblicazioni → Per tipo → <strong>{selectedSection.label}</strong>.
+            Vai in Pubblicazioni → Per tipo → <strong>Manuali / linee guida</strong>.
           </li>
           <li>Apri la pubblicazione e, se vuoi, aggiungila ai Preferiti.</li>
         </ol>
         <p className="footnote">
           Funziona con PDF che contengono testo. Se il PDF è una scansione solo immagine, prima
-          applica OCR. Il risultato è una pubblicazione personale: non sostituisce i contenuti di
-          jw.org.
+          applica OCR. Il file è una pubblicazione personale (tipo Manuale): non sostituisce i
+          contenuti di jw.org. Su alcune versioni recenti di JW Library l’import di file non firmati
+          può essere bloccato; in quel caso aggiorna l’app o riprova dopo aver eliminato un eventuale
+          tentativo fallito.
         </p>
       </section>
     </div>

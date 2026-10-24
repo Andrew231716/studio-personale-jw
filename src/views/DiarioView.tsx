@@ -18,7 +18,7 @@ export function DiarioView() {
 
   const [period, setPeriod] = useState<SummaryPeriod>('settimana')
   const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10))
-  const [jwpubSection, setJwpubSection] = useState<JwpubSectionId>('opuscoli')
+  const [jwpubSection, setJwpubSection] = useState<JwpubSectionId>('manuali')
   const [busy, setBusy] = useState<'pdf' | 'epub' | 'jwpub' | null>(null)
   const [message, setMessage] = useState('')
 
@@ -51,7 +51,7 @@ export function DiarioView() {
       if (kind === 'jwpub') await exportSummaryJwpub(summary, jwpubSection)
       setMessage(
         kind === 'jwpub'
-          ? `Pubblicazione .jwpub scaricata (sezione ${selectedSection.label}). Aprila con JW Library, poi aggiungila ai Preferiti.`
+          ? 'Pubblicazione .jwpub scaricata. Aprila con JW Library: Pubblicazioni → Manuali / linee guida, poi Preferiti.'
           : `File ${kind.toUpperCase()} scaricato.`,
       )
     } catch (e) {
@@ -168,7 +168,7 @@ export function DiarioView() {
         </div>
 
         <div className="field" style={{ marginBottom: '0.85rem' }}>
-          <label htmlFor="jwpub-section">Sezione JW Library (per .jwpub)</label>
+          <label htmlFor="jwpub-section">Tipo pubblicazione personale</label>
           <select
             id="jwpub-section"
             value={jwpubSection}
@@ -181,7 +181,7 @@ export function DiarioView() {
             ))}
           </select>
           <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-            {selectedSection.hint}. In JW Library: Pubblicazioni → Per tipo → {selectedSection.label}.
+            Le pubblicazioni personali si installano come Manuali ({selectedSection.hint}).
           </p>
         </div>
 
@@ -215,9 +215,9 @@ export function DiarioView() {
 
         <p className="footnote" style={{ marginTop: '0.9rem' }}>
           Il file <strong>.jwpub</strong> è una pubblicazione personale da importare in JW Library
-          (Apri con / Condividi → JW Library). Scegli la sezione sopra (Libri, Opuscoli, …) così
-          compare nel gruppo giusto; poi puoi aggiungerla ai Preferiti. Non è un backup delle note
-          ufficiali e non sostituisce le pubblicazioni di jw.org.
+          (Apri con / Condividi → JW Library). La trovi in Pubblicazioni → Manuali / linee guida;
+          poi puoi aggiungerla ai Preferiti. Non è un backup delle note ufficiali e non sostituisce
+          le pubblicazioni di jw.org.
         </p>
         {message && <p className="muted">{message}</p>}
       </section>

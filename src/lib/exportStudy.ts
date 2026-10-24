@@ -3,7 +3,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import type { StudySummary } from './studySummary'
 import { summaryToHtml, summaryToPlainText } from './studySummary'
-import { buildJwpub, type JwpubSectionId } from './jwpub'
+import { buildJwpub, mepsLanguageIndex, type JwpubSectionId } from './jwpub'
 
 function slugPeriod(summary: StudySummary): string {
   const d = summary.range.start.toISOString().slice(0, 10)
@@ -254,7 +254,7 @@ function summaryToJwpubDocuments(summary: StudySummary): Array<{ title: string; 
  */
 export async function exportSummaryJwpub(
   summary: StudySummary,
-  section: JwpubSectionId = 'opuscoli',
+  _section: JwpubSectionId = 'manuali',
 ): Promise<void> {
   const start = summary.range.start
   const yy = String(start.getFullYear()).slice(2)
@@ -270,10 +270,10 @@ export async function exportSummaryJwpub(
     symbol,
     title,
     year,
-    mepsLanguageIndex: 2, // Italiano
+    mepsLanguageIndex: mepsLanguageIndex('I'),
     languageLetter: 'I',
     documents,
-    section,
+    section: 'manuali',
   })
 
   saveAs(blob, `${symbol}_I.jwpub`)

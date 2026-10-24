@@ -5,3 +5,8 @@ export {
   type JwpubSection,
   type JwpubSectionId,
 } from './sections'
+export {
+  mepsLanguageIndex,
+  languageLetterFromSettings,
+  type JwLanguageLetter,
+} from './languages'

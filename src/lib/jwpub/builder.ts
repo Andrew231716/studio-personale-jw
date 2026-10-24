@@ -7,7 +7,7 @@ import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import JSZip from 'jszip'
 import { encryptDocumentContent, sha1Hex, sha256Hex } from './crypto'
 import { JWPUB_INIT_SQL } from './schema'
-import { getJwpubSection, type JwpubSectionId } from './sections'
+import type { JwpubSectionId } from './sections'
 
 export interface JwpubDocument {
   title: string
@@ -50,7 +50,7 @@ function wrapDocumentHtml(title: string, html: string): string {
   const hasHtml = /<html[\s>]/i.test(html)
   if (hasHtml) return html
 
-  // JW Library si aspetta paragrafi con data-pid
+  // JW Library si aspetta paragrafi con data-pid (formato html2jwpub / jwpub-toolkit)
   let body = html
   if (!/<p[\s>]/i.test(body)) {
     const paras = body
@@ -61,7 +61,6 @@ function wrapDocumentHtml(title: string, html: string): string {
       .map((p, i) => `<p id="p${i + 1}" data-pid="${i + 1}">${escapeHtml(p)}</p>`)
       .join('\n')
   } else {
-    // Assicura data-pid sui <p> esistenti se mancanti
     let n = 0
     body = body.replace(/<p(\s[^>]*)?>/gi, (full, attrs = '') => {
       n += 1
@@ -70,18 +69,14 @@ function wrapDocumentHtml(title: string, html: string): string {
     })
   }
 
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8"/>
+<meta charset="UTF-8"/>
 <title>${escapeHtml(title)}</title>
 </head>
 <body>
-<header><h1>${escapeHtml(title)}</h1></header>
-<article class="docContent">
 ${body}
-</article>
 </body>
 </html>`
 }
@@ -99,14 +94,18 @@ function run(db: Database, sql: string, params: Array<string | number | Uint8Arr
 }
 
 export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
-  const mepsLanguageIndex = options.mepsLanguageIndex ?? 2
+  // Indice MEPS: 4 = italiano (catalogo JW). Default errato (2=tedesco) faceva fallire l’installazione.
+  const mepsLanguageIndex = options.mepsLanguageIndex ?? 4
   const languageLetter = options.languageLetter ?? 'I'
   const issueTagNumber = options.issueTagNumber ?? 0
-  const section = getJwpubSection(options.section ?? 'opuscoli')
+  // Le pubblicazioni personali installabili usano sempre Manual/Guidelines (html2jwpub / jwpub-toolkit).
+  // options.section è ignorato per il tipo tecnico: JW Library rifiuta Brochure/Book personali.
+  void options.section
   const symbol = options.symbol
   const year = options.year
   const title = options.title
-  const dbFileName = `${symbol}_${languageLetter}.db`
+  // Come html2jwpub: nome file = symbol (+ lettera lingua per chiarezza lato utente)
+  const dbFileName = `${symbol}.db`
   const jwpubName = `${symbol}_${languageLetter}.jwpub`
 
   const SQL = await loadSql()
@@ -114,7 +113,7 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
   db.exec(JWPUB_INIT_SQL)
   run(db, `INSERT INTO android_metadata VALUES ('it_IT');`)
 
-  // Stesso INSERT usato da html2jwpub, con tipo/categoria scelti dall’utente.
+  // INSERT allineato a html2jwpub / jwpub-toolkit (tipo fisso Manual/Guidelines).
   const pubSql = `INSERT INTO Publication (
     PublicationId, VersionNumber, Type, Title, TitleRich, RootSymbol, RootYear, RootMepsLanguageIndex,
     ShortTitle, ShortTitleRich, DisplayTitle, DisplayTitleRich, ReferenceTitle, ReferenceTitleRich,
@@ -124,7 +123,7 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
     HasPublicationChapterNumbers, HasPublicationSectionNumbers, FirstDatedTextDateOffset,
     LastDatedTextDateOffset, MepsBuildNumber
   ) VALUES (
-    1,8,1,?,NULL,?,?,0,?,NULL,?,NULL,?,NULL,?,NULL,?,?,?,?,?,'0',0,'',?,0,?,?,?,'NWTR',1,1,19691231,19691231,?
+    1,8,1,?,NULL,?,?,0,?,NULL,?,NULL,?,NULL,?,NULL,?,?,?,?,?,'0',0,'',?,0,?,'Manual/Guidelines','manual','NWTR',1,1,19691231,19691231,?
   );`
   const refSql = `INSERT INTO RefPublication (
     RefPublicationId, VersionNumber, Type, Title, TitleRich, RootSymbol, RootYear, RootMepsLanguageIndex,
@@ -135,7 +134,7 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
     HasPublicationChapterNumbers, HasPublicationSectionNumbers, FirstDatedTextDateOffset,
     LastDatedTextDateOffset, MepsBuildNumber
   ) VALUES (
-    1,8,1,?,NULL,?,?,0,?,NULL,?,NULL,?,NULL,?,NULL,?,?,?,?,?,'0',0,'',?,0,?,?,?,'NWTR',1,1,19691231,19691231,?
+    1,8,1,?,NULL,?,?,0,?,NULL,?,NULL,?,NULL,?,NULL,?,?,?,?,?,'0',0,'',?,0,?,'Manual/Guidelines','manual','NWTR',1,1,19691231,19691231,?
   );`
 
   const pubParams: Array<string | number> = [
@@ -153,21 +152,13 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
     symbol,
     year,
     mepsLanguageIndex,
-    section.publicationType,
-    section.categorySymbol,
     12345,
   ]
   run(db, pubSql, pubParams)
   run(db, refSql, pubParams)
 
   run(db, `INSERT INTO PublicationAttribute (PublicationAttributeId, PublicationId, Attribute) VALUES (1,1,'PERSONAL');`)
-  section.categories.forEach((category, index) => {
-    run(
-      db,
-      `INSERT INTO PublicationCategory (PublicationCategoryId, PublicationId, Category) VALUES (?,?,?);`,
-      [index + 1, 1, category],
-    )
-  })
+  run(db, `INSERT INTO PublicationCategory (PublicationCategoryId, PublicationId, Category) VALUES (1,1,'manual');`)
   run(db, `INSERT INTO PublicationView (PublicationViewId, Name, Symbol) VALUES (1,'JW App Publication','jwpub');`)
   run(db, `INSERT INTO PublicationViewSchema (PublicationViewSchemaId, SchemaType, DataType) VALUES (1,0,'name');`)
   run(db, `INSERT INTO PublicationYear (PublicationYearId, PublicationId, Year) VALUES (1,1,?);`, [year])
@@ -296,21 +287,23 @@ export async function buildJwpub(options: JwpubBuildOptions): Promise<Blob> {
       year,
       issueId: 0,
       issueNumber: issueTagNumber || 0,
-      publicationType: section.publicationType,
+      publicationType: 'Manual/Guidelines',
       rootSymbol: symbol,
       rootYear: year,
       rootLanguage: mepsLanguageIndex,
       images: [] as string[],
-      categories: section.categories,
-      attributes: ['PERSONAL'],
+      categories: ['manual'],
+      // Come html2jwpub: PERSONAL sta nel DB, non nel manifest
+      attributes: [] as string[],
     },
   }
 
   // Outer ZIP = .jwpub
   const outer = new JSZip()
-  outer.file('contents', contentsBytes, { compression: 'STORE' })
+  outer.file('contents', contentsBytes)
   outer.file('manifest.json', JSON.stringify(manifest, null, 2))
 
+  // Outer: come jwpub-toolkit (DEFLATE su entrambe le entry)
   return outer.generateAsync({
     type: 'blob',
     mimeType: 'application/jwpub',
