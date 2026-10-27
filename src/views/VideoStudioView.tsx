@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BookmarkPlus, Captions, NotebookPen, PlayCircle, Search } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import {
@@ -9,6 +9,14 @@ import {
 } from '../lib/jwApi'
 import { uid } from '../lib/id'
 import { buildVideoStudyGuide, type VideoStudyGuide } from '../lib/videoStudyGuide'
+import {
+  buildTranscriptFromCues,
+  cuesDurationSeconds,
+  filterCuesByTimeRange,
+  formatClock,
+  parseTimeInput,
+  type VttCue,
+} from '../lib/vtt'
 import { useAppStore } from '../store/useAppStore'
 
 type Phase = 'pick' | 'transcript' | 'guide'
@@ -34,10 +42,29 @@ export function VideoStudioView() {
   const [videoTitle, setVideoTitle] = useState('')
   const [lank, setLank] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
-  const [transcript, setTranscript] = useState('')
-  const [timedText, setTimedText] = useState('')
+  const [allCues, setAllCues] = useState<VttCue[]>([])
+  const [startMin, setStartMin] = useState('0')
+  const [endMin, setEndMin] = useState('')
   const [showTimed, setShowTimed] = useState(false)
   const [guide, setGuide] = useState<VideoStudyGuide | null>(null)
+
+  const totalSec = useMemo(() => cuesDurationSeconds(allCues), [allCues])
+
+  const range = useMemo(() => {
+    const startSec = parseTimeInput(startMin || '0')
+    const endRaw = endMin.trim()
+    const endSec = endRaw ? parseTimeInput(endRaw) : totalSec || startSec
+    const from = Math.min(startSec, endSec)
+    const to = Math.max(startSec, endSec)
+    return { startSec: from, endSec: to || totalSec }
+  }, [startMin, endMin, totalSec])
+
+  const filtered = useMemo(() => {
+    if (!allCues.length) return { cues: [] as VttCue[], transcript: '', timedText: '' }
+    const cues = filterCuesByTimeRange(allCues, range.startSec, range.endSec || totalSec)
+    const built = buildTranscriptFromCues(cues)
+    return { cues, ...built }
+  }, [allCues, range.startSec, range.endSec, totalSec])
 
   useEffect(() => {
     let cancelled = false
@@ -86,11 +113,13 @@ export function VideoStudioView() {
     setGuide(null)
     try {
       const result = await fetchVideoTranscript(from, language)
+      const duration = cuesDurationSeconds(result.cues)
       setVideoTitle(result.media.title || titleHint || 'Video JW')
       setLank(result.media.lank)
       setVideoUrl(result.media.url)
-      setTranscript(result.transcript)
-      setTimedText(result.timedText)
+      setAllCues(result.cues)
+      setStartMin('0')
+      setEndMin(duration ? String(Math.ceil(duration / 60)) : '')
       setPhase('transcript')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Trascrizione non disponibile')
@@ -99,14 +128,24 @@ export function VideoStudioView() {
     }
   }
 
+  function resetFullRange() {
+    setStartMin('0')
+    setEndMin(totalSec ? String(Math.ceil(totalSec / 60)) : '')
+    setGuide(null)
+  }
+
   async function createGuide() {
-    if (!transcript.trim()) return
+    if (!filtered.transcript.trim()) {
+      setError('Nessun testo in questo intervallo. Controlla da/a minuto.')
+      return
+    }
     setBusy('guide')
     setError('')
     try {
+      const rangeLabel = `${formatClock(range.startSec)}–${formatClock(range.endSec)}`
       const built = await buildVideoStudyGuide({
-        videoTitle,
-        transcript,
+        videoTitle: `${videoTitle} (${rangeLabel})`,
+        transcript: filtered.transcript,
       })
       setGuide(built)
       setPhase('guide')
@@ -119,10 +158,12 @@ export function VideoStudioView() {
 
   function saveToNotebook(openSession = false) {
     if (!guide) return
+    const rangeLabel = `${formatClock(range.startSec)}–${formatClock(range.endSec)}`
     const interest = [
       guide.summary,
       '',
       `Fonte video JW: ${videoTitle}`,
+      `Intervallo trascrizione: ${rangeLabel}`,
       lank ? `lank: ${lank}` : '',
     ]
       .filter(Boolean)
@@ -134,21 +175,23 @@ export function VideoStudioView() {
       reflections: guide.reflections,
       questions: guide.questions,
       practices: guide.practices,
-      transcript,
+      transcript: filtered.transcript,
       transcriptMeta: {
         lank,
         videoTitle,
         sourceUrl: videoUrl,
         createdAt: new Date().toISOString(),
+        rangeStartSec: range.startSec,
+        rangeEndSec: range.endSec,
       },
       resources: [
         {
           id: uid('res'),
-          title: videoTitle,
+          title: `${videoTitle} (${rangeLabel})`,
           url: videoUrl,
           kind: 'video',
           lank,
-          notes: 'Trascrizione dai sottotitoli ufficiali jw.org',
+          notes: `Trascrizione sottotitoli jw.org · intervallo ${rangeLabel}`,
           libraryUrl: lank
             ? `jwlibrary:///finder?wtlocale=${encodeURIComponent(language)}&lank=${encodeURIComponent(lank)}`
             : undefined,
@@ -163,6 +206,8 @@ export function VideoStudioView() {
       setView('studio')
     }
   }
+
+  const rangeLabel = `${formatClock(range.startSec)}–${formatClock(range.endSec || totalSec)}`
 
   return (
     <div className="stack">
@@ -239,8 +284,7 @@ export function VideoStudioView() {
               const url = v.url
               const snippet =
                 'snippet' in v ? v.snippet : 'description' in v ? v.description : ''
-              const hasSub =
-                'hasSubtitles' in v ? Boolean(v.hasSubtitles) : true
+              const hasSub = 'hasSubtitles' in v ? Boolean(v.hasSubtitles) : true
               return (
                 <div className="list-item" key={`${itemLank || url}-${title}`}>
                   <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
@@ -279,7 +323,7 @@ export function VideoStudioView() {
         </section>
       )}
 
-      {(phase === 'transcript' || phase === 'guide') && transcript && (
+      {(phase === 'transcript' || phase === 'guide') && allCues.length > 0 && (
         <section className="panel">
           <div className="section-head">
             <div>
@@ -287,10 +331,55 @@ export function VideoStudioView() {
               <p className="muted" style={{ margin: '0.35rem 0 0' }}>
                 Trascrizione dai sottotitoli ufficiali jw.org
                 {lank ? ` · ${lank}` : ''}
+                {totalSec ? ` · durata ${formatClock(totalSec)}` : ''}
               </p>
             </div>
             <JwOpenButtons url={videoUrl} lank={lank} language={language} compact />
           </div>
+
+          <div className="range-picker">
+            <div className="field">
+              <label htmlFor="from-min">Da minuto</label>
+              <input
+                id="from-min"
+                value={startMin}
+                onChange={(e) => {
+                  setStartMin(e.target.value)
+                  setGuide(null)
+                }}
+                placeholder="0 oppure 2:30"
+                inputMode="decimal"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="to-min">A minuto</label>
+              <input
+                id="to-min"
+                value={endMin}
+                onChange={(e) => {
+                  setEndMin(e.target.value)
+                  setGuide(null)
+                }}
+                placeholder={totalSec ? String(Math.ceil(totalSec / 60)) : 'es. 8'}
+                inputMode="decimal"
+              />
+            </div>
+            <div className="field" style={{ justifyContent: 'flex-end' }}>
+              <label className="muted" style={{ visibility: 'hidden' }}>
+                reset
+              </label>
+              <button className="btn secondary" type="button" onClick={resetFullRange}>
+                Intero video
+              </button>
+            </div>
+          </div>
+          <p className="muted search-meta">
+            Intervallo attivo: {rangeLabel}
+            {filtered.cues.length
+              ? ` · ${filtered.cues.length} segmenti`
+              : ' · nessun testo in questo intervallo'}
+            . Puoi scrivere i minuti (`5`) oppure `m:ss` (`5:30`).
+          </p>
 
           <div className="chip-row">
             <button className="chip" type="button" onClick={() => setShowTimed((v) => !v)}>
@@ -302,6 +391,7 @@ export function VideoStudioView() {
               onClick={() => {
                 setPhase('pick')
                 setGuide(null)
+                setAllCues([])
               }}
             >
               Cambia video
@@ -311,15 +401,16 @@ export function VideoStudioView() {
           <textarea
             className="transcript-box"
             readOnly
-            value={showTimed ? timedText : transcript}
+            value={showTimed ? filtered.timedText : filtered.transcript}
             rows={14}
+            placeholder="Nessun testo in questo intervallo…"
           />
 
           <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
             <button
               className="btn"
               type="button"
-              disabled={Boolean(busy)}
+              disabled={Boolean(busy) || !filtered.transcript.trim()}
               onClick={() => void createGuide()}
             >
               <span className="row" style={{ gap: 6 }}>
@@ -333,15 +424,15 @@ export function VideoStudioView() {
               onClick={() => {
                 const saved = saveResource({
                   id: uid('res'),
-                  title: videoTitle,
+                  title: `${videoTitle} (${rangeLabel})`,
                   url: videoUrl,
                   kind: 'video',
                   lank,
-                  notes: 'Video JW salvato per uno studio futuro',
+                  notes: `Video JW · intervallo ${rangeLabel}`,
                 })
                 setError(
                   saved
-                    ? `Video salvato in Da studiare: ${videoTitle}`
+                    ? `Video salvato in Da studiare: ${videoTitle} (${rangeLabel})`
                     : 'Questo video era già in Da studiare',
                 )
               }}
@@ -357,7 +448,9 @@ export function VideoStudioView() {
       {phase === 'guide' && guide && (
         <section className="panel">
           <h3>Guida di studio</h3>
-          <p className="muted">{guide.summary}</p>
+          <p className="muted">
+            Basata sull’intervallo {rangeLabel}. {guide.summary}
+          </p>
 
           <div className="search-sections">
             <div className="search-section">

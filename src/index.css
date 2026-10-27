@@ -776,6 +776,19 @@ img {
   color: var(--primary);
 }
 
+.range-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.85rem 0 0.35rem;
+}
+
+@media (max-width: 720px) {
+  .range-picker {
+    grid-template-columns: 1fr;
+  }
+}
+
 .streak-mark {
   display: inline-flex;
   align-items: center;

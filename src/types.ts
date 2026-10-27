@@ -101,6 +101,9 @@ export interface StudyTopic {
     videoTitle: string
     sourceUrl?: string
     createdAt: string
+    /** Intervallo usato per la trascrizione, in secondi. */
+    rangeStartSec?: number
+    rangeEndSec?: number
   }
 }
 
