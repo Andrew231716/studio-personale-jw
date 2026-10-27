@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import {
   BookOpenText,
+  Bookmark,
   Captions,
   Compass,
   FileUp,
@@ -21,6 +22,7 @@ import { StudioView } from './views/StudioView'
 import { DiarioView } from './views/DiarioView'
 import { PdfJwpubView } from './views/PdfJwpubView'
 import { VideoStudioView } from './views/VideoStudioView'
+import { SalvatiView } from './views/SalvatiView'
 import { DecisioniView } from './views/DecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
@@ -34,6 +36,7 @@ const ICONS: Record<AppView, typeof Home> = {
   diario: History,
   pdfJwpub: FileUp,
   videoStudio: Captions,
+  salvati: Bookmark,
   decisioni: Compass,
   assistente: MessageSquareText,
   impostazioni: Settings2,
@@ -85,6 +88,7 @@ export default function App() {
         if (key === 'diario') return settings.features.diario !== false
         if (key === 'pdfJwpub') return settings.features.pdfJwpub !== false
         if (key === 'videoStudio') return settings.features.videoStudio !== false
+        if (key === 'salvati') return settings.features.salvati !== false
         if (key === 'decisioni') return settings.features.decisioni
         if (key === 'assistente') return settings.features.assistente
         if (key === 'impostazioni') return settings.features.impostazioni
@@ -131,6 +135,7 @@ export default function App() {
           {view === 'diario' && <DiarioView />}
           {view === 'pdfJwpub' && <PdfJwpubView />}
           {view === 'videoStudio' && <VideoStudioView />}
+          {view === 'salvati' && <SalvatiView />}
           {view === 'decisioni' && <DecisioniView />}
           {view === 'assistente' && <AssistenteView />}
           {view === 'impostazioni' && <ImpostazioniView />}

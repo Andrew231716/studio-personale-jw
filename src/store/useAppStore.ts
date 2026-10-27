@@ -11,7 +11,10 @@ import type {
   AppSettings,
   AppView,
   DecisionItem,
+  SavedResource,
+  SavedSearch,
   ScheduledStudy,
+  StudyResource,
   StudySessionDraft,
   StudySessionLog,
   StudyTopic,
@@ -44,6 +47,7 @@ const defaultSettings: AppSettings = {
     diario: true,
     pdfJwpub: true,
     videoStudio: true,
+    salvati: true,
     decisioni: true,
     assistente: true,
     impostazioni: true,
@@ -58,6 +62,7 @@ const defaultSettings: AppSettings = {
     'diario',
     'pdfJwpub',
     'videoStudio',
+    'salvati',
     'decisioni',
     'assistente',
     'impostazioni',
@@ -112,6 +117,8 @@ interface AppState {
   sessionDraft: StudySessionDraft | null
   sessionLogs: StudySessionLog[]
   schedules: ScheduledStudy[]
+  savedResources: SavedResource[]
+  savedSearches: SavedSearch[]
   setView: (view: AppView) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   updateTheme: (patch: Partial<ThemeConfig>) => void
@@ -133,6 +140,14 @@ interface AppState {
   abandonSession: () => void
   addSchedule: (event: ScheduledStudy) => void
   removeSchedule: (id: string) => void
+  saveResource: (resource: StudyResource, sourceQuery?: string) => SavedResource | null
+  removeSavedResource: (id: string) => void
+  saveSearch: (query: string, note?: string, resultCount?: number) => SavedSearch | null
+  removeSavedSearch: (id: string) => void
+}
+
+function resourceKey(r: { url: string; lank?: string; docid?: string }) {
+  return `${r.url}|${r.lank || ''}|${r.docid || ''}`
 }
 
 function seedTopic(title: string, interest = ''): StudyTopic {
@@ -190,6 +205,8 @@ export const useAppStore = create<AppState>()(
       sessionDraft: null,
       sessionLogs: [],
       schedules: [],
+      savedResources: [],
+      savedSearches: [],
       setView: (view) => set({ view }),
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -385,6 +402,58 @@ export const useAppStore = create<AppState>()(
         })),
       removeSchedule: (id) =>
         set((s) => ({ schedules: s.schedules.filter((x) => x.id !== id) })),
+      saveResource: (resource, sourceQuery) => {
+        const key = resourceKey(resource)
+        const existing = get().savedResources.find((r) => resourceKey(r) === key)
+        if (existing) return null
+        const saved: SavedResource = {
+          ...resource,
+          id: resource.id || uid('saved'),
+          savedAt: new Date().toISOString(),
+          sourceQuery: sourceQuery?.trim() || undefined,
+        }
+        set((s) => ({
+          savedResources: [saved, ...s.savedResources].slice(0, 200),
+        }))
+        return saved
+      },
+      removeSavedResource: (id) =>
+        set((s) => ({ savedResources: s.savedResources.filter((r) => r.id !== id) })),
+      saveSearch: (query, note, resultCount) => {
+        const q = query.trim()
+        if (!q) return null
+        const dup = get().savedSearches.find(
+          (s) => s.query.toLowerCase() === q.toLowerCase(),
+        )
+        if (dup) {
+          const updated: SavedSearch = {
+            ...dup,
+            note: note?.trim() || dup.note,
+            resultCount: resultCount ?? dup.resultCount,
+            createdAt: new Date().toISOString(),
+          }
+          set((s) => ({
+            savedSearches: [
+              updated,
+              ...s.savedSearches.filter((x) => x.id !== dup.id),
+            ].slice(0, 100),
+          }))
+          return updated
+        }
+        const saved: SavedSearch = {
+          id: uid('search'),
+          query: q,
+          createdAt: new Date().toISOString(),
+          note: note?.trim() || undefined,
+          resultCount,
+        }
+        set((s) => ({
+          savedSearches: [saved, ...s.savedSearches].slice(0, 100),
+        }))
+        return saved
+      },
+      removeSavedSearch: (id) =>
+        set((s) => ({ savedSearches: s.savedSearches.filter((x) => x.id !== id) })),
     }),
     {
       name: 'studio-personale-jw-v1',
@@ -401,6 +470,7 @@ export const useAppStore = create<AppState>()(
               ...(p.settings?.features || {}),
               pdfJwpub: p.settings?.features?.pdfJwpub !== false,
               videoStudio: p.settings?.features?.videoStudio !== false,
+              salvati: p.settings?.features?.salvati !== false,
             },
             iCloud: {
               ...current.settings.iCloud!,
@@ -430,12 +500,19 @@ export const useAppStore = create<AppState>()(
                 if (pdfIdx >= 0) order.splice(pdfIdx + 1, 0, 'videoStudio')
                 else order.push('videoStudio')
               }
+              if (!order.includes('salvati')) {
+                const videoIdx = order.indexOf('videoStudio')
+                if (videoIdx >= 0) order.splice(videoIdx + 1, 0, 'salvati')
+                else order.push('salvati')
+              }
               return order
             })(),
           },
           sessionLogs: p.sessionLogs || [],
           sessionDraft: p.sessionDraft || null,
           schedules: p.schedules || [],
+          savedResources: p.savedResources || [],
+          savedSearches: p.savedSearches || [],
         }
       },
       partialize: (s) => ({
@@ -448,6 +525,8 @@ export const useAppStore = create<AppState>()(
         sessionDraft: s.sessionDraft,
         sessionLogs: s.sessionLogs,
         schedules: s.schedules,
+        savedResources: s.savedResources,
+        savedSearches: s.savedSearches,
       }),
     },
   ),
@@ -461,6 +540,7 @@ export const VIEW_LABELS: Record<AppView, string> = {
   diario: 'Diario',
   pdfJwpub: 'PDF → EPUB',
   videoStudio: 'Video → studio',
+  salvati: 'Da studiare',
   decisioni: 'Decisioni',
   assistente: 'Assistente AI',
   impostazioni: 'Impostazioni',

@@ -79,6 +79,8 @@ function snapshotFromStore(): ICloudSnapshot {
     sessionDraft: s.sessionDraft,
     sessionLogs: s.sessionLogs,
     schedules: s.schedules,
+    savedResources: s.savedResources,
+    savedSearches: s.savedSearches,
   }
 }
 
@@ -95,6 +97,8 @@ function applySnapshot(snapshot: ICloudSnapshot) {
       sessionDraft: snapshot.sessionDraft,
       sessionLogs: snapshot.sessionLogs,
       schedules: snapshot.schedules,
+      savedResources: snapshot.savedResources || [],
+      savedSearches: snapshot.savedSearches || [],
     })
   } finally {
     queueMicrotask(() => {

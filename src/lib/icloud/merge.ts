@@ -1,12 +1,12 @@
 import type { ICloudSnapshot } from './types'
 
 function itemTime(
-  item: { updatedAt?: string; createdAt?: string; completedAt?: string },
+  item: { updatedAt?: string; createdAt?: string; completedAt?: string; savedAt?: string },
   timeKey: 'updatedAt' | 'createdAt' | 'completedAt',
 ): string {
-  if (timeKey === 'updatedAt') return item.updatedAt || item.createdAt || ''
+  if (timeKey === 'updatedAt') return item.updatedAt || item.createdAt || item.savedAt || ''
   if (timeKey === 'completedAt') return item.completedAt || item.createdAt || ''
-  return item.createdAt || ''
+  return item.createdAt || item.savedAt || ''
 }
 
 function byIdNewer<T extends { id: string; updatedAt?: string; createdAt?: string; completedAt?: string }>(
@@ -49,5 +49,15 @@ export function mergeSnapshots(local: ICloudSnapshot, remote: ICloudSnapshot): I
     sessionDraft: newerDraft,
     sessionLogs: byIdNewer(local.sessionLogs, remote.sessionLogs, 'completedAt'),
     schedules: byIdNewer(local.schedules, remote.schedules, 'createdAt'),
+    savedResources: byIdNewer(
+      local.savedResources || [],
+      remote.savedResources || [],
+      'createdAt',
+    ),
+    savedSearches: byIdNewer(
+      local.savedSearches || [],
+      remote.savedSearches || [],
+      'createdAt',
+    ),
   }
 }

@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { Search, Plus } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { BookmarkPlus, Plus, Search } from 'lucide-react'
 import { SUGGESTED_TOPICS, searchJw, searchJwDeep } from '../lib/jwApi'
 import { buildJwLibraryShareLink, resolveOpenLinks } from '../lib/jwLibrary'
 import { SECTION_LABELS, groupResultsBySection } from '../lib/jwSections'
+import { useAppStore } from '../store/useAppStore'
 import { JwOpenButtons } from './JwOpenButtons'
 import type { ContentKind, JwResult, JwResultSection, StudyResource } from '../types'
 import { uid } from '../lib/id'
@@ -11,10 +12,26 @@ interface Props {
   language?: string
   onAddResource?: (resource: StudyResource) => void
   onPickQuery?: (query: string) => void
+  /** Mostra “Salva per dopo” (raccolta Da studiare). Default: true. */
+  enableSaveForLater?: boolean
+  /** Avvia automaticamente questa ricerca quando cambia. */
+  seedQuery?: string
+  /** Incrementa per rilanciare anche la stessa query. */
+  seedNonce?: number
   compact?: boolean
 }
 
-export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }: Props) {
+export function JwSearch({
+  language = 'I',
+  onAddResource,
+  onPickQuery,
+  enableSaveForLater = true,
+  seedQuery,
+  seedNonce = 0,
+  compact,
+}: Props) {
+  const saveResource = useAppStore((s) => s.saveResource)
+  const saveSearch = useAppStore((s) => s.saveSearch)
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<'deep' | 'all' | 'publications' | 'videos' | 'indexes' | 'audio' | 'bible'>(
     'deep',
@@ -23,11 +40,13 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
   const [error, setError] = useState('')
   const [sections, setSections] = useState<JwResultSection[]>([])
   const [queriesUsed, setQueriesUsed] = useState<string[]>([])
+  const [toast, setToast] = useState('')
 
   async function runSearch(q = query) {
     if (!q.trim()) return
     setLoading(true)
     setError('')
+    setToast('')
     try {
       if (mode === 'deep') {
         const data = await searchJwDeep(q, { language })
@@ -48,7 +67,14 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
     }
   }
 
-  function add(result: JwResult) {
+  useEffect(() => {
+    if (!seedQuery?.trim()) return
+    setQuery(seedQuery)
+    void runSearch(seedQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedQuery, seedNonce])
+
+  function toResource(result: JwResult): StudyResource {
     const open = resolveOpenLinks({
       url: result.url,
       wolUrl: result.wolUrl,
@@ -56,7 +82,7 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
       docid: result.docid,
       language,
     })
-    onAddResource?.({
+    return {
       id: uid('res'),
       title: result.title,
       url: result.url,
@@ -71,7 +97,25 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
           language,
         ) ||
         undefined,
-    })
+    }
+  }
+
+  function add(result: JwResult) {
+    onAddResource?.(toResource(result))
+  }
+
+  function saveForLater(result: JwResult) {
+    const res = toResource(result)
+    const saved = saveResource(res, query.trim() || undefined)
+    setToast(saved ? `Salvato per dopo: ${result.title}` : 'Già presente in Da studiare')
+  }
+
+  function saveCurrentSearch() {
+    const q = query.trim()
+    if (!q) return
+    const count = sections.reduce((n, s) => n + s.items.length, 0)
+    saveSearch(q, undefined, count || undefined)
+    setToast(`Ricerca salvata: «${q}»`)
   }
 
   return (
@@ -122,7 +166,16 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
         </div>
       )}
 
+      {enableSaveForLater && query.trim() && (
+        <button className="btn secondary" type="button" onClick={saveCurrentSearch}>
+          <span className="row" style={{ gap: 6 }}>
+            <BookmarkPlus size={14} /> Salva questa ricerca
+          </span>
+        </button>
+      )}
+
       {error && <p className="muted">{error}</p>}
+      {toast && <p className="muted">{toast}</p>}
 
       {queriesUsed.length > 1 && (
         <p className="muted search-meta">
@@ -162,13 +215,22 @@ export function JwSearch({ language = 'I', onAddResource, onPickQuery, compact }
                     language={language}
                     compact={compact}
                   />
-                  {onAddResource && (
-                    <button className="btn" type="button" onClick={() => add(r)}>
-                      <span className="row" style={{ gap: 6 }}>
-                        <Plus size={14} /> Aggiungi allo studio
-                      </span>
-                    </button>
-                  )}
+                  <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                    {enableSaveForLater && (
+                      <button className="btn secondary" type="button" onClick={() => saveForLater(r)}>
+                        <span className="row" style={{ gap: 6 }}>
+                          <BookmarkPlus size={14} /> Salva per dopo
+                        </span>
+                      </button>
+                    )}
+                    {onAddResource && (
+                      <button className="btn" type="button" onClick={() => add(r)}>
+                        <span className="row" style={{ gap: 6 }}>
+                          <Plus size={14} /> Aggiungi allo studio
+                        </span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

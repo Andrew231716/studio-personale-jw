@@ -2,6 +2,8 @@ import type {
   AiMessage,
   AppSettings,
   DecisionItem,
+  SavedResource,
+  SavedSearch,
   ScheduledStudy,
   StudySessionDraft,
   StudySessionLog,
@@ -21,6 +23,8 @@ export interface ICloudSnapshot {
   sessionDraft: StudySessionDraft | null
   sessionLogs: StudySessionLog[]
   schedules: ScheduledStudy[]
+  savedResources?: SavedResource[]
+  savedSearches?: SavedSearch[]
 }
 
 export interface ICloudConfig {

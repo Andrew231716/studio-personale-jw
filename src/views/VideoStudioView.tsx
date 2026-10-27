@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Captions, NotebookPen, PlayCircle, Search } from 'lucide-react'
+import { BookmarkPlus, Captions, NotebookPen, PlayCircle, Search } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import {
   fetchLatestVideos,
@@ -19,6 +19,7 @@ export function VideoStudioView() {
   const updateTopic = useAppStore((s) => s.updateTopic)
   const setView = useAppStore((s) => s.setView)
   const startSession = useAppStore((s) => s.startSession)
+  const saveResource = useAppStore((s) => s.saveResource)
 
   const [query, setQuery] = useState('')
   const [paste, setPaste] = useState('')
@@ -324,6 +325,29 @@ export function VideoStudioView() {
               <span className="row" style={{ gap: 6 }}>
                 <NotebookPen size={16} />
                 {busy === 'guide' ? 'Creo la guida…' : 'Crea guida di studio'}
+              </span>
+            </button>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => {
+                const saved = saveResource({
+                  id: uid('res'),
+                  title: videoTitle,
+                  url: videoUrl,
+                  kind: 'video',
+                  lank,
+                  notes: 'Video JW salvato per uno studio futuro',
+                })
+                setError(
+                  saved
+                    ? `Video salvato in Da studiare: ${videoTitle}`
+                    : 'Questo video era già in Da studiare',
+                )
+              }}
+            >
+              <span className="row" style={{ gap: 6 }}>
+                <BookmarkPlus size={16} /> Salva per dopo
               </span>
             </button>
           </div>

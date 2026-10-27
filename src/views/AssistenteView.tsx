@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { BookmarkPlus } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { askAi, buildDecisionContext, buildStudyContext, createMessage } from '../lib/ai'
 import { searchJwDeep } from '../lib/jwApi'
+import { uid } from '../lib/id'
 import { SECTION_LABELS } from '../lib/jwSections'
 import { useAppStore } from '../store/useAppStore'
 import type { JwResultSection } from '../types'
@@ -22,10 +24,13 @@ export function AssistenteView() {
   const activeTopicId = useAppStore((s) => s.activeTopicId)
   const activeDecisionId = useAppStore((s) => s.activeDecisionId)
   const language = useAppStore((s) => s.settings.language)
+  const saveResource = useAppStore((s) => s.saveResource)
+  const saveSearch = useAppStore((s) => s.saveSearch)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [sections, setSections] = useState<JwResultSection[]>([])
   const [queriesUsed, setQueriesUsed] = useState<string[]>([])
+  const [saveHint, setSaveHint] = useState('')
 
   const topic = topics.find((t) => t.id === activeTopicId) || topics[0]
   const decision = decisions.find((d) => d.id === activeDecisionId) || decisions[0]
@@ -162,11 +167,28 @@ export function AssistenteView() {
         <p className="muted">
           Risultati tematici da jw.org, apribili anche in JW Library.
         </p>
-        {queriesUsed.length > 1 && (
-          <p className="muted search-meta">
-            Ricerche: {queriesUsed.map((q) => `«${q}»`).join(' · ')}
-          </p>
+        {queriesUsed.length > 0 && (
+          <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: '0.5rem' }}>
+            <p className="muted search-meta" style={{ margin: 0, flex: 1 }}>
+              Ricerche: {queriesUsed.map((q) => `«${q}»`).join(' · ')}
+            </p>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => {
+                const q = queriesUsed[0] || input
+                if (!q.trim()) return
+                saveSearch(q)
+                setSaveHint(`Ricerca salvata in Da studiare: «${q}»`)
+              }}
+            >
+              <span className="row" style={{ gap: 6 }}>
+                <BookmarkPlus size={14} /> Salva ricerca
+              </span>
+            </button>
+          </div>
         )}
+        {saveHint && <p className="muted">{saveHint}</p>}
         <div className="search-sections">
           {sections.map((sec) => (
             <section key={sec.id} className="search-section">
@@ -190,6 +212,33 @@ export function AssistenteView() {
                       language={language}
                       compact
                     />
+                    <button
+                      className="btn secondary"
+                      type="button"
+                      onClick={() => {
+                        const saved = saveResource(
+                          {
+                            id: uid('res'),
+                            title: l.title,
+                            url: l.url,
+                            kind: l.kind,
+                            notes: l.context || l.snippet,
+                            lank: l.lank,
+                            docid: l.docid,
+                          },
+                          queriesUsed[0],
+                        )
+                        setSaveHint(
+                          saved
+                            ? `Salvato per dopo: ${l.title}`
+                            : 'Già presente in Da studiare',
+                        )
+                      }}
+                    >
+                      <span className="row" style={{ gap: 6 }}>
+                        <BookmarkPlus size={14} /> Salva per dopo
+                      </span>
+                    </button>
                   </div>
                 ))}
               </div>

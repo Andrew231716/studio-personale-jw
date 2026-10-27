@@ -66,6 +66,21 @@ export interface StudyResource {
   libraryUrl?: string
 }
 
+/** Materiale jw.org salvato per uno studio futuro (non ancora legato a un argomento). */
+export interface SavedResource extends StudyResource {
+  savedAt: string
+  sourceQuery?: string
+}
+
+/** Ricerca salvata per riprenderla più tardi. */
+export interface SavedSearch {
+  id: string
+  query: string
+  createdAt: string
+  note?: string
+  resultCount?: number
+}
+
 export interface StudyTopic {
   id: string
   title: string
@@ -155,6 +170,7 @@ export type AppView =
   | 'diario'
   | 'pdfJwpub'
   | 'videoStudio'
+  | 'salvati'
   | 'decisioni'
   | 'assistente'
   | 'impostazioni'
@@ -169,6 +185,7 @@ export interface FeatureFlags {
   diario: boolean
   pdfJwpub: boolean
   videoStudio: boolean
+  salvati: boolean
   decisioni: boolean
   assistente: boolean
   impostazioni: boolean
