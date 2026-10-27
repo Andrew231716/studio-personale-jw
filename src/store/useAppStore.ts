@@ -43,6 +43,7 @@ const defaultSettings: AppSettings = {
     studio: true,
     diario: true,
     pdfJwpub: true,
+    videoStudio: true,
     decisioni: true,
     assistente: true,
     impostazioni: true,
@@ -56,6 +57,7 @@ const defaultSettings: AppSettings = {
     'studio',
     'diario',
     'pdfJwpub',
+    'videoStudio',
     'decisioni',
     'assistente',
     'impostazioni',
@@ -398,6 +400,7 @@ export const useAppStore = create<AppState>()(
               ...current.settings.features,
               ...(p.settings?.features || {}),
               pdfJwpub: p.settings?.features?.pdfJwpub !== false,
+              videoStudio: p.settings?.features?.videoStudio !== false,
             },
             iCloud: {
               ...current.settings.iCloud!,
@@ -421,6 +424,11 @@ export const useAppStore = create<AppState>()(
                 const diarioIdx = order.indexOf('diario')
                 if (diarioIdx >= 0) order.splice(diarioIdx + 1, 0, 'pdfJwpub')
                 else order.push('pdfJwpub')
+              }
+              if (!order.includes('videoStudio')) {
+                const pdfIdx = order.indexOf('pdfJwpub')
+                if (pdfIdx >= 0) order.splice(pdfIdx + 1, 0, 'videoStudio')
+                else order.push('videoStudio')
               }
               return order
             })(),
@@ -452,6 +460,7 @@ export const VIEW_LABELS: Record<AppView, string> = {
   studio: 'Quaderno',
   diario: 'Diario',
   pdfJwpub: 'PDF → EPUB',
+  videoStudio: 'Video → studio',
   decisioni: 'Decisioni',
   assistente: 'Assistente AI',
   impostazioni: 'Impostazioni',

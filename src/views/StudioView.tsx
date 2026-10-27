@@ -80,6 +80,18 @@ export function StudioView() {
           </div>
         </div>
 
+        {topic.transcript && (
+          <details className="transcript-details" style={{ marginTop: '0.85rem' }}>
+            <summary>
+              Trascrizione video
+              {topic.transcriptMeta?.videoTitle
+                ? ` · ${topic.transcriptMeta.videoTitle}`
+                : ''}
+            </summary>
+            <textarea className="transcript-box" readOnly value={topic.transcript} rows={10} />
+          </details>
+        )}
+
         {settings.features.schedule && topic.schedule && (
           <div className="grid-2">
             <div className="field">

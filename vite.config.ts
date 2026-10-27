@@ -36,8 +36,11 @@ function localApiPlugin(): Plugin {
           }
           if (url.pathname === '/api/jw-media') {
             const language = url.searchParams.get('language') || 'I'
+            const lank = (url.searchParams.get('lank') || '').trim()
             const category = url.searchParams.get('category') || 'LatestVideos'
-            const target = `https://b.jw-cdn.org/apis/mediator/v1/categories/${language}/${category}?clientType=www`
+            const target = lank
+              ? `https://b.jw-cdn.org/apis/mediator/v1/media-items/${language}/${encodeURIComponent(lank)}?clientType=www`
+              : `https://b.jw-cdn.org/apis/mediator/v1/categories/${language}/${category}?clientType=www`
             const upstream = await fetch(target)
             const text = await upstream.text()
             res.statusCode = upstream.status

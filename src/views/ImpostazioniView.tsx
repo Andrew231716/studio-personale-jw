@@ -9,6 +9,7 @@ const FEATURE_KEYS: Array<keyof FeatureFlags> = [
   'studio',
   'diario',
   'pdfJwpub',
+  'videoStudio',
   'decisioni',
   'assistente',
   'impostazioni',
@@ -230,6 +231,8 @@ function featureLabel(key: keyof FeatureFlags) {
       return 'Diario studi'
     case 'pdfJwpub':
       return 'PDF → EPUB'
+    case 'videoStudio':
+      return 'Video → studio (trascrizione)'
     case 'decisioni':
       return 'Decisioni'
     case 'assistente':

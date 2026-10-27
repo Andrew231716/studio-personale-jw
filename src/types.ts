@@ -79,6 +79,14 @@ export interface StudyTopic {
   practices: PracticeItem[]
   resources: StudyResource[]
   schedule?: StudySchedule
+  /** Trascrizione da sottotitoli di un video JW, se lo studio nasce da un video. */
+  transcript?: string
+  transcriptMeta?: {
+    lank: string
+    videoTitle: string
+    sourceUrl?: string
+    createdAt: string
+  }
 }
 
 export interface ReflectionPoint {
@@ -146,6 +154,7 @@ export type AppView =
   | 'studio'
   | 'diario'
   | 'pdfJwpub'
+  | 'videoStudio'
   | 'decisioni'
   | 'assistente'
   | 'impostazioni'
@@ -159,6 +168,7 @@ export interface FeatureFlags {
   studio: boolean
   diario: boolean
   pdfJwpub: boolean
+  videoStudio: boolean
   decisioni: boolean
   assistente: boolean
   impostazioni: boolean

@@ -5,8 +5,11 @@ export default async function handler(req, res) {
   }
   try {
     const language = String(req.query.language || 'I')
+    const lank = String(req.query.lank || '').trim()
     const category = String(req.query.category || 'LatestVideos')
-    const url = `https://b.jw-cdn.org/apis/mediator/v1/categories/${encodeURIComponent(language)}/${encodeURIComponent(category)}?clientType=www`
+    const url = lank
+      ? `https://b.jw-cdn.org/apis/mediator/v1/media-items/${encodeURIComponent(language)}/${encodeURIComponent(lank)}?clientType=www`
+      : `https://b.jw-cdn.org/apis/mediator/v1/categories/${encodeURIComponent(language)}/${encodeURIComponent(category)}?clientType=www`
     const upstream = await fetch(url)
     const text = await upstream.text()
     res.status(upstream.status).setHeader('Content-Type', 'application/json').send(text)

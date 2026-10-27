@@ -38,8 +38,11 @@ app.get('/api/jw-search', async (req, res) => {
 app.get('/api/jw-media', async (req, res) => {
   try {
     const language = String(req.query.language || 'I')
+    const lank = String(req.query.lank || '').trim()
     const category = String(req.query.category || 'LatestVideos')
-    const url = `https://b.jw-cdn.org/apis/mediator/v1/categories/${language}/${category}?clientType=www`
+    const url = lank
+      ? `https://b.jw-cdn.org/apis/mediator/v1/media-items/${language}/${encodeURIComponent(lank)}?clientType=www`
+      : `https://b.jw-cdn.org/apis/mediator/v1/categories/${language}/${category}?clientType=www`
     const upstream = await fetch(url)
     res.status(upstream.status).type('application/json').send(await upstream.text())
   } catch (e) {

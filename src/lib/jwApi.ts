@@ -6,6 +6,7 @@ import {
 } from './jwLibrary'
 import { classifySection, groupResultsBySection, sectionToKind } from './jwSections'
 import { buildThematicQueries, scoreThemeMatch } from './jwThemeSearch'
+import { formatTranscriptWithTimestamps, parseVtt, type VttCue } from './vtt'
 
 let cachedToken = ''
 let tokenFetchedAt = 0
@@ -221,6 +222,64 @@ export interface LatestMediaItem {
   url: string
   lank?: string
   libraryUrl?: string
+  subtitleUrl?: string
+  hasSubtitles?: boolean
+}
+
+export interface JwMediaDetails {
+  title: string
+  description: string
+  lank: string
+  duration: string
+  image?: string
+  url: string
+  libraryUrl?: string
+  subtitleUrl?: string
+  progressiveUrl?: string
+}
+
+function pickSubtitleUrl(files: Array<Record<string, unknown>> | undefined): string | undefined {
+  if (!Array.isArray(files)) return undefined
+  for (const f of files) {
+    const sub = f.subtitles as { url?: string } | undefined
+    if (sub?.url) return String(sub.url)
+  }
+  return undefined
+}
+
+function pickProgressiveUrl(files: Array<Record<string, unknown>> | undefined): string | undefined {
+  if (!Array.isArray(files)) return undefined
+  const preferred = ['720p', '480p', '360p', '240p']
+  for (const label of preferred) {
+    const hit = files.find((f) => String(f.label || '') === label && f.progressiveDownloadURL)
+    if (hit?.progressiveDownloadURL) return String(hit.progressiveDownloadURL)
+  }
+  const any = files.find((f) => f.progressiveDownloadURL)
+  return any?.progressiveDownloadURL ? String(any.progressiveDownloadURL) : undefined
+}
+
+function mapMediaItem(m: Record<string, unknown>, language: string): JwMediaDetails {
+  const images = (m.images || {}) as Record<string, Record<string, string>>
+  const image =
+    images?.pnr?.lg || images?.pnr?.md || images?.lsr?.lg || images?.sqr?.lg || undefined
+  const naturalKey = String(m.languageAgnosticNaturalKey || m.naturalKey || '')
+  const files = m.files as Array<Record<string, unknown>> | undefined
+  const share =
+    buildJwLibraryShareLink({ lank: naturalKey, wtlocale: language }, language) ||
+    `https://www.jw.org/finder?srcid=jwlshare&wtlocale=${language}&lank=${encodeURIComponent(naturalKey)}`
+  return {
+    title: String(m.title || ''),
+    description: String(m.description || ''),
+    lank: naturalKey,
+    duration: String(m.durationFormattedMinSec || m.durationFormattedHHMM || ''),
+    image,
+    url: share,
+    libraryUrl: naturalKey
+      ? `jwlibrary:///finder?wtlocale=${encodeURIComponent(language)}&lank=${encodeURIComponent(naturalKey)}`
+      : undefined,
+    subtitleUrl: pickSubtitleUrl(files),
+    progressiveUrl: pickProgressiveUrl(files),
+  }
 }
 
 export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem[]> {
@@ -231,27 +290,75 @@ export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem
   const data = await res.json()
   const media = data?.category?.media || []
   return media.slice(0, 12).map((m: Record<string, unknown>) => {
-    const images = (m.images || {}) as Record<string, Record<string, string>>
-    const image =
-      images?.pnr?.lg || images?.pnr?.md || images?.lsr?.lg || images?.sqr?.lg || undefined
-    const naturalKey = String(m.languageAgnosticNaturalKey || m.naturalKey || '')
-    const share =
-      buildJwLibraryShareLink({ lank: naturalKey, wtlocale: language }, language) ||
-      `https://www.jw.org/finder?srcid=jwlshare&wtlocale=${language}&lank=${encodeURIComponent(naturalKey)}`
+    const details = mapMediaItem(m, language)
     return {
-      guid: String(m.guid),
-      title: String(m.title || ''),
-      description: String(m.description || ''),
+      guid: String(m.guid || details.lank),
+      title: details.title,
+      description: details.description,
       published: String(m.firstPublished || ''),
-      duration: String(m.durationFormattedMinSec || m.durationFormattedHHMM || ''),
-      image,
-      url: share,
-      lank: naturalKey || undefined,
-      libraryUrl: naturalKey
-        ? `jwlibrary:///finder?wtlocale=${encodeURIComponent(language)}&lank=${encodeURIComponent(naturalKey)}`
-        : undefined,
+      duration: details.duration,
+      image: details.image,
+      url: details.url,
+      lank: details.lank || undefined,
+      libraryUrl: details.libraryUrl,
+      subtitleUrl: details.subtitleUrl,
+      hasSubtitles: Boolean(details.subtitleUrl),
     }
   })
+}
+
+/** Dettagli media JW (inclusi sottotitoli) tramite lank. */
+export async function fetchMediaByLank(
+  lank: string,
+  language = 'I',
+): Promise<JwMediaDetails> {
+  const key = lank.trim()
+  if (!key) throw new Error('Manca il codice video (lank)')
+  const res = await fetch(
+    `/api/jw-media?language=${encodeURIComponent(language)}&lank=${encodeURIComponent(key)}`,
+  )
+  if (!res.ok) throw new Error(`Video non trovato (${res.status})`)
+  const data = await res.json()
+  const media = (data?.media || [])[0] as Record<string, unknown> | undefined
+  if (!media) throw new Error('Nessun media per questo codice video')
+  return mapMediaItem(media, language)
+}
+
+export async function fetchVideoTranscript(
+  lankOrUrl: string,
+  language = 'I',
+): Promise<{
+  media: JwMediaDetails
+  vtt: string
+  transcript: string
+  cues: VttCue[]
+  timedText: string
+}> {
+  let lank = lankOrUrl.trim()
+  const refs = extractJwRefs(lank)
+  if (refs.lank) lank = refs.lank
+  if (!isMediaLank(lank)) {
+    throw new Error('Incolla un link jw.org del video oppure il codice lank (es. pub-…_VIDEO)')
+  }
+
+  const media = await fetchMediaByLank(lank, language)
+  if (!media.subtitleUrl) {
+    throw new Error(
+      'Questo video non ha sottotitoli disponibili su jw.org. Scegline un altro (molti cantici non li hanno).',
+    )
+  }
+  const vttRes = await fetch(media.subtitleUrl)
+  if (!vttRes.ok) throw new Error('Impossibile scaricare i sottotitoli del video')
+  const vtt = await vttRes.text()
+  const { cues, text } = parseVtt(vtt)
+  if (!text) throw new Error('Sottotitoli vuoti o non leggibili')
+  return {
+    media,
+    vtt,
+    transcript: text,
+    cues,
+    timedText: formatTranscriptWithTimestamps(cues),
+  }
 }
 
 export const SUGGESTED_TOPICS = [

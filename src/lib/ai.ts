@@ -180,6 +180,12 @@ export function buildStudyContext(topic?: StudyTopic | null, results: JwResult[]
     parts.push(`Argomento: ${topic.title}`)
     if (topic.interest) parts.push(`Interesse: ${topic.interest}`)
     if (topic.objectives.length) parts.push(`Obiettivi: ${topic.objectives.join('; ')}`)
+    if (topic.transcript) {
+      const meta = topic.transcriptMeta
+        ? ` (video: ${topic.transcriptMeta.videoTitle}${topic.transcriptMeta.lank ? `, lank ${topic.transcriptMeta.lank}` : ''})`
+        : ''
+      parts.push(`Trascrizione video JW${meta}:\n${topic.transcript.slice(0, 4000)}`)
+    }
     if (topic.reflections.some((r) => r.response)) {
       parts.push(
         'Riflessioni:\n' +

@@ -749,6 +749,33 @@ img {
   text-transform: none;
 }
 
+.transcript-box {
+  width: 100%;
+  min-height: 220px;
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 35%, white);
+  color: var(--text);
+  line-height: 1.55;
+  resize: vertical;
+  font-size: 0.92rem;
+}
+
+.transcript-details {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.65rem 0.9rem 0.85rem;
+  background: color-mix(in srgb, var(--surface) 88%, white);
+}
+
+.transcript-details summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--primary);
+}
+
 .streak-mark {
   display: inline-flex;
   align-items: center;
