@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Flame } from 'lucide-react'
+import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { JwSearch } from '../components/JwSearch'
 import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
@@ -254,25 +255,21 @@ export function SessioneView() {
         <p className="lede">{step.hint}</p>
 
         {draft.step === 0 && (
-          <div className="field">
-            <label>Breve preghiera / intenzione</label>
-            <textarea
-              value={draft.prayer}
-              onChange={(e) => updateDraft({ prayer: e.target.value })}
-              placeholder="Es. Geova, aiutami a capire meglio e ad applicare con amore…"
-            />
-          </div>
+          <ExpandableField
+            label="Breve preghiera / intenzione"
+            value={draft.prayer}
+            onChange={(value) => updateDraft({ prayer: value })}
+            placeholder="Es. Geova, aiutami a capire meglio e ad applicare con amore…"
+          />
         )}
 
         {draft.step === 1 && (
-          <div className="field">
-            <label>Il mio obiettivo di oggi</label>
-            <textarea
-              value={draft.goal}
-              onChange={(e) => updateDraft({ goal: e.target.value })}
-              placeholder="Es. Capire come rendere più sincere le mie preghiere"
-            />
-          </div>
+          <ExpandableField
+            label="Il mio obiettivo di oggi"
+            value={draft.goal}
+            onChange={(value) => updateDraft({ goal: value })}
+            placeholder="Es. Capire come rendere più sincere le mie preghiere"
+          />
         )}
 
         {draft.step === 2 && (
@@ -322,66 +319,55 @@ export function SessioneView() {
                 language={language}
               />
             )}
-            <div className="field">
-              <label>Cosa mi ha colpito</label>
-              <textarea
-                value={draft.highlight}
-                onChange={(e) => updateDraft({ highlight: e.target.value })}
-                placeholder="Una frase, un esempio, un sentimento…"
-              />
-            </div>
-            <div className="field">
-              <label>Scrittura chiave (se ce n’è una)</label>
-              <input
-                value={draft.keyVerse}
-                onChange={(e) => updateDraft({ keyVerse: e.target.value })}
-                placeholder="Es. Filippesi 4:6, 7"
-              />
-            </div>
+            <ExpandableField
+              label="Cosa mi ha colpito"
+              value={draft.highlight}
+              onChange={(value) => updateDraft({ highlight: value })}
+              placeholder="Una frase, un esempio, un sentimento…"
+            />
+            <ExpandableField
+              label="Scrittura chiave (se ce n’è una)"
+              value={draft.keyVerse}
+              onChange={(value) => updateDraft({ keyVerse: value })}
+              placeholder="Es. Filippesi 4:6, 7"
+              multiline={false}
+            />
           </div>
         )}
 
         {draft.step === 4 && (
-          <div className="field">
-            <label>La mia meditazione</label>
-            <textarea
-              value={draft.reflection}
-              onChange={(e) => updateDraft({ reflection: e.target.value })}
-              placeholder="Con le tue parole: cosa impari su Geova? Come ti parla questo punto?"
-              style={{ minHeight: 140 }}
-            />
-          </div>
+          <ExpandableField
+            label="La mia meditazione"
+            value={draft.reflection}
+            onChange={(value) => updateDraft({ reflection: value })}
+            placeholder="Con le tue parole: cosa impari su Geova? Come ti parla questo punto?"
+            rows={6}
+          />
         )}
 
         {draft.step === 5 && (
           <div className="stack">
-            <div className="field">
-              <label>Domanda</label>
-              <input
-                value={draft.question}
-                onChange={(e) => updateDraft({ question: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>La mia risposta</label>
-              <textarea
-                value={draft.answer}
-                onChange={(e) => updateDraft({ answer: e.target.value })}
-                placeholder="Rispondi con onestà, anche in poche frasi"
-              />
-            </div>
+            <ExpandableField
+              label="Domanda"
+              value={draft.question}
+              onChange={(value) => updateDraft({ question: value })}
+            />
+            <ExpandableField
+              label="La mia risposta"
+              value={draft.answer}
+              onChange={(value) => updateDraft({ answer: value })}
+              placeholder="Rispondi con onestà, anche in poche frasi"
+            />
           </div>
         )}
 
         {draft.step === 6 && (
-          <div className="field">
-            <label>Cosa proverò entro 48 ore</label>
-            <textarea
-              value={draft.practice}
-              onChange={(e) => updateDraft({ practice: e.target.value })}
-              placeholder="Es. Pregare ogni mattina 2 minuti su questo tema"
-            />
-          </div>
+          <ExpandableField
+            label="Cosa proverò entro 48 ore"
+            value={draft.practice}
+            onChange={(value) => updateDraft({ practice: value })}
+            placeholder="Es. Pregare ogni mattina 2 minuti su questo tema"
+          />
         )}
 
         {draft.step === 7 && (
@@ -400,14 +386,12 @@ export function SessioneView() {
                 <p>{draft.practice || '—'}</p>
               </div>
             </div>
-            <div className="field">
-              <label>Per cosa ringrazio Geova</label>
-              <textarea
-                value={draft.gratitude}
-                onChange={(e) => updateDraft({ gratitude: e.target.value })}
-                placeholder="Anche una riga basta"
-              />
-            </div>
+            <ExpandableField
+              label="Per cosa ringrazio Geova"
+              value={draft.gratitude}
+              onChange={(value) => updateDraft({ gratitude: value })}
+              placeholder="Anche una riga basta"
+            />
           </div>
         )}
 

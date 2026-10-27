@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { askAi, buildStudyContext, createMessage } from '../lib/ai'
@@ -63,7 +64,6 @@ export function StudioView() {
         <div className="section-head">
           <div>
             <h2>Quaderno: {topic.title}</h2>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>{topic.interest || 'Studio personale'}</p>
           </div>
           <div className="row">
             <button className="btn accent" type="button" onClick={() => startSession(topic.id)}>
@@ -80,16 +80,27 @@ export function StudioView() {
           </div>
         </div>
 
+        <div style={{ marginTop: '0.85rem' }}>
+          <ExpandableField
+            label="Perché mi interessa / note"
+            value={topic.interest}
+            placeholder="Studio personale"
+            onChange={(value) => updateTopic(topic.id, { interest: value })}
+          />
+        </div>
+
         {topic.transcript && (
-          <details className="transcript-details" style={{ marginTop: '0.85rem' }}>
-            <summary>
-              Trascrizione video
-              {topic.transcriptMeta?.videoTitle
-                ? ` · ${topic.transcriptMeta.videoTitle}`
-                : ''}
-            </summary>
-            <textarea className="transcript-box" readOnly value={topic.transcript} rows={10} />
-          </details>
+          <div style={{ marginTop: '0.35rem' }}>
+            <ExpandableField
+              label={
+                topic.transcriptMeta?.videoTitle
+                  ? `Trascrizione video · ${topic.transcriptMeta.videoTitle}`
+                  : 'Trascrizione video'
+              }
+              value={topic.transcript}
+              readOnly
+            />
+          </div>
         )}
 
         {settings.features.schedule && topic.schedule && (
@@ -135,17 +146,17 @@ export function StudioView() {
           <h3>Obiettivi</h3>
           <div className="stack">
             {topic.objectives.map((obj, idx) => (
-              <div className="field" key={`obj-${idx}`}>
-                <label>Obiettivo {idx + 1}</label>
-                <input
-                  value={obj}
-                  onChange={(e) => {
-                    const objectives = [...topic.objectives]
-                    objectives[idx] = e.target.value
-                    updateTopic(topic.id, { objectives })
-                  }}
-                />
-              </div>
+              <ExpandableField
+                key={`obj-${idx}`}
+                label={`Obiettivo ${idx + 1}`}
+                value={obj}
+                placeholder="Scrivi l’obiettivo…"
+                onChange={(value) => {
+                  const objectives = [...topic.objectives]
+                  objectives[idx] = value
+                  updateTopic(topic.id, { objectives })
+                }}
+              />
             ))}
             <button
               className="btn secondary"
@@ -205,19 +216,31 @@ export function StudioView() {
           </button>
         </div>
         <div className="stack">
-          {topic.reflections.map((r) => (
-            <div key={r.id} className="field">
-              <label>{r.prompt}</label>
-              <textarea
-                value={r.response}
-                onChange={(e) =>
+          {topic.reflections.map((r, idx) => (
+            <div key={r.id} className="stack">
+              <ExpandableField
+                label={`Riflessione ${idx + 1} — domanda`}
+                value={r.prompt}
+                placeholder="Domanda di riflessione…"
+                onChange={(value) =>
                   updateTopic(topic.id, {
                     reflections: topic.reflections.map((x) =>
-                      x.id === r.id ? { ...x, response: e.target.value } : x,
+                      x.id === r.id ? { ...x, prompt: value } : x,
                     ),
                   })
                 }
+              />
+              <ExpandableField
+                label={`Riflessione ${idx + 1} — i tuoi pensieri`}
+                value={r.response}
                 placeholder="Scrivi i tuoi pensieri…"
+                onChange={(value) =>
+                  updateTopic(topic.id, {
+                    reflections: topic.reflections.map((x) =>
+                      x.id === r.id ? { ...x, response: value } : x,
+                    ),
+                  })
+                }
               />
             </div>
           ))}
@@ -246,34 +269,32 @@ export function StudioView() {
           </button>
         </div>
         <div className="stack">
-          {topic.questions.map((q) => (
+          {topic.questions.map((q, idx) => (
             <div key={q.id} className="stack">
-              <div className="field">
-                <label>Domanda</label>
-                <input
-                  value={q.question}
-                  onChange={(e) =>
-                    updateTopic(topic.id, {
-                      questions: topic.questions.map((x) =>
-                        x.id === q.id ? { ...x, question: e.target.value } : x,
-                      ),
-                    })
-                  }
-                />
-              </div>
-              <div className="field">
-                <label>La tua risposta</label>
-                <textarea
-                  value={q.answer}
-                  onChange={(e) =>
-                    updateTopic(topic.id, {
-                      questions: topic.questions.map((x) =>
-                        x.id === q.id ? { ...x, answer: e.target.value } : x,
-                      ),
-                    })
-                  }
-                />
-              </div>
+              <ExpandableField
+                label={`Domanda ${idx + 1}`}
+                value={q.question}
+                placeholder="Scrivi la domanda…"
+                onChange={(value) =>
+                  updateTopic(topic.id, {
+                    questions: topic.questions.map((x) =>
+                      x.id === q.id ? { ...x, question: value } : x,
+                    ),
+                  })
+                }
+              />
+              <ExpandableField
+                label={`Risposta ${idx + 1}`}
+                value={q.answer}
+                placeholder="La tua risposta…"
+                onChange={(value) =>
+                  updateTopic(topic.id, {
+                    questions: topic.questions.map((x) =>
+                      x.id === q.id ? { ...x, answer: value } : x,
+                    ),
+                  })
+                }
+              />
             </div>
           ))}
           <button
@@ -301,7 +322,7 @@ export function StudioView() {
           </button>
         </div>
         <div className="stack">
-          {topic.practices.map((p) => (
+          {topic.practices.map((p, idx) => (
             <div className="list-item" key={p.id}>
               <label className="row">
                 <input
@@ -315,25 +336,28 @@ export function StudioView() {
                     })
                   }
                 />
-                <input
-                  style={{ flex: 1 }}
-                  value={p.action}
-                  onChange={(e) =>
-                    updateTopic(topic.id, {
-                      practices: topic.practices.map((x) =>
-                        x.id === p.id ? { ...x, action: e.target.value } : x,
-                      ),
-                    })
-                  }
-                />
+                <span className="muted">Provata</span>
               </label>
-              <textarea
-                value={p.outcome}
-                placeholder="Esito / cosa ho notato"
-                onChange={(e) =>
+              <ExpandableField
+                label={`Pratica ${idx + 1}`}
+                value={p.action}
+                placeholder="Cosa vuoi provare…"
+                onChange={(value) =>
                   updateTopic(topic.id, {
                     practices: topic.practices.map((x) =>
-                      x.id === p.id ? { ...x, outcome: e.target.value } : x,
+                      x.id === p.id ? { ...x, action: value } : x,
+                    ),
+                  })
+                }
+              />
+              <ExpandableField
+                label={`Esito pratica ${idx + 1}`}
+                value={p.outcome}
+                placeholder="Esito / cosa ho notato"
+                onChange={(value) =>
+                  updateTopic(topic.id, {
+                    practices: topic.practices.map((x) =>
+                      x.id === p.id ? { ...x, outcome: value } : x,
                     ),
                   })
                 }

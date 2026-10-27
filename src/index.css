@@ -581,6 +581,142 @@ img {
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
+/* Evita che il testo lungo “sparisca” senza modo di leggerlo */
+.field input:not([type='checkbox']):not([type='radio']):not([type='color']) {
+  text-overflow: ellipsis;
+}
+
+.expandable-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.expandable-field-head label {
+  margin: 0;
+}
+
+.expandable-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 0;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.15rem 0.2rem;
+}
+
+.expandable-preview {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 78%, white);
+  border-radius: 12px;
+  padding: 0.72rem 0.85rem;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-height: 2.8rem;
+  max-height: 7.2rem;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.expandable-preview.is-placeholder {
+  color: var(--muted);
+}
+
+.expandable-preview:hover,
+.expandable-preview:focus-visible {
+  border-color: color-mix(in srgb, var(--secondary) 70%, var(--primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--secondary) 18%, transparent);
+  outline: none;
+}
+
+.expandable-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: end center;
+  padding: 0.75rem;
+  background: color-mix(in srgb, #0b1c1a 55%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.expandable-modal {
+  width: min(640px, 100%);
+  max-height: min(88vh, 720px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 18px 18px 14px 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+}
+
+.expandable-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.expandable-modal-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.expandable-modal-input,
+.expandable-modal-body {
+  width: 100%;
+  min-height: 40vh;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  background: color-mix(in srgb, var(--bg) 40%, white);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.55;
+  resize: vertical;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.expandable-modal-body.readonly {
+  overflow: auto;
+}
+
+.expandable-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 720px) {
+  .expandable-modal-backdrop {
+    place-items: center;
+  }
+
+  .expandable-modal {
+    border-radius: 18px;
+  }
+}
+
 /* iOS/Safari: datetime-local ha min-width intrinseca e sborda dalla card */
 .field input[type='datetime-local'],
 .field input[type='date'],

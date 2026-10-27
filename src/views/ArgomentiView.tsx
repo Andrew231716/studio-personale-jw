@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
+import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { useAppStore } from '../store/useAppStore'
 
@@ -42,15 +43,12 @@ export function ArgomentiView() {
             placeholder="Es. Rafforzare la preghiera"
           />
         </div>
-        <div className="field">
-          <label htmlFor="topic-interest">Perché ti interessa</label>
-          <textarea
-            id="topic-interest"
-            value={interest}
-            onChange={(e) => setInterest(e.target.value)}
-            placeholder="Cosa vorresti capire o migliorare?"
-          />
-        </div>
+        <ExpandableField
+          label="Perché ti interessa"
+          value={interest}
+          onChange={setInterest}
+          placeholder="Cosa vorresti capire o migliorare?"
+        />
         <button className="btn" type="button" onClick={create}>
           Aggiungi e apri studio
         </button>

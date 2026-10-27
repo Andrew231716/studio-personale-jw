@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
@@ -120,21 +121,17 @@ export function DecisioniView() {
                   Elimina
                 </button>
               </div>
-              <div className="field">
-                <label>Contesto</label>
-                <textarea
-                  value={decision.context}
-                  onChange={(e) => updateDecision(decision.id, { context: e.target.value })}
-                  placeholder="Cosa sto decidendo e perché ora?"
-                />
-              </div>
-              <div className="field">
-                <label>Appunti di preghiera</label>
-                <textarea
-                  value={decision.prayerNotes}
-                  onChange={(e) => updateDecision(decision.id, { prayerNotes: e.target.value })}
-                />
-              </div>
+              <ExpandableField
+                label="Contesto"
+                value={decision.context}
+                onChange={(value) => updateDecision(decision.id, { context: value })}
+                placeholder="Cosa sto decidendo e perché ora?"
+              />
+              <ExpandableField
+                label="Appunti di preghiera"
+                value={decision.prayerNotes}
+                onChange={(value) => updateDecision(decision.id, { prayerNotes: value })}
+              />
               <div className="row">
                 <select
                   value={decision.scale}
@@ -161,14 +158,15 @@ export function DecisioniView() {
             <section className="panel">
               <h3>Priorità</h3>
               <div className="stack">
-                {decision.priorities.map((p) => (
+                {decision.priorities.map((p, idx) => (
                   <div className="list-item" key={p.id}>
-                    <input
+                    <ExpandableField
+                      label={`Priorità ${idx + 1}`}
                       value={p.label}
-                      onChange={(e) =>
+                      onChange={(value) =>
                         updateDecision(decision.id, {
                           priorities: decision.priorities.map((x) =>
-                            x.id === p.id ? { ...x, label: e.target.value } : x,
+                            x.id === p.id ? { ...x, label: value } : x,
                           ),
                         })
                       }
@@ -189,13 +187,14 @@ export function DecisioniView() {
                       />
                       <strong>{p.weight}/10</strong>
                     </div>
-                    <textarea
+                    <ExpandableField
+                      label={`Nota priorità ${idx + 1}`}
                       value={p.note}
                       placeholder="Nota"
-                      onChange={(e) =>
+                      onChange={(value) =>
                         updateDecision(decision.id, {
                           priorities: decision.priorities.map((x) =>
-                            x.id === p.id ? { ...x, note: e.target.value } : x,
+                            x.id === p.id ? { ...x, note: value } : x,
                           ),
                         })
                       }
@@ -223,16 +222,16 @@ export function DecisioniView() {
               <section className="panel">
                 <h3>Pro</h3>
                 {decision.pros.map((pro, idx) => (
-                  <div className="field" key={`pro-${idx}`}>
-                    <input
-                      value={pro}
-                      onChange={(e) => {
-                        const pros = [...decision.pros]
-                        pros[idx] = e.target.value
-                        updateDecision(decision.id, { pros })
-                      }}
-                    />
-                  </div>
+                  <ExpandableField
+                    key={`pro-${idx}`}
+                    label={`Pro ${idx + 1}`}
+                    value={pro}
+                    onChange={(value) => {
+                      const pros = [...decision.pros]
+                      pros[idx] = value
+                      updateDecision(decision.id, { pros })
+                    }}
+                  />
                 ))}
                 <button
                   className="btn secondary"
@@ -245,16 +244,16 @@ export function DecisioniView() {
               <section className="panel">
                 <h3>Contro</h3>
                 {decision.cons.map((con, idx) => (
-                  <div className="field" key={`con-${idx}`}>
-                    <input
-                      value={con}
-                      onChange={(e) => {
-                        const cons = [...decision.cons]
-                        cons[idx] = e.target.value
-                        updateDecision(decision.id, { cons })
-                      }}
-                    />
-                  </div>
+                  <ExpandableField
+                    key={`con-${idx}`}
+                    label={`Contro ${idx + 1}`}
+                    value={con}
+                    onChange={(value) => {
+                      const cons = [...decision.cons]
+                      cons[idx] = value
+                      updateDecision(decision.id, { cons })
+                    }}
+                  />
                 ))}
                 <button
                   className="btn secondary"
@@ -305,10 +304,11 @@ export function DecisioniView() {
                   </button>
                 </div>
               </div>
-              <textarea
+              <ExpandableField
+                label="Conclusione"
                 value={decision.conclusion}
-                onChange={(e) => updateDecision(decision.id, { conclusion: e.target.value })}
-                style={{ minHeight: 180 }}
+                onChange={(value) => updateDecision(decision.id, { conclusion: value })}
+                rows={8}
               />
               {aiText && (
                 <pre className="bubble assistant" style={{ maxWidth: '100%', marginTop: '0.8rem' }}>
