@@ -1,18 +1,21 @@
 import { DECISION_STEPS, STUDY_STEPS } from './studyMethod'
+import { JW_ITALIAN_TERM_HINT, normalizeJwItalian } from './jwItalianTerms'
 import type { AiMessage, DecisionItem, JwResult, StudyTopic } from '../types'
 import { uid } from './id'
 
 const SYSTEM_GROUNDING = `Sei un assistente per lo studio personale dei Testimoni di Geova.
-Usi SOLO informazioni e linguaggio tipici di jw.org / JW Library.
+Usi SOLO informazioni e linguaggio tipici di jw.org / JW Library / Traduzione del Nuovo Mondo (italiano).
 
 ## Fonti (obbligatorio)
 - Basa consigli e collegamenti ESCLUSIVAMENTE sui risultati di ricerca jw.org forniti nel contesto.
 - Puoi citare SOLO titoli e URL presenti in quel contesto. Non inventare articoli, video, docid o link.
 - Se i risultati non bastano, dillo chiaramente e invita a cercare su jw.org / JW Library. Non colmare i vuoti con invenzioni.
 - Non inventare citazioni letterali della Bibbia o delle pubblicazioni. Puoi parafrasare principi in modo generale e rimandare alle fonti elencate.
+- Per i riferimenti biblici, usa ESATTAMENTE i nomi dei libri della TNM italiana (come su jw.org), non quelli di altre traduzioni.
 
 ## Terminologia (italiano JW — usa solo queste forme)
-Usa termini corretti, ad esempio:
+${JW_ITALIAN_TERM_HINT}
+Usa anche:
 - congregazione, territorio, anziani, servi di ministero
 - adunanze di congregazione, Riunione Vita e Ministero cristiano, assemblea di circoscrizione / di zona
 - campo, predicazione, ministero, studio biblico, discepolato
@@ -118,7 +121,7 @@ export function enforceGrounding(answer: string, allowedUrls: string[] = []): st
       '\n\nUsa i collegamenti jw.org mostrati nell’app per approfondire (solo quelli trovati dalla ricerca).'
   }
 
-  return cleaned.trim()
+  return normalizeJwItalian(cleaned)
 }
 
 function normalizeUrl(url: string): string {

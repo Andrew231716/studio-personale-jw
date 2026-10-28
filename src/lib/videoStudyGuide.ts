@@ -1,5 +1,11 @@
 import { askAi } from './ai'
 import { uid } from './id'
+import {
+  JW_ITALIAN_TERM_HINT,
+  isSectionHeading,
+  normalizeJwItalian,
+  normalizeJwItalianList,
+} from './jwItalianTerms'
 import { DEFAULT_PRACTICE_IDEAS, DEFAULT_REFLECTION_PROMPTS } from './studyMethod'
 import type { PracticeItem, ReflectionPoint, StudyQuestion } from '../types'
 
@@ -17,6 +23,7 @@ A partire dalla TRASCRIZIONE di un video ufficiale JW, crea una guida di studio 
 Regole:
 - Usa solo ciò che emerge dalla trascrizione (non inventare citazioni letterali non presenti).
 - Tono rispettoso, pratico, tipico delle pubblicazioni JW.
+- ${JW_ITALIAN_TERM_HINT}
 - Non inventare titoli di articoli o link.
 - Rispondi SOLO in questo formato, senza altro testo:
 
@@ -48,6 +55,8 @@ PRATICHE:
 - azione pratica 2
 - azione pratica 3`
 
+const SECTION_NAMES = ['TITOLO', 'RIASSUNTO', 'OBIETTIVI', 'RIFLESSIONI', 'DOMANDE', 'PRATICHE'] as const
+
 export async function buildVideoStudyGuide(params: {
   videoTitle: string
   transcript: string
@@ -56,7 +65,7 @@ export async function buildVideoStudyGuide(params: {
   const clipped = transcript.slice(0, 10000)
   try {
     const raw = await askAi({
-      prompt: `Crea la guida di studio per il video “${videoTitle}”.`,
+      prompt: `Crea la guida di studio per il video “${videoTitle}”. Usa solo terminologia jw.org (es. 2 Corinti, non Corinzi).`,
       context: `${GUIDE_PROMPT}\n\n## Trascrizione\n${clipped}`,
     })
     const parsed = parseGuideResponse(raw, videoTitle)
@@ -68,16 +77,18 @@ export async function buildVideoStudyGuide(params: {
 }
 
 export function parseGuideResponse(raw: string, fallbackTitle: string): VideoStudyGuide {
-  const title = sectionLine(raw, 'TITOLO') || fallbackTitle
-  const summary = sectionBlock(raw, 'RIASSUNTO') || ''
-  const objectives = bullets(sectionBlock(raw, 'OBIETTIVI')).slice(0, 5)
-  const reflections = bullets(sectionBlock(raw, 'RIFLESSIONI'))
+  // Prima spezza le sezioni, poi normalizza i testi (altrimenti si perdono le intestazioni)
+  const text = String(raw || '')
+  const title = normalizeJwItalian(sectionLine(text, 'TITOLO') || fallbackTitle)
+  const summary = normalizeJwItalian(sectionBlock(text, 'RIASSUNTO') || '')
+  const objectives = normalizeJwItalianList(bullets(sectionBlock(text, 'OBIETTIVI'))).slice(0, 5)
+  const reflections = normalizeJwItalianList(bullets(sectionBlock(text, 'RIFLESSIONI')))
     .slice(0, 6)
     .map((prompt) => ({ id: uid('ref'), prompt, response: '' }))
-  const questions = bullets(sectionBlock(raw, 'DOMANDE'))
+  const questions = normalizeJwItalianList(bullets(sectionBlock(text, 'DOMANDE')))
     .slice(0, 6)
     .map((question) => ({ id: uid('q'), question, answer: '' }))
-  const practices = bullets(sectionBlock(raw, 'PRATICHE'))
+  const practices = normalizeJwItalianList(bullets(sectionBlock(text, 'PRATICHE')))
     .slice(0, 5)
     .map((action) => ({ id: uid('prac'), action, tried: false, outcome: '' }))
 
@@ -119,7 +130,7 @@ export function parseGuideResponse(raw: string, fallbackTitle: string): VideoStu
 }
 
 function localGuideFromTranscript(videoTitle: string, transcript: string): VideoStudyGuide {
-  const sentences = transcript
+  const sentences = normalizeJwItalian(transcript)
     .split(/(?<=[.!?…])\s+/)
     .map((s) => s.trim())
     .filter((s) => s.length > 40)
@@ -180,8 +191,9 @@ function localGuideFromTranscript(videoTitle: string, transcript: string): Video
 }
 
 function sectionBlock(text: string, heading: string): string {
+  // Accetta "RIFLESSIONI:" oppure "RIFLESSIONI**" / "RIFLESSIONI"
   const re = new RegExp(
-    `${heading}\\s*:?\\s*([\\s\\S]*?)(?=\\n(?:TITOLO|RIASSUNTO|OBIETTIVI|RIFLESSIONI|DOMANDE|PRATICHE)\\s*:|$)`,
+    `(?:^|\\n)\\s*${heading}\\s*[:*]*\\s*\\n([\\s\\S]*?)(?=(?:\\n\\s*(?:${SECTION_NAMES.join('|')})\\s*[:*]*\\s*(?:\\n|$))|$)`,
     'i',
   )
   const m = text.match(re)
@@ -198,4 +210,5 @@ function bullets(block: string): string[] {
     .split('\n')
     .map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim())
     .filter((l) => l.length > 3)
+    .filter((l) => !isSectionHeading(l))
 }

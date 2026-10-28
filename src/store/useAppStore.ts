@@ -6,6 +6,7 @@ import {
   buildDecisionConclusion,
 } from '../lib/studyMethod'
 import { uid } from '../lib/id'
+import { isSectionHeading, normalizeJwItalian, normalizeJwItalianList } from '../lib/jwItalianTerms'
 import type {
   AiMessage,
   AppSettings,
@@ -150,6 +151,32 @@ function resourceKey(r: { url: string; lank?: string; docid?: string }) {
   return `${r.url}|${r.lank || ''}|${r.docid || ''}`
 }
 
+/** Allinea testi salvati alla terminologia jw.org (es. Corinti). */
+function normalizeTopicTerms(topic: StudyTopic): StudyTopic {
+  return {
+    ...topic,
+    title: normalizeJwItalian(topic.title || ''),
+    interest: normalizeJwItalian(topic.interest || ''),
+    objectives: normalizeJwItalianList(topic.objectives || []).filter((o) => !isSectionHeading(o)),
+    reflections: (topic.reflections || []).map((r) => ({
+      ...r,
+      prompt: normalizeJwItalian(r.prompt || ''),
+      response: normalizeJwItalian(r.response || ''),
+    })),
+    questions: (topic.questions || []).map((q) => ({
+      ...q,
+      question: normalizeJwItalian(q.question || ''),
+      answer: normalizeJwItalian(q.answer || ''),
+    })),
+    practices: (topic.practices || []).map((p) => ({
+      ...p,
+      action: normalizeJwItalian(p.action || ''),
+      outcome: normalizeJwItalian(p.outcome || ''),
+    })),
+    transcript: topic.transcript ? normalizeJwItalian(topic.transcript) : topic.transcript,
+  }
+}
+
 function seedTopic(title: string, interest = ''): StudyTopic {
   const now = new Date().toISOString()
   return {
@@ -228,9 +255,11 @@ export const useAppStore = create<AppState>()(
       },
       updateTopic: (id, patch) =>
         set((s) => ({
-          topics: s.topics.map((t) =>
-            t.id === id ? { ...t, ...patch, updatedAt: new Date().toISOString() } : t,
-          ),
+          topics: s.topics.map((t) => {
+            if (t.id !== id) return t
+            const merged = { ...t, ...patch, updatedAt: new Date().toISOString() }
+            return normalizeTopicTerms(merged)
+          }),
         })),
       removeTopic: (id) =>
         set((s) => ({
@@ -513,6 +542,7 @@ export const useAppStore = create<AppState>()(
           schedules: p.schedules || [],
           savedResources: p.savedResources || [],
           savedSearches: p.savedSearches || [],
+          topics: (p.topics || current.topics || []).map(normalizeTopicTerms),
         }
       },
       partialize: (s) => ({
