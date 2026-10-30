@@ -338,8 +338,11 @@ export function LettureBibbiaView() {
                   <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
                     <JwOpenButtons
                       url={r.url}
+                      wolUrl={r.wolUrl}
                       lank={r.lank}
                       docid={r.docid}
+                      bible={r.bible}
+                      pub={r.pub}
                       language={language}
                       compact
                     />
@@ -492,8 +495,11 @@ export function LettureBibbiaView() {
                   )}
                   <JwOpenButtons
                     url={r.url}
+                    wolUrl={r.wolUrl}
                     lank={r.lank}
                     docid={r.docid}
+                    bible={r.bible}
+                    pub={r.pub}
                     language={language}
                     compact
                   />

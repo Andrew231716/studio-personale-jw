@@ -182,8 +182,11 @@ export function StudioView() {
                 <strong>{r.title}</strong>
                 <JwOpenButtons
                   url={r.url}
+                  wolUrl={r.wolUrl}
                   lank={r.lank}
                   docid={r.docid}
+                  bible={r.bible}
+                  pub={r.pub}
                   language={settings.language}
                   compact
                 />

@@ -3,6 +3,7 @@ import {
   extractJwRefs,
   buildJwLibraryShareLink,
   isMediaLank,
+  publicationSymbol,
 } from './jwLibrary'
 import { classifySection, groupResultsBySection, sectionToKind } from './jwSections'
 import { buildThematicQueries, scoreThemeMatch } from './jwThemeSearch'
@@ -44,18 +45,38 @@ function flattenResults(payload: Record<string, unknown>): JwResult[] {
     for (const item of items) {
       if (item.type && item.type !== 'item') continue
       const links = (item.links || {}) as Record<string, string>
-      const url = links['jw.org'] || links.wol || ''
-      if (!url) continue
+      const jwUrl = links['jw.org'] || ''
+      const wolUrl = links.wol || ''
       const image = (item.image as { url?: string } | undefined)?.url
       const rawLank = item.lank ? String(item.lank) : undefined
-      const refs = extractJwRefs(url)
-      const wolRefs = extractJwRefs(links.wol)
+      const refs = extractJwRefs(jwUrl)
+      const wolRefs = extractJwRefs(wolUrl)
       const lank = [rawLank, refs.lank, wolRefs.lank].find(isMediaLank)
       let docid = refs.docid || wolRefs.docid
       if (!docid && rawLank) {
         const nested = rawLank.match(/^pa-(\d{6,})$/i)
         if (nested) docid = nested[1]
       }
+      const pub =
+        refs.pub ||
+        wolRefs.pub ||
+        publicationSymbol(rawLank) ||
+        publicationSymbol(refs.lank) ||
+        publicationSymbol(wolRefs.lank)
+      // Preferisci sempre un open link jw.org (apribile anche in JW Library)
+      const url =
+        jwUrl ||
+        (docid
+          ? `https://www.jw.org/open?docid=${encodeURIComponent(docid)}&prefer=lang&wtlocale=I`
+          : '') ||
+        (lank
+          ? `https://www.jw.org/open?item=${encodeURIComponent(lank)}&prefer=lang&wtlocale=I`
+          : '') ||
+        (pub
+          ? `https://www.jw.org/open?pub=${encodeURIComponent(pub)}&prefer=lang&wtlocale=I`
+          : '') ||
+        wolUrl
+      if (!url) continue
       const subtype = item.subtype ? String(item.subtype) : undefined
       const context = item.context ? stripHtml(String(item.context)) : undefined
       const section = classifySection({
@@ -66,13 +87,13 @@ function flattenResults(payload: Record<string, unknown>): JwResult[] {
       })
       const insight = item.insight as { rank?: number } | undefined
       out.push({
-        id: String(lank || docid || item.title || uidFallback()),
+        id: String(lank || docid || pub || item.title || uidFallback()),
         title: stripHtml(String(item.title || 'Senza titolo')),
         snippet: stripHtml(String(item.snippet || '')),
         kind: sectionToKind(section, subtype) || mapKindLegacy(subtype, groupLayout),
         section,
         url,
-        wolUrl: links.wol,
+        wolUrl: wolUrl || undefined,
         lank,
         docid,
         image,

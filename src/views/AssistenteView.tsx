@@ -207,6 +207,7 @@ export function AssistenteView() {
                     )}
                     <JwOpenButtons
                       url={l.url}
+                      wolUrl={l.wolUrl}
                       lank={l.lank}
                       docid={l.docid}
                       language={language}
@@ -225,6 +226,7 @@ export function AssistenteView() {
                             notes: l.context || l.snippet,
                             lank: l.lank,
                             docid: l.docid,
+                            wolUrl: l.wolUrl,
                           },
                           queriesUsed[0],
                         )

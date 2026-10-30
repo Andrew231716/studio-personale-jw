@@ -63,6 +63,11 @@ export interface StudyResource {
   notes?: string
   lank?: string
   docid?: string
+  wolUrl?: string
+  /** Codice bible= per versetti / libri */
+  bible?: string
+  /** Simbolo pubblicazione (es. rff, ia) */
+  pub?: string
   libraryUrl?: string
 }
 

@@ -147,6 +147,7 @@ function resultsToResources(results: JwResult[]): StudyResource[] {
     notes: [r.context, r.snippet].filter(Boolean).join(' — '),
     lank: r.lank,
     docid: r.docid,
+    wolUrl: r.wolUrl,
   }))
 }
 

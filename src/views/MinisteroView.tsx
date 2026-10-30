@@ -312,6 +312,7 @@ export function MinisteroView() {
                 <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
                   <JwOpenButtons
                     url={a.url}
+                    wolUrl={a.wolUrl}
                     lank={a.lank}
                     docid={a.docid}
                     language={language}
@@ -330,6 +331,7 @@ export function MinisteroView() {
                           notes: a.snippet,
                           lank: a.lank,
                           docid: a.docid,
+                          wolUrl: a.wolUrl,
                         },
                         topic,
                       )
@@ -445,8 +447,11 @@ export function MinisteroView() {
                   )}
                   <JwOpenButtons
                     url={r.url}
+                    wolUrl={r.wolUrl}
                     lank={r.lank}
                     docid={r.docid}
+                    bible={r.bible}
+                    pub={r.pub}
                     language={language}
                     compact
                   />

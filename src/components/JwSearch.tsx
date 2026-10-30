@@ -90,6 +90,7 @@ export function JwSearch({
       notes: [result.context, result.snippet].filter(Boolean).join(' — '),
       lank: result.lank,
       docid: result.docid,
+      wolUrl: result.wolUrl,
       libraryUrl:
         open.libraryOpenUrl ||
         buildJwLibraryShareLink(

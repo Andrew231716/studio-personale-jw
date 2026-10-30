@@ -1,5 +1,4 @@
 import { BookOpen, ExternalLink, Smartphone } from 'lucide-react'
-import { bibleOpenUrl } from '../lib/bibleRefs'
 import { resolveOpenLinks } from '../lib/jwLibrary'
 
 interface Props {
@@ -9,16 +8,18 @@ interface Props {
   docid?: string
   /** Codice bible= (versetti / libri TNM) */
   bible?: string
+  /** Simbolo pubblicazione (es. rff, ia, nwtsty) */
+  pub?: string
   language?: string
   compact?: boolean
   /** Etichetta alternativa per il link web (es. «Versetto») */
   webLabel?: string
+  libraryLabel?: string
 }
 
 /**
- * Apri in JW Library usa il link ufficiale finder?srcid=jwlshare
- * (come “Condividi” nell’app). Su telefono/tablet apre il contenuto
- * specifico; lo schema jwlibrary:// da solo spesso lascia sulla home.
+ * Due azioni ovunque: sito jw.org + JW Library (link ufficiale jwlshare).
+ * Funziona per articoli (docid), versetti (bible), video (lank) e pubblicazioni (pub).
  */
 export function JwOpenButtons({
   url,
@@ -26,27 +27,30 @@ export function JwOpenButtons({
   lank,
   docid,
   bible,
+  pub,
   language = 'I',
   compact = false,
   webLabel,
+  libraryLabel,
 }: Props) {
-  const bibleUrl = bible ? bibleOpenUrl(bible, language) : undefined
   const links = resolveOpenLinks({
-    url: url || bibleUrl,
+    url,
     wolUrl,
     lank,
     docid,
+    bible,
+    pub,
     language,
   })
-  // Se abbiamo solo il codice bible, forza i link di apertura Bibbia
-  const webUrl = links.webUrl || bibleUrl || null
-  const libraryOpenUrl =
-    links.libraryOpenUrl ||
-    (bible ? bibleOpenUrl(bible, language) : null)
+
+  const webUrl = links.webUrl
+  const libraryOpenUrl = links.libraryOpenUrl
   if (!webUrl && !libraryOpenUrl) return null
 
+  const isBible = Boolean(bible || (url && /[?&]bible=/i.test(url)))
+
   return (
-    <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+    <div className="row jw-open-buttons" style={{ flexWrap: 'wrap', gap: 6 }}>
       {webUrl && (
         <a
           className={compact ? 'chip' : 'btn secondary'}
@@ -55,8 +59,15 @@ export function JwOpenButtons({
           rel="noreferrer"
         >
           <span className="row" style={{ gap: 6 }}>
-            {bible ? <BookOpen size={14} /> : <ExternalLink size={14} />}
-            {webLabel || (compact ? (bible ? 'Bibbia' : 'jw.org') : bible ? 'Apri versetto' : 'Apri su jw.org')}
+            {isBible ? <BookOpen size={14} /> : <ExternalLink size={14} />}
+            {webLabel ||
+              (compact
+                ? isBible
+                  ? 'Bibbia'
+                  : 'jw.org'
+                : isBible
+                  ? 'Apri versetto'
+                  : 'Apri su jw.org')}
           </span>
         </a>
       )}
@@ -68,6 +79,22 @@ export function JwOpenButtons({
           target="_blank"
           rel="noreferrer"
           title="Apre il contenuto in JW Library (come il pulsante Condividi dell’app)"
+        >
+          <span className="row" style={{ gap: 6 }}>
+            <Smartphone size={14} />
+            {libraryLabel || (compact ? 'JW Library' : 'Apri in JW Library')}
+          </span>
+        </a>
+      )}
+
+      {/* Se per qualche motivo manca il link Library ma abbiamo il web, riproponi web come fallback etichettato */}
+      {!libraryOpenUrl && webUrl && (
+        <a
+          className={compact ? 'chip' : 'btn accent'}
+          href={webUrl}
+          target="_blank"
+          rel="noreferrer"
+          title="Apri e, se possibile, continua in JW Library dal sito"
         >
           <span className="row" style={{ gap: 6 }}>
             <Smartphone size={14} />
