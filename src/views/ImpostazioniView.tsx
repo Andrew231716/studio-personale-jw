@@ -11,6 +11,8 @@ const FEATURE_KEYS: Array<keyof FeatureFlags> = [
   'pdfJwpub',
   'videoStudio',
   'salvati',
+  'lettureBibbia',
+  'ministero',
   'decisioni',
   'assistente',
   'impostazioni',
@@ -236,6 +238,10 @@ function featureLabel(key: keyof FeatureFlags) {
       return 'Video → studio (trascrizione)'
     case 'salvati':
       return 'Da studiare (salvati)'
+    case 'lettureBibbia':
+      return 'Letture della Bibbia'
+    case 'ministero':
+      return 'Ministero'
     case 'decisioni':
       return 'Decisioni'
     case 'assistente':

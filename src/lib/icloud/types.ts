@@ -1,7 +1,9 @@
 import type {
   AiMessage,
   AppSettings,
+  BibleReadingPlan,
   DecisionItem,
+  MinistryAssistNote,
   SavedResource,
   SavedSearch,
   ScheduledStudy,
@@ -25,6 +27,8 @@ export interface ICloudSnapshot {
   schedules: ScheduledStudy[]
   savedResources?: SavedResource[]
   savedSearches?: SavedSearch[]
+  bibleReadingPlans?: BibleReadingPlan[]
+  ministryNotes?: MinistryAssistNote[]
 }
 
 export interface ICloudConfig {

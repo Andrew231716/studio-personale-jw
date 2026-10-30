@@ -59,5 +59,15 @@ export function mergeSnapshots(local: ICloudSnapshot, remote: ICloudSnapshot): I
       remote.savedSearches || [],
       'createdAt',
     ),
+    bibleReadingPlans: byIdNewer(
+      local.bibleReadingPlans || [],
+      remote.bibleReadingPlans || [],
+      'createdAt',
+    ),
+    ministryNotes: byIdNewer(
+      local.ministryNotes || [],
+      remote.ministryNotes || [],
+      'createdAt',
+    ),
   }
 }

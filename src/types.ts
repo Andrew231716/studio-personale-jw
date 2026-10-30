@@ -174,11 +174,37 @@ export type AppView =
   | 'pdfJwpub'
   | 'videoStudio'
   | 'salvati'
+  | 'lettureBibbia'
+  | 'ministero'
   | 'decisioni'
   | 'assistente'
   | 'impostazioni'
 
 export type SummaryPeriod = 'giorno' | 'settimana' | 'mese'
+
+export type BibleReadingKind = 'personaggio' | 'racconto' | 'libro' | 'tema'
+
+export interface BibleReadingPlan {
+  id: string
+  title: string
+  kind: BibleReadingKind
+  query: string
+  plan: string
+  resources: StudyResource[]
+  createdAt: string
+}
+
+export type MinistryAssistKind = 'riassunto' | 'schema' | 'spunto' | 'scritture'
+
+export interface MinistryAssistNote {
+  id: string
+  title: string
+  kind: MinistryAssistKind
+  topic: string
+  content: string
+  resources: StudyResource[]
+  createdAt: string
+}
 
 export interface FeatureFlags {
   home: boolean
@@ -189,6 +215,8 @@ export interface FeatureFlags {
   pdfJwpub: boolean
   videoStudio: boolean
   salvati: boolean
+  lettureBibbia: boolean
+  ministero: boolean
   decisioni: boolean
   assistente: boolean
   impostazioni: boolean

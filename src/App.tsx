@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import {
+  BookMarked,
   BookOpenText,
   Bookmark,
   Captions,
@@ -8,6 +9,7 @@ import {
   History,
   Home,
   MessageSquareText,
+  MessagesSquare,
   NotebookPen,
   PlayCircle,
   Settings2,
@@ -23,6 +25,8 @@ import { DiarioView } from './views/DiarioView'
 import { PdfJwpubView } from './views/PdfJwpubView'
 import { VideoStudioView } from './views/VideoStudioView'
 import { SalvatiView } from './views/SalvatiView'
+import { LettureBibbiaView } from './views/LettureBibbiaView'
+import { MinisteroView } from './views/MinisteroView'
 import { DecisioniView } from './views/DecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
@@ -37,6 +41,8 @@ const ICONS: Record<AppView, typeof Home> = {
   pdfJwpub: FileUp,
   videoStudio: Captions,
   salvati: Bookmark,
+  lettureBibbia: BookMarked,
+  ministero: MessagesSquare,
   decisioni: Compass,
   assistente: MessageSquareText,
   impostazioni: Settings2,
@@ -89,6 +95,8 @@ export default function App() {
         if (key === 'pdfJwpub') return settings.features.pdfJwpub !== false
         if (key === 'videoStudio') return settings.features.videoStudio !== false
         if (key === 'salvati') return settings.features.salvati !== false
+        if (key === 'lettureBibbia') return settings.features.lettureBibbia !== false
+        if (key === 'ministero') return settings.features.ministero !== false
         if (key === 'decisioni') return settings.features.decisioni
         if (key === 'assistente') return settings.features.assistente
         if (key === 'impostazioni') return settings.features.impostazioni
@@ -136,6 +144,8 @@ export default function App() {
           {view === 'pdfJwpub' && <PdfJwpubView />}
           {view === 'videoStudio' && <VideoStudioView />}
           {view === 'salvati' && <SalvatiView />}
+          {view === 'lettureBibbia' && <LettureBibbiaView />}
+          {view === 'ministero' && <MinisteroView />}
           {view === 'decisioni' && <DecisioniView />}
           {view === 'assistente' && <AssistenteView />}
           {view === 'impostazioni' && <ImpostazioniView />}

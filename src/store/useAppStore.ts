@@ -11,7 +11,9 @@ import type {
   AiMessage,
   AppSettings,
   AppView,
+  BibleReadingPlan,
   DecisionItem,
+  MinistryAssistNote,
   SavedResource,
   SavedSearch,
   ScheduledStudy,
@@ -49,6 +51,8 @@ const defaultSettings: AppSettings = {
     pdfJwpub: true,
     videoStudio: true,
     salvati: true,
+    lettureBibbia: true,
+    ministero: true,
     decisioni: true,
     assistente: true,
     impostazioni: true,
@@ -64,6 +68,8 @@ const defaultSettings: AppSettings = {
     'pdfJwpub',
     'videoStudio',
     'salvati',
+    'lettureBibbia',
+    'ministero',
     'decisioni',
     'assistente',
     'impostazioni',
@@ -120,6 +126,8 @@ interface AppState {
   schedules: ScheduledStudy[]
   savedResources: SavedResource[]
   savedSearches: SavedSearch[]
+  bibleReadingPlans: BibleReadingPlan[]
+  ministryNotes: MinistryAssistNote[]
   setView: (view: AppView) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   updateTheme: (patch: Partial<ThemeConfig>) => void
@@ -145,6 +153,10 @@ interface AppState {
   removeSavedResource: (id: string) => void
   saveSearch: (query: string, note?: string, resultCount?: number) => SavedSearch | null
   removeSavedSearch: (id: string) => void
+  pushBibleReadingPlan: (plan: BibleReadingPlan) => void
+  removeBibleReadingPlan: (id: string) => void
+  pushMinistryNote: (note: MinistryAssistNote) => void
+  removeMinistryNote: (id: string) => void
 }
 
 function resourceKey(r: { url: string; lank?: string; docid?: string }) {
@@ -234,6 +246,8 @@ export const useAppStore = create<AppState>()(
       schedules: [],
       savedResources: [],
       savedSearches: [],
+      bibleReadingPlans: [],
+      ministryNotes: [],
       setView: (view) => set({ view }),
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -483,6 +497,22 @@ export const useAppStore = create<AppState>()(
       },
       removeSavedSearch: (id) =>
         set((s) => ({ savedSearches: s.savedSearches.filter((x) => x.id !== id) })),
+      pushBibleReadingPlan: (plan) =>
+        set((s) => ({
+          bibleReadingPlans: [plan, ...s.bibleReadingPlans].slice(0, 50),
+        })),
+      removeBibleReadingPlan: (id) =>
+        set((s) => ({
+          bibleReadingPlans: s.bibleReadingPlans.filter((p) => p.id !== id),
+        })),
+      pushMinistryNote: (note) =>
+        set((s) => ({
+          ministryNotes: [note, ...s.ministryNotes].slice(0, 50),
+        })),
+      removeMinistryNote: (id) =>
+        set((s) => ({
+          ministryNotes: s.ministryNotes.filter((n) => n.id !== id),
+        })),
     }),
     {
       name: 'studio-personale-jw-v1',
@@ -500,6 +530,8 @@ export const useAppStore = create<AppState>()(
               pdfJwpub: p.settings?.features?.pdfJwpub !== false,
               videoStudio: p.settings?.features?.videoStudio !== false,
               salvati: p.settings?.features?.salvati !== false,
+              lettureBibbia: p.settings?.features?.lettureBibbia !== false,
+              ministero: p.settings?.features?.ministero !== false,
             },
             iCloud: {
               ...current.settings.iCloud!,
@@ -534,6 +566,16 @@ export const useAppStore = create<AppState>()(
                 if (videoIdx >= 0) order.splice(videoIdx + 1, 0, 'salvati')
                 else order.push('salvati')
               }
+              if (!order.includes('lettureBibbia')) {
+                const salvatiIdx = order.indexOf('salvati')
+                if (salvatiIdx >= 0) order.splice(salvatiIdx + 1, 0, 'lettureBibbia')
+                else order.push('lettureBibbia')
+              }
+              if (!order.includes('ministero')) {
+                const lettureIdx = order.indexOf('lettureBibbia')
+                if (lettureIdx >= 0) order.splice(lettureIdx + 1, 0, 'ministero')
+                else order.push('ministero')
+              }
               return order
             })(),
           },
@@ -542,6 +584,8 @@ export const useAppStore = create<AppState>()(
           schedules: p.schedules || [],
           savedResources: p.savedResources || [],
           savedSearches: p.savedSearches || [],
+          bibleReadingPlans: p.bibleReadingPlans || [],
+          ministryNotes: p.ministryNotes || [],
           topics: (p.topics || current.topics || []).map(normalizeTopicTerms),
         }
       },
@@ -557,6 +601,8 @@ export const useAppStore = create<AppState>()(
         schedules: s.schedules,
         savedResources: s.savedResources,
         savedSearches: s.savedSearches,
+        bibleReadingPlans: s.bibleReadingPlans,
+        ministryNotes: s.ministryNotes,
       }),
     },
   ),
@@ -571,6 +617,8 @@ export const VIEW_LABELS: Record<AppView, string> = {
   pdfJwpub: 'PDF → EPUB',
   videoStudio: 'Video → studio',
   salvati: 'Da studiare',
+  lettureBibbia: 'Letture Bibbia',
+  ministero: 'Ministero',
   decisioni: 'Decisioni',
   assistente: 'Assistente AI',
   impostazioni: 'Impostazioni',
