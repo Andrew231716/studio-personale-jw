@@ -184,6 +184,21 @@ export type SummaryPeriod = 'giorno' | 'settimana' | 'mese'
 
 export type BibleReadingKind = 'personaggio' | 'racconto' | 'libro' | 'tema'
 
+export interface BibleScriptureRef {
+  id: string
+  label: string
+  /** Codice bible= jw.org / JW Library */
+  bible?: string
+  url?: string
+  note?: string
+}
+
+export interface BibleReflection {
+  id: string
+  text: string
+  createdAt: string
+}
+
 export interface BibleReadingPlan {
   id: string
   title: string
@@ -191,10 +206,14 @@ export interface BibleReadingPlan {
   query: string
   plan: string
   resources: StudyResource[]
+  scriptures?: BibleScriptureRef[]
+  reflections?: BibleReflection[]
+  blurb?: string
   createdAt: string
+  updatedAt?: string
 }
 
-export type MinistryAssistKind = 'riassunto' | 'schema' | 'spunto' | 'scritture'
+export type MinistryAssistKind = 'riassunto' | 'schema' | 'spunto' | 'scritture' | 'presentazione'
 
 export interface MinistryAssistNote {
   id: string
@@ -203,6 +222,8 @@ export interface MinistryAssistNote {
   topic: string
   content: string
   resources: StudyResource[]
+  sourceTitle?: string
+  sourceUrl?: string
   createdAt: string
 }
 

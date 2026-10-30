@@ -282,6 +282,23 @@ function mapMediaItem(m: Record<string, unknown>, language: string): JwMediaDeta
   }
 }
 
+function mapLatestMediaItem(m: Record<string, unknown>, language: string): LatestMediaItem {
+  const details = mapMediaItem(m, language)
+  return {
+    guid: String(m.guid || details.lank),
+    title: details.title,
+    description: details.description,
+    published: String(m.firstPublished || ''),
+    duration: details.duration,
+    image: details.image,
+    url: details.url,
+    lank: details.lank || undefined,
+    libraryUrl: details.libraryUrl,
+    subtitleUrl: details.subtitleUrl,
+    hasSubtitles: Boolean(details.subtitleUrl),
+  }
+}
+
 export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem[]> {
   const res = await fetch(
     `/api/jw-media?language=${encodeURIComponent(language)}&category=LatestVideos`,
@@ -289,22 +306,33 @@ export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem
   if (!res.ok) throw new Error('Impossibile caricare i video recenti da jw.org')
   const data = await res.json()
   const media = data?.category?.media || []
-  return media.slice(0, 12).map((m: Record<string, unknown>) => {
-    const details = mapMediaItem(m, language)
-    return {
-      guid: String(m.guid || details.lank),
-      title: details.title,
-      description: details.description,
-      published: String(m.firstPublished || ''),
-      duration: details.duration,
-      image: details.image,
-      url: details.url,
-      lank: details.lank || undefined,
-      libraryUrl: details.libraryUrl,
-      subtitleUrl: details.subtitleUrl,
-      hasSubtitles: Boolean(details.subtitleUrl),
-    }
-  })
+  return media.slice(0, 12).map((m: Record<string, unknown>) => mapLatestMediaItem(m, language))
+}
+
+/** Categorie video ministero su jw.org (Adunanze e ministero). */
+export const MINISTRY_VIDEO_CATEGORIES = [
+  { key: 'VODMinistryTools', label: 'Strumenti per il ministero' },
+  { key: 'VODSampleConversations', label: 'Conversazioni modello' },
+  { key: 'VODMinistryTeachings', label: 'Insegnamenti fondamentali' },
+  { key: 'VODMinistryImproveSkills', label: 'Affiniamo le capacità' },
+  { key: 'VODMinistryMethods', label: 'Metodi di predicazione' },
+  { key: 'VODMinistryExpandMinistry', label: 'Espandere il ministero' },
+] as const
+
+export async function fetchMediaCategory(
+  category: string,
+  language = 'I',
+  limit = 40,
+): Promise<LatestMediaItem[]> {
+  const res = await fetch(
+    `/api/jw-media?language=${encodeURIComponent(language)}&category=${encodeURIComponent(category)}&detailed=1`,
+  )
+  if (!res.ok) throw new Error(`Impossibile caricare la categoria video (${category})`)
+  const data = await res.json()
+  const media = data?.category?.media || []
+  return media
+    .slice(0, limit)
+    .map((m: Record<string, unknown>) => mapLatestMediaItem(m, language))
 }
 
 /** Dettagli media JW (inclusi sottotitoli) tramite lank. */

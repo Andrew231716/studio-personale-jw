@@ -1,13 +1,14 @@
 import { askAi } from './ai'
-import { searchJwDeep } from './jwApi'
+import { searchJw, searchJwDeep } from './jwApi'
 import { uid } from './id'
 import type { JwResult, MinistryAssistKind, MinistryAssistNote, StudyResource } from '../types'
 
 export const MINISTRY_KIND_LABELS: Record<MinistryAssistKind, string> = {
   riassunto: 'Riassunto articolo',
-  schema: 'Schema / mini struttura',
+  schema: 'Schema / conversazione',
   spunto: 'Spunti per conversare',
   scritture: 'Scritture e spiegazioni',
+  presentazione: 'Schema presentazione',
 }
 
 export const MINISTRY_SUGGESTIONS = [
@@ -20,10 +21,13 @@ export const MINISTRY_SUGGESTIONS = [
   'famiglia',
   'preghiera',
   'cosa succede quando si muore',
+  'paradiso terrestre',
+  'chi sono i Testimoni di Geova',
+  'come si svolge uno studio biblico',
 ]
 
 function resultsToResources(results: JwResult[]): StudyResource[] {
-  return results.slice(0, 8).map((r) => ({
+  return results.slice(0, 10).map((r) => ({
     id: uid('res'),
     title: r.title,
     url: r.url,
@@ -37,7 +41,7 @@ function resultsToResources(results: JwResult[]): StudyResource[] {
 function promptForKind(kind: MinistryAssistKind, topic: string): string {
   switch (kind) {
     case 'riassunto':
-      return `Aiutami a fare un riassunto chiaro e fedele per il ministero sul tema “${topic}”, basandoti SOLO sugli articoli/video jw.org del contesto.
+      return `Aiutami a fare un riassunto chiaro e fedele per il ministero sul tema/articolo “${topic}”, basandoti SOLO sugli articoli/video jw.org del contesto.
 Struttura:
 - Idea centrale (1-2 frasi)
 - 3-5 punti principali
@@ -53,6 +57,17 @@ Formato breve, pratico da usare sul campo:
 4. Possibile obiezione + risposta breve basata sui materiali jw.org
 5. Conclusione / prossimo passo
 Usa solo i risultati jw.org del contesto; non inventare link.`
+    case 'presentazione':
+      return `Crea uno schema per una breve presentazione / conversazione strutturata sul tema “${topic}” (2-4 minuti), basato SOLO sui materiali jw.org del contesto.
+Formato:
+1. Titolo della presentazione
+2. Obiettivo (1 frase)
+3. Apertura (gancio + scrittura)
+4. Corpo: 3 punti numerati, ciascuno con scrittura e 1-2 frasi di spiegazione
+5. Illustrazione semplice (senza inventare citazioni lunghe)
+6. Domanda di interesse / applicazione
+7. Invito a leggere/guardare insieme un materiale jw.org citato nel contesto
+Tono rispettoso e caldo.`
     case 'spunto':
       return `Dammi spunti pratici per conversare con le persone sul tema “${topic}”.
 Elenca:
@@ -71,43 +86,87 @@ Non inventare citazioni letterali lunghe.`
   }
 }
 
+function sourceBlockFromResults(results: JwResult[]): string {
+  return results
+    .slice(0, 12)
+    .map((r) => {
+      const snip = r.snippet ? ` — ${r.snippet.slice(0, 160)}` : ''
+      return `- ${r.title}${r.context ? ` (${r.context})` : ''}${snip}\n  URL: ${r.url}`
+    })
+    .join('\n')
+}
+
+export async function searchMinistryArticles(params: {
+  query: string
+  language?: string
+}): Promise<JwResult[]> {
+  const language = params.language || 'I'
+  const query = params.query.trim()
+  if (!query) return []
+  const deep = await searchJwDeep(`${query} ministero predicazione`, {
+    language,
+    filters: ['publications', 'videos', 'indexes'],
+    maxQueries: 4,
+    perSection: 8,
+  })
+  return deep.flat
+}
+
 export async function buildMinistryAssist(params: {
   kind: MinistryAssistKind
   topic: string
   language?: string
+  /** Se presente, centra il riassunto/schema su questo materiale */
+  focus?: Pick<JwResult, 'title' | 'url' | 'snippet' | 'context' | 'lank' | 'docid' | 'kind'>
 }): Promise<MinistryAssistNote> {
   const language = params.language || 'I'
   const topic = params.topic.trim()
-  const deep = await searchJwDeep(`${topic} ministero predicazione`, {
-    language,
-    filters: ['publications', 'videos', 'indexes'],
-    maxQueries: 4,
-    perSection: 5,
-  })
-  const resources = resultsToResources(deep.flat)
-  const sourceBlock = deep.sections
-    .map(
-      (s) =>
-        `### ${s.label}\n` +
-        s.items
-          .map((r) => {
-            const snip = r.snippet ? ` — ${r.snippet.slice(0, 140)}` : ''
-            return `- ${r.title}${r.context ? ` (${r.context})` : ''}${snip}\n  URL: ${r.url}`
-          })
-          .join('\n'),
-    )
-    .join('\n\n')
+
+  let results: JwResult[] = []
+  if (params.focus?.url) {
+    const extra = await searchJw(topic || params.focus.title, {
+      language,
+      filter: 'publications',
+    }).catch(() => [] as JwResult[])
+    results = [
+      {
+        id: params.focus.docid || params.focus.lank || uid('focus'),
+        title: params.focus.title,
+        snippet: params.focus.snippet || '',
+        kind: params.focus.kind || 'article',
+        section: 'articoli',
+        url: params.focus.url,
+        lank: params.focus.lank,
+        docid: params.focus.docid,
+        context: params.focus.context,
+      },
+      ...extra,
+    ]
+  } else {
+    const deep = await searchJwDeep(`${topic} ministero predicazione`, {
+      language,
+      filters: ['publications', 'videos', 'indexes'],
+      maxQueries: 4,
+      perSection: 5,
+    })
+    results = deep.flat
+  }
+
+  const resources = resultsToResources(results)
+  const sourceBlock = sourceBlockFromResults(results)
 
   let content = ''
   try {
     content = await askAi({
-      prompt: promptForKind(params.kind, topic),
-      context: `Tema ministero: ${topic}\nTipo: ${MINISTRY_KIND_LABELS[params.kind]}\n\nFonti jw.org:\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org.'}`,
+      prompt: promptForKind(params.kind, topic || params.focus?.title || ''),
+      context: `Tema ministero: ${topic}\nTipo: ${MINISTRY_KIND_LABELS[params.kind]}\n${
+        params.focus ? `Materiale principale: ${params.focus.title}\nURL: ${params.focus.url}\n` : ''
+      }\nFonti jw.org:\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org.'}`,
       allowedUrls: resources.map((r) => r.url),
     })
   } catch {
     content = [
-      `Tema: ${topic}`,
+      `Tema: ${topic || params.focus?.title || ''}`,
       '',
       'Cerca su jw.org articoli aggiornati su questo argomento.',
       'Prepara: 1 scrittura, 1 punto principale, 1 domanda gentile, 1 invito a leggere insieme.',
@@ -116,11 +175,16 @@ export async function buildMinistryAssist(params: {
 
   return {
     id: uid('min'),
-    title: `${MINISTRY_KIND_LABELS[params.kind]}: ${topic}`.slice(0, 120),
+    title: `${MINISTRY_KIND_LABELS[params.kind]}: ${topic || params.focus?.title || ''}`.slice(
+      0,
+      120,
+    ),
     kind: params.kind,
-    topic,
+    topic: topic || params.focus?.title || '',
     content,
     resources,
+    sourceTitle: params.focus?.title,
+    sourceUrl: params.focus?.url,
     createdAt: new Date().toISOString(),
   }
 }

@@ -154,6 +154,7 @@ interface AppState {
   saveSearch: (query: string, note?: string, resultCount?: number) => SavedSearch | null
   removeSavedSearch: (id: string) => void
   pushBibleReadingPlan: (plan: BibleReadingPlan) => void
+  updateBibleReadingPlan: (id: string, patch: Partial<BibleReadingPlan>) => void
   removeBibleReadingPlan: (id: string) => void
   pushMinistryNote: (note: MinistryAssistNote) => void
   removeMinistryNote: (id: string) => void
@@ -500,6 +501,14 @@ export const useAppStore = create<AppState>()(
       pushBibleReadingPlan: (plan) =>
         set((s) => ({
           bibleReadingPlans: [plan, ...s.bibleReadingPlans].slice(0, 50),
+        })),
+      updateBibleReadingPlan: (id, patch) =>
+        set((s) => ({
+          bibleReadingPlans: s.bibleReadingPlans.map((p) =>
+            p.id === id
+              ? { ...p, ...patch, updatedAt: new Date().toISOString() }
+              : p,
+          ),
         })),
       removeBibleReadingPlan: (id) =>
         set((s) => ({

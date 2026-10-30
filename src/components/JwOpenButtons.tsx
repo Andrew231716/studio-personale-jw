@@ -1,4 +1,5 @@
-import { ExternalLink, Smartphone } from 'lucide-react'
+import { BookOpen, ExternalLink, Smartphone } from 'lucide-react'
+import { bibleOpenUrl } from '../lib/bibleRefs'
 import { resolveOpenLinks } from '../lib/jwLibrary'
 
 interface Props {
@@ -6,8 +7,12 @@ interface Props {
   wolUrl?: string
   lank?: string
   docid?: string
+  /** Codice bible= (versetti / libri TNM) */
+  bible?: string
   language?: string
   compact?: boolean
+  /** Etichetta alternativa per il link web (es. «Versetto») */
+  webLabel?: string
 }
 
 /**
@@ -20,32 +25,46 @@ export function JwOpenButtons({
   wolUrl,
   lank,
   docid,
+  bible,
   language = 'I',
   compact = false,
+  webLabel,
 }: Props) {
-  const links = resolveOpenLinks({ url, wolUrl, lank, docid, language })
-  if (!links.webUrl && !links.canOpenLibrary) return null
+  const bibleUrl = bible ? bibleOpenUrl(bible, language) : undefined
+  const links = resolveOpenLinks({
+    url: url || bibleUrl,
+    wolUrl,
+    lank,
+    docid,
+    language,
+  })
+  // Se abbiamo solo il codice bible, forza i link di apertura Bibbia
+  const webUrl = links.webUrl || bibleUrl || null
+  const libraryOpenUrl =
+    links.libraryOpenUrl ||
+    (bible ? bibleOpenUrl(bible, language) : null)
+  if (!webUrl && !libraryOpenUrl) return null
 
   return (
-    <div className="row">
-      {links.webUrl && (
+    <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+      {webUrl && (
         <a
           className={compact ? 'chip' : 'btn secondary'}
-          href={links.webUrl}
+          href={webUrl}
           target="_blank"
           rel="noreferrer"
         >
           <span className="row" style={{ gap: 6 }}>
-            <ExternalLink size={14} />
-            {compact ? 'jw.org' : 'Apri su jw.org'}
+            {bible ? <BookOpen size={14} /> : <ExternalLink size={14} />}
+            {webLabel || (compact ? (bible ? 'Bibbia' : 'jw.org') : bible ? 'Apri versetto' : 'Apri su jw.org')}
           </span>
         </a>
       )}
 
-      {links.libraryOpenUrl && (
+      {libraryOpenUrl && (
         <a
           className={compact ? 'chip' : 'btn accent'}
-          href={links.libraryOpenUrl}
+          href={libraryOpenUrl}
           target="_blank"
           rel="noreferrer"
           title="Apre il contenuto in JW Library (come il pulsante Condividi dell’app)"
