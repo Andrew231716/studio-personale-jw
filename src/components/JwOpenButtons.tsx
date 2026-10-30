@@ -6,20 +6,18 @@ interface Props {
   wolUrl?: string
   lank?: string
   docid?: string
-  /** Codice bible= (versetti / libri TNM) */
   bible?: string
-  /** Simbolo pubblicazione (es. rff, ia, nwtsty) */
   pub?: string
   language?: string
   compact?: boolean
-  /** Etichetta alternativa per il link web (es. «Versetto») */
+  /** Etichetta della scrittura / titolo mostrato come link principale */
   webLabel?: string
   libraryLabel?: string
 }
 
 /**
- * Due azioni ovunque: sito jw.org + JW Library (link ufficiale jwlshare).
- * Funziona per articoli (docid), versetti (bible), video (lank) e pubblicazioni (pub).
+ * Link jw.org + JW Library affiancati.
+ * Per le scritture: nome del versetto + pillola blu «JW Library» accanto.
  */
 export function JwOpenButtons({
   url,
@@ -44,62 +42,58 @@ export function JwOpenButtons({
   })
 
   const webUrl = links.webUrl
-  const libraryOpenUrl = links.libraryOpenUrl
+  const libraryOpenUrl = links.libraryOpenUrl || webUrl
   if (!webUrl && !libraryOpenUrl) return null
 
   const isBible = Boolean(bible || (url && /[?&]bible=/i.test(url)))
+  const label =
+    webLabel ||
+    (isBible ? (compact ? 'Bibbia' : 'Apri versetto') : compact ? 'jw.org' : 'Apri su jw.org')
+
+  // Scritture: etichetta + JW Library colorato accanto
+  if (isBible || webLabel) {
+    return (
+      <span className="jw-ref">
+        {webUrl && (
+          <a className="jw-ref-text" href={webUrl} target="_blank" rel="noreferrer">
+            {isBible && <BookOpen size={13} aria-hidden />}
+            {label}
+          </a>
+        )}
+        {libraryOpenUrl && (
+          <a
+            className="jw-ref-library"
+            href={libraryOpenUrl}
+            target="_blank"
+            rel="noreferrer"
+            title="Apri in JW Library"
+          >
+            <Smartphone size={12} aria-hidden />
+            {libraryLabel || 'JW Library'}
+          </a>
+        )}
+      </span>
+    )
+  }
 
   return (
-    <div className="row jw-open-buttons" style={{ flexWrap: 'wrap', gap: 6 }}>
+    <div className="jw-open-buttons">
       {webUrl && (
-        <a
-          className={compact ? 'chip' : 'btn secondary'}
-          href={webUrl}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span className="row" style={{ gap: 6 }}>
-            {isBible ? <BookOpen size={14} /> : <ExternalLink size={14} />}
-            {webLabel ||
-              (compact
-                ? isBible
-                  ? 'Bibbia'
-                  : 'jw.org'
-                : isBible
-                  ? 'Apri versetto'
-                  : 'Apri su jw.org')}
-          </span>
+        <a className="jw-btn-web" href={webUrl} target="_blank" rel="noreferrer">
+          <ExternalLink size={13} aria-hidden />
+          {compact ? 'jw.org' : 'Apri su jw.org'}
         </a>
       )}
-
       {libraryOpenUrl && (
         <a
-          className={compact ? 'chip' : 'btn accent'}
+          className="jw-btn-library"
           href={libraryOpenUrl}
           target="_blank"
           rel="noreferrer"
-          title="Apre il contenuto in JW Library (come il pulsante Condividi dell’app)"
+          title="Apri in JW Library"
         >
-          <span className="row" style={{ gap: 6 }}>
-            <Smartphone size={14} />
-            {libraryLabel || (compact ? 'JW Library' : 'Apri in JW Library')}
-          </span>
-        </a>
-      )}
-
-      {/* Se per qualche motivo manca il link Library ma abbiamo il web, riproponi web come fallback etichettato */}
-      {!libraryOpenUrl && webUrl && (
-        <a
-          className={compact ? 'chip' : 'btn accent'}
-          href={webUrl}
-          target="_blank"
-          rel="noreferrer"
-          title="Apri e, se possibile, continua in JW Library dal sito"
-        >
-          <span className="row" style={{ gap: 6 }}>
-            <Smartphone size={14} />
-            {compact ? 'JW Library' : 'Apri in JW Library'}
-          </span>
+          <Smartphone size={13} aria-hidden />
+          {libraryLabel || 'JW Library'}
         </a>
       )}
     </div>

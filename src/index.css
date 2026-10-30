@@ -840,10 +840,11 @@ img {
 }
 
 .chip {
+  appearance: none;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.4rem 0.7rem;
+  padding: 0.45rem 0.75rem;
   border-radius: 10px;
   background: color-mix(in srgb, var(--secondary) 12%, white);
   color: var(--primary);
@@ -852,10 +853,118 @@ img {
   border: 1px solid color-mix(in srgb, var(--secondary) 16%, transparent);
   cursor: pointer;
   text-decoration: none;
+  font-family: inherit;
+  line-height: 1.2;
 }
 
 .chip:hover {
   background: color-mix(in srgb, var(--secondary) 20%, white);
+}
+
+.chip.active {
+  background: var(--primary);
+  color: #f7fbf8;
+  border-color: var(--primary);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+
+.seg-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 70%, white);
+  border: 1px solid var(--line);
+  margin-bottom: 0.85rem;
+}
+
+.seg-tabs .chip {
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 7.5rem;
+}
+
+/* Pulsanti apertura jw.org / JW Library */
+.jw-open-buttons {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.jw-btn-web,
+.jw-btn-library {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.jw-btn-web {
+  background: color-mix(in srgb, var(--surface) 88%, white);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.jw-btn-library {
+  background: #1a5f7a;
+  color: #f4fbff;
+  border: 1px solid #134a5e;
+}
+
+.jw-btn-library:hover {
+  background: #15708f;
+}
+
+/* Scrittura + JW Library affiancati */
+.jw-ref {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+
+.jw-ref-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: var(--primary);
+  font-weight: 650;
+  font-size: 0.88rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.jw-ref-text:hover {
+  text-decoration-color: var(--primary);
+}
+
+.jw-ref-library {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: #1a5f7a;
+  color: #f4fbff;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid #134a5e;
+}
+
+.jw-ref-library:hover {
+  background: #15708f;
 }
 
 .badge {

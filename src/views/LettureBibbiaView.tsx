@@ -167,7 +167,31 @@ export function LettureBibbiaView() {
           </div>
         </div>
 
-        <div className="chip-row">
+        <div className="seg-tabs" role="tablist" aria-label="Sezioni letture">
+          {(
+            [
+              ['catalogo', 'Catalogo'],
+              ['ricerca', 'Cerca su jw.org'],
+              ['piano', 'Il mio percorso'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              className={`chip ${tab === id ? 'active' : ''}`}
+              onClick={() => {
+                setError('')
+                setTab(id)
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="chip-row" style={{ marginBottom: '0.75rem' }}>
           {(Object.keys(BIBLE_KIND_LABELS) as BibleReadingKind[]).map((k) => (
             <button
               key={k}
@@ -181,13 +205,13 @@ export function LettureBibbiaView() {
                 setTab('catalogo')
               }}
             >
-              {BIBLE_KIND_LABELS[k]} ({BIBLE_READING_SUGGESTIONS[k].length})
+              {BIBLE_KIND_LABELS[k]}
             </button>
           ))}
         </div>
 
         <div className="field">
-          <label htmlFor="bible-q">Cerca o scegli un argomento</label>
+          <label htmlFor="bible-q">Cosa vuoi leggere?</label>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
             <input
               id="bible-q"
@@ -196,49 +220,38 @@ export function LettureBibbiaView() {
                 setQuery(e.target.value)
                 setCatalogFilter(e.target.value)
               }}
-              placeholder="Es. Rut, parabola del figlio prodigo, Salmi, fede…"
+              placeholder="Es. Rut, Salmi, fede, figlio prodigo…"
               onKeyDown={(e) => {
-                if (e.key === 'Enter') void runSearch()
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  if (tab === 'ricerca') void runSearch()
+                  else void generate()
+                }
               }}
               style={{ flex: 1, minWidth: 180 }}
             />
-            <button
-              className="btn secondary"
-              type="button"
-              disabled={searchBusy}
-              onClick={() => void runSearch()}
-            >
-              <span className="row" style={{ gap: 6 }}>
+            {tab === 'ricerca' ? (
+              <button
+                className="btn"
+                type="button"
+                disabled={searchBusy || !query.trim()}
+                onClick={() => void runSearch()}
+              >
                 <Search size={16} />
-                {searchBusy ? 'Cerco…' : 'Cerca su jw.org'}
-              </span>
-            </button>
-            <button className="btn" type="button" disabled={busy} onClick={() => void generate()}>
-              <span className="row" style={{ gap: 6 }}>
+                {searchBusy ? 'Cerco…' : 'Cerca'}
+              </button>
+            ) : (
+              <button
+                className="btn"
+                type="button"
+                disabled={busy || !query.trim()}
+                onClick={() => void generate()}
+              >
                 <BookMarked size={16} />
                 {busy ? 'Preparo…' : 'Prepara percorso'}
-              </span>
-            </button>
+              </button>
+            )}
           </div>
-        </div>
-
-        <div className="chip-row">
-          {(
-            [
-              ['catalogo', 'Catalogo'],
-              ['ricerca', 'Risultati jw.org'],
-              ['piano', 'Percorso e riflessioni'],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`chip ${tab === id ? 'active' : ''}`}
-              onClick={() => setTab(id)}
-            >
-              {label}
-            </button>
-          ))}
         </div>
 
         {error && <p className="muted">{error}</p>}
@@ -262,7 +275,10 @@ export function LettureBibbiaView() {
                       {entry.blurb}
                     </p>
                     {entry.scriptures && entry.scriptures.length > 0 && (
-                      <div className="chip-row" style={{ marginTop: 4 }}>
+                      <div
+                        className="stack"
+                        style={{ gap: 6, marginTop: 6 }}
+                      >
                         {entry.scriptures.slice(0, 4).map((scr) => (
                           <JwOpenButtons
                             key={scr.bible + scr.label}
@@ -314,8 +330,7 @@ export function LettureBibbiaView() {
                     url={v.url}
                     bible={v.bible}
                     language={language}
-                    compact
-                    webLabel="Apri versetto"
+                    webLabel={v.label}
                   />
                 </div>
               ))}
@@ -398,13 +413,11 @@ export function LettureBibbiaView() {
                 <div className="list">
                   {(active.scriptures || []).map((scr) => (
                     <div className="list-item" key={scr.id}>
-                      <strong>{scr.label}</strong>
                       <JwOpenButtons
                         url={scr.url}
                         bible={scr.bible}
                         language={language}
-                        compact
-                        webLabel="Apri nella Bibbia"
+                        webLabel={scr.label}
                       />
                     </div>
                   ))}
@@ -477,7 +490,8 @@ export function LettureBibbiaView() {
               </div>
             ) : (
               <div className="empty">
-                Scegli una voce dal catalogo o cerca su jw.org, poi prepara un percorso.
+                Scegli una voce dal <strong>Catalogo</strong> oppure scrivi un tema e tocca{' '}
+                <strong>Prepara percorso</strong>.
               </div>
             )}
           </section>
