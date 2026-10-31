@@ -380,8 +380,9 @@ img {
   padding: clamp(1.05rem, 2vw, 1.45rem);
   box-shadow: var(--shadow);
   animation: rise 0.45s ease both;
-  overflow-x: clip;
+  overflow-x: auto;
   max-width: 100%;
+  min-width: 0;
 }
 
 .panel.flat {
@@ -1260,10 +1261,14 @@ img {
 }
 
 .bubble {
-  max-width: 92%;
+  max-width: min(92%, 100%);
+  min-width: 0;
   padding: 0.85rem 1rem;
   border-radius: 14px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-sizing: border-box;
 }
 
 .bubble.user {
@@ -1278,6 +1283,34 @@ img {
   background: color-mix(in srgb, var(--bg) 55%, white);
   border: 1px solid var(--line);
   border-bottom-left-radius: 6px;
+}
+
+/* Analisi AI lunghe (Decisioni / lucidità): non rompere il layout */
+.analysis-box {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0.55rem 0 0;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 55%, white);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  font: inherit;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.split > *,
+.stack {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .steps {

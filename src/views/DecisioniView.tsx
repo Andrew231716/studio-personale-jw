@@ -178,6 +178,11 @@ export function DecisioniView() {
         ),
       )
       pushAiMessage(createMessage('assistant', analysis))
+      requestAnimationFrame(() => {
+        document
+          .getElementById('decision-lucidity-result')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
     } catch (e) {
       setLucidityError(e instanceof Error ? e.message : 'Analisi non riuscita')
     } finally {
@@ -668,12 +673,9 @@ export function DecisioniView() {
                 rows={8}
               />
               {aiText && (
-                <pre
-                  className="bubble assistant"
-                  style={{ maxWidth: '100%', marginTop: '0.8rem' }}
-                >
+                <div className="analysis-box" role="region" aria-label="Elaborazione AI">
                   {aiText}
-                </pre>
+                </div>
               )}
             </section>
 
@@ -746,8 +748,12 @@ export function DecisioniView() {
               )}
 
               {decision.lucidityAnalysis && (
-                <div style={{ marginTop: '1rem' }}>
-                  <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+                <div
+                  id="decision-lucidity-result"
+                  className="analysis-result"
+                  style={{ marginTop: '1rem', minWidth: 0 }}
+                >
+                  <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                     <strong>Analisi di lucidità</strong>
                     {decision.lucidityAnalyzedAt && (
                       <span className="muted" style={{ fontSize: '0.85rem' }}>
@@ -755,24 +761,28 @@ export function DecisioniView() {
                       </span>
                     )}
                   </div>
-                  <pre
-                    className="bubble assistant"
-                    style={{ maxWidth: '100%', marginTop: '0.55rem', whiteSpace: 'pre-wrap' }}
+                  <div
+                    className="analysis-box"
+                    role="region"
+                    aria-label="Analisi di lucidità"
                   >
                     {decision.lucidityAnalysis}
-                  </pre>
+                  </div>
                 </div>
               )}
 
               {luciditySources.length > 0 && (
-                <div style={{ marginTop: '1rem' }}>
+                <div style={{ marginTop: '1rem', minWidth: 0 }}>
                   <strong>Fonti jw.org usate per l’analisi</strong>
                   <div className="list" style={{ marginTop: '0.5rem' }}>
                     {luciditySources.slice(0, 8).map((r) => (
                       <div className="list-item" key={`${r.id}-${r.url}`}>
-                        <strong>{r.title}</strong>
+                        <strong style={{ overflowWrap: 'anywhere' }}>{r.title}</strong>
                         {r.snippet && (
-                          <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+                          <p
+                            className="muted"
+                            style={{ margin: '0.25rem 0 0', overflowWrap: 'anywhere' }}
+                          >
                             {r.snippet.slice(0, 140)}
                           </p>
                         )}
