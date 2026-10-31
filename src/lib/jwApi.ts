@@ -1,4 +1,5 @@
 import type { ContentKind, JwDeepSearchResult, JwResult } from '../types'
+import { bibleOpenUrl, parseScriptureLabel } from './bibleRefs'
 import {
   extractJwRefs,
   buildJwLibraryShareLink,
@@ -6,7 +7,11 @@ import {
   publicationSymbol,
 } from './jwLibrary'
 import { classifySection, groupResultsBySection, sectionToKind } from './jwSections'
-import { buildThematicQueries, scoreThemeMatch } from './jwThemeSearch'
+import {
+  buildThematicQueries,
+  looksLikeScriptureQuery,
+  scoreThemeMatch,
+} from './jwThemeSearch'
 import { formatTranscriptWithTimestamps, parseVtt, type VttCue } from './vtt'
 
 let cachedToken = ''
@@ -142,8 +147,8 @@ export async function searchJw(
 }
 
 /**
- * Ricerca approfondita: più query tematiche + filtri del sito,
- * punteggio sul contesto (titolo/snippet) e risultati divisi per sezione.
+ * Ricerca approfondita: più query tematiche + filtri del sito (anche Bibbia),
+ * punteggio stretto sul tema dell’utente e risultati divisi per sezione.
  */
 export async function searchJwDeep(
   userText: string,
@@ -157,19 +162,38 @@ export async function searchJwDeep(
   } = {},
 ): Promise<JwDeepSearchResult> {
   const language = opts.language || 'I'
-  const filters = opts.filters || ['publications', 'videos', 'indexes', 'audio']
-  const { queries, themeTokens } = buildThematicQueries(userText, opts.maxQueries ?? 5)
+  const scriptureQuery = looksLikeScriptureQuery(userText)
+  const filters = opts.filters || [
+    'publications',
+    'videos',
+    'indexes',
+    'audio',
+    'bible',
+  ]
+  const { queries, themeTokens, userTokens } = buildThematicQueries(
+    userText,
+    opts.maxQueries ?? (scriptureQuery ? 3 : 4),
+  )
   if (!queries.length) {
     return { sections: [], flat: [], queriesUsed: [], themeTokens: [] }
   }
 
-  const jobs = queries.flatMap((q) =>
+  // Per riferimenti tipo «Proverbi 3:5» privilegia la query originale sulla Bibbia
+  const searchQueries = scriptureQuery
+    ? [userText.trim(), ...queries.filter((q) => q.toLowerCase() !== userText.trim().toLowerCase())]
+    : queries
+
+  const jobs = searchQueries.flatMap((q) =>
     filters.map(async (filter) => {
       try {
+        // Su query non scritturali, evita di moltiplicare ricerche bible su ogni variante
+        if (filter === 'bible' && !scriptureQuery && q !== searchQueries[0]) {
+          return [] as JwResult[]
+        }
         const rows = await searchJw(q, { language, filter })
         return rows.map((r) => ({
           ...r,
-          themeScore: scoreThemeMatch(r, themeTokens, q),
+          themeScore: scoreThemeMatch(r, themeTokens, q, userTokens),
           matchedQueries: [q],
         }))
       } catch {
@@ -200,25 +224,50 @@ export async function searchJwDeep(
     })
   }
 
-  const minScore = opts.minThemeScore ?? 2
+  // Versetto diretto se la query è un riferimento biblico riconoscibile
+  const parsed = parseScriptureLabel(userText.trim())
+  if (parsed.bible) {
+    const label = userText.trim() || parsed.bookName || parsed.bible
+    const direct: JwResult = {
+      id: `bible-${parsed.bible}`,
+      title: label,
+      snippet: 'Riferimento biblico riconosciuto — aprilo in JW Library o su jw.org',
+      kind: 'bible',
+      section: 'bibbia',
+      url: bibleOpenUrl(parsed.bible, language),
+      themeScore: 100,
+      matchedQueries: [userText.trim()],
+      rank: 1,
+    }
+    byKey.set(`||${direct.url}`, direct)
+  }
+
+  const minScore = opts.minThemeScore ?? (scriptureQuery ? 2.5 : 4.5)
   let flat = Array.from(byKey.values())
-    .filter((r) => (r.themeScore || 0) >= minScore || (r.rank !== undefined && r.rank <= 3))
+    .filter((r) => {
+      const score = r.themeScore || 0
+      if (score >= minScore) return true
+      if (r.rank !== undefined && r.rank <= 2 && score >= 2) return true
+      if (r.section === 'bibbia' && score >= 2) return true
+      return false
+    })
     .sort(
       (a, b) =>
         (b.themeScore || 0) - (a.themeScore || 0) || (a.rank || 99) - (b.rank || 99),
     )
 
-  // Se il filtro tematico è troppo aggressivo, tieni comunque i migliori
-  if (flat.length < 6) {
+  // Fallback cauto: pochi risultati ma comunque attinenti (score >= 2), non i primi 40 a caso
+  if (flat.length < 4) {
     flat = Array.from(byKey.values())
+      .filter((r) => (r.themeScore || 0) >= 2)
       .sort(
         (a, b) =>
           (b.themeScore || 0) - (a.themeScore || 0) || (a.rank || 99) - (b.rank || 99),
       )
-      .slice(0, 40)
+      .slice(0, 18)
   }
 
-  const perSection = opts.perSection ?? 8
+  const perSection = opts.perSection ?? (scriptureQuery ? 10 : 6)
   const sections = groupResultsBySection(flat).map((s) => ({
     ...s,
     items: s.items.slice(0, perSection),
@@ -228,7 +277,7 @@ export async function searchJwDeep(
   return {
     sections,
     flat: cappedFlat,
-    queriesUsed: queries,
+    queriesUsed: searchQueries,
     themeTokens,
   }
 }

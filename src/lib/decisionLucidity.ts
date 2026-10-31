@@ -34,7 +34,7 @@ export async function analyzeDecisionLucidity(params: {
     language,
     maxQueries: 6,
     perSection: 4,
-    filters: ['publications', 'videos', 'indexes'],
+    filters: ['publications', 'videos', 'indexes', 'bible'],
   })
 
   const linkedResults: JwResult[] = (decision.relatedResources || []).map((r) => ({
