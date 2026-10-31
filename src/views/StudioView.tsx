@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Archive, BookMarked, PlayCircle, RotateCcw } from 'lucide-react'
+import { Archive, BookMarked, PlayCircle, RotateCcw, Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
@@ -281,7 +281,27 @@ export function StudioView() {
           <div className="list">
             {topic.resources.map((r) => (
               <div className="list-item" key={r.id}>
-                <strong>{r.title}</strong>
+                <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+                  <strong style={{ overflowWrap: 'anywhere' }}>{r.title}</strong>
+                  <button
+                    className="btn ghost small"
+                    type="button"
+                    aria-label={`Rimuovi ${r.title}`}
+                    style={{ color: 'inherit', padding: '0.35rem' }}
+                    onClick={() =>
+                      updateTopic(topic.id, {
+                        resources: topic.resources.filter((x) => x.id !== r.id),
+                      })
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                {r.notes && (
+                  <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                    {r.notes}
+                  </p>
+                )}
                 <JwOpenButtons
                   url={r.url}
                   wolUrl={r.wolUrl}

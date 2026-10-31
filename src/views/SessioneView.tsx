@@ -11,6 +11,7 @@ import {
   computeStreak,
   dailyEncouragement,
 } from '../lib/progress'
+import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
 import { pickFocusTopic, topicHasUpcomingSchedule } from '../lib/studyFlow'
 import { useAppStore } from '../store/useAppStore'
 
@@ -406,6 +407,21 @@ export function SessioneView() {
               placeholder="Es. Filippesi 4:6, 7"
               multiline={false}
             />
+            {draft.keyVerse.trim() && (() => {
+              const parsed = parseScriptureLabel(draft.keyVerse)
+              const openUrl = parsed.bible
+                ? bibleOpenUrl(parsed.bible, language)
+                : `https://www.jw.org/finder?prefer=lang&wtlocale=${language}&q=${encodeURIComponent(draft.keyVerse.trim())}`
+              return (
+                <JwOpenButtons
+                  url={openUrl}
+                  bible={parsed.bible}
+                  language={language}
+                  compact
+                  webLabel={draft.keyVerse.trim()}
+                />
+              )
+            })()}
           </div>
         )}
 
@@ -474,7 +490,19 @@ export function SessioneView() {
             <button className="btn secondary" type="button" onClick={back} disabled={draft.step === 0}>
               Indietro
             </button>
-            <button className="btn secondary" type="button" onClick={abandonSession}>
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    'Vuoi davvero uscire? La sessione in corso non verrà salvata nel Diario.',
+                  )
+                ) {
+                  abandonSession()
+                }
+              }}
+            >
               Esci
             </button>
           </div>

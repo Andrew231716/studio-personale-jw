@@ -240,7 +240,12 @@ export function DecisioniView() {
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                   <strong>{d.title}</strong>
                   <span className="badge">
-                    {d.scale} · {d.status}
+                    {d.scale === 'grande' ? 'Grande' : 'Piccola'} ·{' '}
+                    {d.status === 'decisa'
+                      ? 'Decisa'
+                      : d.status === 'in_valutazione'
+                        ? 'In valutazione'
+                        : 'Aperta'}
                   </span>
                 </div>
                 {(d.linkedTopicIds?.length || 0) > 0 && (

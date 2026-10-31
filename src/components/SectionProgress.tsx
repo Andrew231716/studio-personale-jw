@@ -26,10 +26,16 @@ export function SectionProgress({ section }: { section: AppView }) {
 
   if (!data) return null
 
-  const hasActivity = data.items.some((i) => i.value !== '0' && i.value !== '—')
+  const hasActivity = data.items.some((i) => {
+    const v = i.value.trim()
+    return v !== '0' && v !== '—' && v !== 'Locale' && v !== 'EPUB'
+  })
 
   return (
-    <section className="panel progress-panel" aria-label={data.title}>
+    <section
+      className={`panel progress-panel ${hasActivity ? '' : 'is-empty'}`.trim()}
+      aria-label={data.title}
+    >
       <div className="progress-head">
         <span className="progress-icon" aria-hidden>
           <CheckCircle2 size={18} />
@@ -41,19 +47,22 @@ export function SectionProgress({ section }: { section: AppView }) {
           <h3 style={{ margin: '0.15rem 0 0' }}>{data.title}</h3>
         </div>
       </div>
-      <div className="progress-stats">
-        {data.items.map((item) => (
-          <div className="progress-stat" key={item.label}>
-            <strong>{item.value}</strong>
-            <span>{item.label}</span>
-          </div>
-        ))}
-      </div>
-      {(data.hint || !hasActivity) && (
-        <p className="muted" style={{ margin: '0.65rem 0 0' }}>
-          {data.hint || 'Ancora vuoto qui: il primo passo apparirà in queste cifre.'}
-        </p>
-      )}
+      {hasActivity ? (
+        <div className="progress-stats">
+          {data.items.map((item) => (
+            <div className="progress-stat" key={item.label}>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <p className="muted" style={{ margin: hasActivity ? '0.65rem 0 0' : '0.35rem 0 0' }}>
+        {data.hint ||
+          (hasActivity
+            ? undefined
+            : 'Ancora vuoto qui: il primo passo apparirà in queste cifre.')}
+      </p>
     </section>
   )
 }

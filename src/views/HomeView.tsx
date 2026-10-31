@@ -20,6 +20,7 @@ export function HomeView() {
   const topics = useAppStore((s) => s.topics)
   const logs = useAppStore((s) => s.sessionLogs)
   const schedules = useAppStore((s) => s.schedules)
+  const sessionDraft = useAppStore((s) => s.sessionDraft)
   const setView = useAppStore((s) => s.setView)
   const startSession = useAppStore((s) => s.startSession)
   const [latest, setLatest] = useState<LatestMediaItem[]>([])
@@ -72,8 +73,55 @@ export function HomeView() {
         </div>
       </section>
 
+      {sessionDraft && (
+        <section className="panel resume-banner">
+          <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <p className="section-kicker" style={{ margin: 0 }}>
+                Sessione in corso
+              </p>
+              <strong>
+                {topics.find((t) => t.id === sessionDraft.topicId)?.title ||
+                  sessionDraft.goal ||
+                  'Sessione libera'}
+              </strong>
+              <p className="muted" style={{ margin: '0.2rem 0 0' }}>
+                Passo {(sessionDraft.step || 0) + 1} · riprendi da dove hai lasciato
+              </p>
+            </div>
+            <button className="btn accent" type="button" onClick={() => setView('sessione')}>
+              Riprendi sessione
+            </button>
+          </div>
+        </section>
+      )}
+
       <SectionProgress section="home" />
       <CloudSyncPanel compact />
+
+      <section className="section panel">
+        <p className="section-kicker">Strumenti rapidi</p>
+        <div className="chip-row" style={{ marginTop: '0.35rem' }}>
+          {(
+            [
+              ['lettureBibbia', 'Letture Bibbia'],
+              ['ministero', 'Ministero'],
+              ['decisioni', 'Decisioni'],
+              ['videoStudio', 'Video → studio'],
+              ['salvati', 'Da studiare'],
+            ] as const
+          ).map(([view, label]) => (
+            <button
+              key={view}
+              type="button"
+              className="chip"
+              onClick={() => setView(view)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section className="section panel">
         <p className="section-kicker">Oggi</p>

@@ -265,12 +265,13 @@ export const useAppStore = create<AppState>()(
       resetTheme: () =>
         set((s) => ({ settings: { ...s.settings, theme: defaultTheme } })),
       addTopic: (title, interest = '') => {
+        // Crea e apre il Quaderno — non avvia una sessione fantasma.
+        // Per studiare subito usare startSession(id) dopo createTopic/addTopic.
         const topic = seedTopic(title.trim(), interest.trim())
         set((s) => ({
           topics: [topic, ...s.topics],
           activeTopicId: topic.id,
-          view: 'sessione',
-          sessionDraft: emptyDraft(topic.id),
+          view: 'studio',
         }))
         return topic.id
       },
@@ -449,11 +450,57 @@ export const useAppStore = create<AppState>()(
             topic.status === 'da_iniziare' || topic.status === 'completato'
               ? 'in_corso'
               : topic.status
+
+          // Porta nel Quaderno il materiale e la scrittura usati in sessione
+          let resources = [...topic.resources]
+          if (draft.resourceUrl?.trim() || draft.resourceTitle?.trim()) {
+            const already = resources.some(
+              (r) =>
+                (draft.resourceUrl && r.url === draft.resourceUrl) ||
+                (draft.resourceTitle &&
+                  r.title === draft.resourceTitle &&
+                  !draft.resourceUrl),
+            )
+            if (!already) {
+              resources = [
+                {
+                  id: uid('res'),
+                  title: draft.resourceTitle || 'Materiale della sessione',
+                  url: draft.resourceUrl || '',
+                  kind: 'article',
+                  lank: draft.resourceLank,
+                  docid: draft.resourceDocid,
+                  notes: 'Aggiunto dalla sessione guidata',
+                },
+                ...resources,
+              ]
+            }
+          }
+          if (draft.keyVerse?.trim()) {
+            const verseTitle = draft.keyVerse.trim()
+            const verseAlready = resources.some(
+              (r) => r.kind === 'bible' && r.title === verseTitle,
+            )
+            if (!verseAlready) {
+              resources = [
+                {
+                  id: uid('verse'),
+                  title: verseTitle,
+                  url: `https://www.jw.org/finder?prefer=lang&wtlocale=I&q=${encodeURIComponent(verseTitle)}`,
+                  kind: 'bible',
+                  notes: 'Scrittura chiave della sessione',
+                },
+                ...resources,
+              ]
+            }
+          }
+
           get().updateTopic(topic.id, {
             status: nextStatus,
             reflections,
             questions,
             practices,
+            resources,
             objectives: draft.goal
               ? [draft.goal, ...topic.objectives.filter((o) => o !== draft.goal)]
               : topic.objectives,

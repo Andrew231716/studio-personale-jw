@@ -205,9 +205,12 @@ export function getSectionProgress(
       }
     case 'pdfJwpub':
       return {
-        title: 'Documenti',
-        items: [{ label: 'Argomenti totali', value: String(topics.length) }],
-        hint: 'Converti PDF in EPUB per leggerli con calma.',
+        title: 'PDF → EPUB',
+        items: [
+          { label: 'Uso', value: 'Locale' },
+          { label: 'Output', value: 'EPUB' },
+        ],
+        hint: 'Carica un PDF, leggilo qui o esportalo in EPUB. Non crea argomenti da solo.',
       }
     case 'assistente':
       return {

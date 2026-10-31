@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
-import { BookOpen, Library, FileUp } from 'lucide-react'
+import { BookOpen, Library, FileUp, NotebookPen } from 'lucide-react'
 import { SectionProgress } from '../components/SectionProgress'
 import type { PdfExtractResult } from '../lib/pdfExtract'
+import { useAppStore } from '../store/useAppStore'
 
 const MAX_MB = 40
 
@@ -9,6 +10,9 @@ type BusyKind = 'read' | 'epub' | null
 
 export function PdfJwpubView() {
   const inputRef = useRef<HTMLInputElement>(null)
+  const createTopic = useAppStore((s) => s.createTopic)
+  const updateTopic = useAppStore((s) => s.updateTopic)
+  const setActiveTopic = useAppStore((s) => s.setActiveTopic)
   const [file, setFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
   const [busy, setBusy] = useState<BusyKind>(null)
@@ -169,7 +173,7 @@ export function PdfJwpubView() {
           />
         </div>
 
-        <div className="row" style={{ marginTop: '0.85rem' }}>
+        <div className="row" style={{ marginTop: '0.85rem', flexWrap: 'wrap', gap: 8 }}>
           <button
             className="btn accent"
             type="button"
@@ -188,6 +192,40 @@ export function PdfJwpubView() {
             <BookOpen size={16} />
             {busy === 'read' ? 'Leggo…' : 'Leggi nell’app'}
           </button>
+          {extract && (
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => {
+                const excerpt = extract.pages
+                  .slice(0, 3)
+                  .map((p) => p.text)
+                  .filter(Boolean)
+                  .join('\n\n')
+                  .slice(0, 2500)
+                const id = createTopic(
+                  title || extract.title || 'Studio da PDF',
+                  'Creato da un PDF caricato nell’app',
+                )
+                const topic = useAppStore.getState().topics.find((t) => t.id === id)
+                updateTopic(id, {
+                  status: 'in_corso',
+                  reflections: [
+                    {
+                      id: `pdf-${Date.now()}`,
+                      prompt: 'Estratto dal PDF (prime pagine)',
+                      response: excerpt || '(Nessun testo estratto)',
+                    },
+                    ...(topic?.reflections || []),
+                  ],
+                })
+                setActiveTopic(id)
+                setMessage('Argomento creato nel Quaderno con un estratto del PDF.')
+              }}
+            >
+              <NotebookPen size={16} /> Crea argomento nel Quaderno
+            </button>
+          )}
         </div>
 
         {progress && <p className="muted">{progress}</p>}

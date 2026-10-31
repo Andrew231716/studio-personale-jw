@@ -1613,6 +1613,20 @@ img {
     );
 }
 
+.progress-panel.is-empty {
+  padding: 0.75rem 1rem;
+}
+
+.resume-banner {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--accent) 16%, transparent),
+      color-mix(in srgb, var(--surface) 94%, white) 55%
+    );
+}
+
 .progress-head {
   display: flex;
   align-items: flex-start;

@@ -24,6 +24,8 @@ export function AssistenteView() {
   const decisions = useAppStore((s) => s.decisions)
   const activeTopicId = useAppStore((s) => s.activeTopicId)
   const activeDecisionId = useAppStore((s) => s.activeDecisionId)
+  const setActiveTopic = useAppStore((s) => s.setActiveTopic)
+  const updateTopic = useAppStore((s) => s.updateTopic)
   const language = useAppStore((s) => s.settings.language)
   const saveResource = useAppStore((s) => s.saveResource)
   const saveSearch = useAppStore((s) => s.saveSearch)
@@ -32,9 +34,17 @@ export function AssistenteView() {
   const [sections, setSections] = useState<JwResultSection[]>([])
   const [queriesUsed, setQueriesUsed] = useState<string[]>([])
   const [saveHint, setSaveHint] = useState('')
+  const [ctxTopicId, setCtxTopicId] = useState<string>(activeTopicId || '')
+  const [ctxDecisionId, setCtxDecisionId] = useState<string>(activeDecisionId || '')
 
-  const topic = topics.find((t) => t.id === activeTopicId) || topics[0]
-  const decision = decisions.find((d) => d.id === activeDecisionId) || decisions[0]
+  const topic = ctxTopicId
+    ? topics.find((t) => t.id === ctxTopicId) || null
+    : null
+  const decision = ctxDecisionId
+    ? decisions.find((d) => d.id === ctxDecisionId) || null
+    : null
+
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
 
   async function send(text = input) {
     const prompt = text.trim()
@@ -78,8 +88,8 @@ export function AssistenteView() {
       : 'Nessun risultato jw.org trovato per questa richiesta: non inventare titoli né URL.'
 
     const context = [
-      buildStudyContext(topic, []),
-      buildDecisionContext(decision, []),
+      topic ? buildStudyContext(topic, []) : '',
+      decision ? buildDecisionContext(decision, []) : '',
       used.length ? `Query tematiche usate: ${used.join(' | ')}` : '',
       sectionBlock,
     ]
@@ -119,9 +129,51 @@ export function AssistenteView() {
               (libri, opuscoli, articoli, video, guida alle ricerche…).
             </p>
           </div>
-          <button className="btn secondary" type="button" onClick={clearAi}>
+          <button
+            className="btn secondary"
+            type="button"
+            onClick={() => {
+              clearAi()
+              setSections([])
+              setQueriesUsed([])
+              setSaveHint('')
+            }}
+          >
             Pulisci chat
           </button>
+        </div>
+
+        <div className="grid-2" style={{ marginBottom: '0.75rem' }}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="ai-ctx-topic">Contesto argomento</label>
+            <select
+              id="ai-ctx-topic"
+              value={ctxTopicId}
+              onChange={(e) => setCtxTopicId(e.target.value)}
+            >
+              <option value="">Nessuno</option>
+              {topics.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="ai-ctx-decision">Contesto decisione</label>
+            <select
+              id="ai-ctx-decision"
+              value={ctxDecisionId}
+              onChange={(e) => setCtxDecisionId(e.target.value)}
+            >
+              <option value="">Nessuna</option>
+              {decisions.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="chat">
@@ -160,9 +212,39 @@ export function AssistenteView() {
             }}
           />
         </div>
-        <button className="btn" type="button" disabled={busy} onClick={() => void send()}>
-          {busy ? 'Sto pensando…' : 'Invia'}
-        </button>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <button className="btn" type="button" disabled={busy} onClick={() => void send()}>
+            {busy ? 'Sto pensando…' : 'Invia'}
+          </button>
+          {lastAssistant && topic && (
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => {
+                updateTopic(topic.id, {
+                  reflections: [
+                    {
+                      id: uid('ref'),
+                      prompt: 'Dall’assistente AI',
+                      response: lastAssistant.content.slice(0, 4000),
+                    },
+                    ...topic.reflections,
+                  ],
+                  status: topic.status === 'da_iniziare' ? 'in_corso' : topic.status,
+                })
+                setSaveHint(`Risposta inserita nel Quaderno «${topic.title}».`)
+                setActiveTopic(topic.id)
+              }}
+            >
+              Inserisci nel Quaderno
+            </button>
+          )}
+        </div>
+        {saveHint && (
+          <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+            {saveHint}
+          </p>
+        )}
       </section>
 
       <section className="panel">
