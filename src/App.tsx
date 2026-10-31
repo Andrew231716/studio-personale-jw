@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   BookMarked,
   BookOpenText,
   Bookmark,
   Captions,
   Compass,
+  Ellipsis,
   FileUp,
   History,
   Home,
@@ -13,6 +14,7 @@ import {
   NotebookPen,
   PlayCircle,
   Settings2,
+  X,
 } from 'lucide-react'
 import { startCloudSync } from './lib/cloudSync'
 import type { AppView } from './types'
@@ -48,6 +50,9 @@ const ICONS: Record<AppView, typeof Home> = {
   impostazioni: Settings2,
 }
 
+/** Percorso principale su mobile (ordine fisso). */
+const PRIMARY_MOBILE: AppView[] = ['argomenti', 'sessione', 'studio', 'diario']
+
 function applyTheme(theme: ReturnType<typeof useAppStore.getState>['settings']['theme']) {
   const root = document.documentElement
   root.style.setProperty('--primary', theme.primary)
@@ -68,6 +73,7 @@ export default function App() {
   const view = useAppStore((s) => s.view)
   const setView = useAppStore((s) => s.setView)
   const settings = useAppStore((s) => s.settings)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   useEffect(() => {
     applyTheme(settings.theme)
@@ -75,7 +81,6 @@ export default function App() {
   }, [settings.theme, settings.brandName])
 
   useEffect(() => {
-    // Avvia sync cloud dopo l’idratazione dello store locale
     const boot = () => {
       void startCloudSync()
     }
@@ -83,6 +88,10 @@ export default function App() {
     if (persistor.hasHydrated()) boot()
     else return persistor.onFinishHydration(boot)
   }, [])
+
+  useEffect(() => {
+    setMoreOpen(false)
+  }, [view])
 
   const navItems = useMemo(
     () =>
@@ -105,9 +114,36 @@ export default function App() {
     [settings.navOrder, settings.features],
   )
 
+  const primaryMobile = useMemo(
+    () => PRIMARY_MOBILE.filter((k) => navItems.includes(k)),
+    [navItems],
+  )
+
+  const moreMobile = useMemo(
+    () => navItems.filter((k) => !PRIMARY_MOBILE.includes(k)),
+    [navItems],
+  )
+
+  const moreActive = moreMobile.includes(view)
+
   useEffect(() => {
     if (!navItems.includes(view) && navItems[0]) setView(navItems[0])
   }, [navItems, view, setView])
+
+  function renderNavButton(key: AppView) {
+    const Icon = ICONS[key]
+    return (
+      <button
+        key={key}
+        type="button"
+        className={view === key ? 'active' : ''}
+        onClick={() => setView(key)}
+      >
+        <Icon size={17} strokeWidth={2.1} />
+        {VIEW_LABELS[key]}
+      </button>
+    )
+  }
 
   return (
     <div className="app-shell">
@@ -116,22 +152,54 @@ export default function App() {
           <BrandLogo size={44} withWordmark brandName={settings.brandName} />
           <div className="brand-tag">{settings.tagline}</div>
         </div>
-        <nav className="nav" aria-label="Sezioni">
-          {navItems.map((key) => {
-            const Icon = ICONS[key]
-            return (
-              <button
-                key={key}
-                type="button"
-                className={view === key ? 'active' : ''}
-                onClick={() => setView(key)}
-              >
-                <Icon size={17} strokeWidth={2.1} />
-                {VIEW_LABELS[key]}
-              </button>
-            )
-          })}
+
+        {/* Desktop / tablet largo: tutte le voci */}
+        <nav className="nav nav-desktop" aria-label="Sezioni">
+          {navItems.map((key) => renderNavButton(key))}
         </nav>
+
+        {/* Mobile: 4 principali + Altro */}
+        <nav className="nav nav-mobile" aria-label="Sezioni principali">
+          {primaryMobile.map((key) => renderNavButton(key))}
+          {moreMobile.length > 0 && (
+            <button
+              type="button"
+              className={moreOpen || moreActive ? 'active' : ''}
+              aria-expanded={moreOpen}
+              aria-controls="nav-more-panel"
+              onClick={() => setMoreOpen((v) => !v)}
+            >
+              {moreOpen ? <X size={17} strokeWidth={2.1} /> : <Ellipsis size={17} strokeWidth={2.1} />}
+              Altro
+            </button>
+          )}
+        </nav>
+
+        {moreOpen && moreMobile.length > 0 && (
+          <div id="nav-more-panel" className="nav-more-panel" role="dialog" aria-label="Altre sezioni">
+            <p className="nav-more-title">Altre sezioni</p>
+            <div className="nav-more-grid">
+              {moreMobile.map((key) => {
+                const Icon = ICONS[key]
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={view === key ? 'active' : ''}
+                    onClick={() => {
+                      setView(key)
+                      setMoreOpen(false)
+                    }}
+                  >
+                    <Icon size={16} strokeWidth={2.1} />
+                    {VIEW_LABELS[key]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="sidebar-foot">Contenuti da jw.org · salvati in locale</div>
       </aside>
       <main className="main">

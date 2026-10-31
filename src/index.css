@@ -221,6 +221,58 @@ img {
   }
 }
 
+.nav-desktop {
+  display: grid;
+}
+
+.nav-mobile,
+.nav-more-panel {
+  display: none;
+}
+
+.nav-more-panel {
+  padding: 0.65rem 0.15rem 0.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-more-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(243, 247, 245, 0.55);
+}
+
+.nav-more-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.nav-more-grid button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(243, 247, 245, 0.92);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-more-grid button.active {
+  background: color-mix(in srgb, var(--accent) 88%, white);
+  color: #1a2820;
+  font-weight: 650;
+}
+
 /* Telefono e iPad in portrait stretto */
 @media (max-width: 900px) {
   .app-shell {
@@ -248,7 +300,11 @@ img {
     display: none;
   }
 
-  .nav {
+  .nav-desktop {
+    display: none;
+  }
+
+  .nav-mobile {
     display: flex;
     gap: 0.4rem;
     overflow-x: auto;
@@ -257,16 +313,20 @@ img {
     -webkit-overflow-scrolling: touch;
   }
 
-  .nav::-webkit-scrollbar {
+  .nav-mobile::-webkit-scrollbar {
     display: none;
   }
 
-  .nav button {
+  .nav-mobile button {
     flex: 0 0 auto;
     white-space: nowrap;
     min-height: 44px;
     padding: 0.65rem 0.85rem;
     font-size: 0.92rem;
+  }
+
+  .nav-more-panel {
+    display: block;
   }
 
   .sidebar-foot {

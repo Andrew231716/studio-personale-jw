@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { BookMarked, FileText, NotebookPen, PlayCircle } from 'lucide-react'
+import { BookMarked, CheckCircle2, FileText, NotebookPen, PlayCircle } from 'lucide-react'
 import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
+import { uid } from '../lib/id'
 import { statusLabel } from '../lib/studyFlow'
 import { buildStudySummary, type StudySummary } from '../lib/studySummary'
 import type { SummaryPeriod } from '../types'
@@ -14,6 +15,7 @@ export function DiarioView() {
   const decisions = useAppStore((s) => s.decisions)
   const startSession = useAppStore((s) => s.startSession)
   const setActiveTopic = useAppStore((s) => s.setActiveTopic)
+  const updateTopic = useAppStore((s) => s.updateTopic)
   const archiveTopic = useAppStore((s) => s.archiveTopic)
   const reopenTopic = useAppStore((s) => s.reopenTopic)
 
@@ -21,6 +23,8 @@ export function DiarioView() {
   const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10))
   const [busy, setBusy] = useState<'pdf' | 'epub' | null>(null)
   const [message, setMessage] = useState('')
+  const [topicFilter, setTopicFilter] = useState<'tutti' | 'libere' | string>('tutti')
+  const [practiceHint, setPracticeHint] = useState('')
 
   const summary: StudySummary = useMemo(
     () =>
@@ -34,10 +38,52 @@ export function DiarioView() {
     [period, anchor, sessions, topics, decisions],
   )
 
-  const sortedSessions = useMemo(
-    () => [...sessions].sort((a, b) => b.completedAt.localeCompare(a.completedAt)),
-    [sessions],
-  )
+  const topicOptions = useMemo(() => {
+    const ids = new Set(
+      sessions.map((s) => s.topicId).filter((id): id is string => Boolean(id)),
+    )
+    return topics.filter((t) => ids.has(t.id))
+  }, [sessions, topics])
+
+  const sortedSessions = useMemo(() => {
+    const list = [...sessions].sort((a, b) => b.completedAt.localeCompare(a.completedAt))
+    if (topicFilter === 'tutti') return list
+    if (topicFilter === 'libere') return list.filter((s) => !s.topicId)
+    return list.filter((s) => s.topicId === topicFilter)
+  }, [sessions, topicFilter])
+
+  function isPracticeDone(topicId: string | null, practice: string | undefined) {
+    if (!topicId || !practice?.trim()) return false
+    const topic = topics.find((t) => t.id === topicId)
+    if (!topic) return false
+    const action = practice.trim()
+    return topic.practices.some((p) => p.action.trim() === action && p.tried)
+  }
+
+  function markPracticed(topicId: string, practice: string) {
+    const topic = topics.find((t) => t.id === topicId)
+    if (!topic) return
+    const action = practice.trim()
+    if (!action) return
+    const practices = [...topic.practices]
+    const idx = practices.findIndex((p) => p.action.trim() === action)
+    if (idx >= 0) {
+      practices[idx] = {
+        ...practices[idx],
+        tried: true,
+        outcome: practices[idx].outcome || 'Segnato dal Diario',
+      }
+    } else {
+      practices.unshift({
+        id: uid('prac'),
+        action,
+        tried: true,
+        outcome: 'Segnato dal Diario',
+      })
+    }
+    updateTopic(topicId, { practices })
+    setPracticeHint('Pratica segnata come fatta nel Quaderno.')
+  }
 
   async function runExport(kind: 'pdf' | 'epub') {
     setBusy(kind)
@@ -65,11 +111,40 @@ export function DiarioView() {
         <p className="section-kicker">4 · Diario</p>
         <h2>Sessioni già fatte</h2>
         <p className="lede">
-          Ogni sessione completata resta qui. L’argomento invece lo archivi tu quando hai
-          finito di studiarlo (salvo altri giorni già programmati).
+          Ogni sessione completata resta qui. Filtra per argomento e segna le pratiche fatte.
         </p>
 
-        {sortedSessions.length === 0 ? (
+        {sessions.length > 0 && (
+          <div className="field" style={{ marginTop: '0.75rem', marginBottom: 0 }}>
+            <label htmlFor="diario-filter">Filtra per argomento</label>
+            <select
+              id="diario-filter"
+              value={topicFilter}
+              onChange={(e) => setTopicFilter(e.target.value)}
+            >
+              <option value="tutti">Tutte le sessioni ({sessions.length})</option>
+              {sessions.some((s) => !s.topicId) && (
+                <option value="libere">Solo sessioni libere</option>
+              )}
+              {topicOptions.map((t) => {
+                const count = sessions.filter((s) => s.topicId === t.id).length
+                return (
+                  <option key={t.id} value={t.id}>
+                    {t.title} ({count})
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+        )}
+
+        {practiceHint && (
+          <p className="muted" style={{ margin: '0.55rem 0 0' }}>
+            {practiceHint}
+          </p>
+        )}
+
+        {sessions.length === 0 ? (
           <div className="empty">
             Nessuna sessione completata ancora.
             <div style={{ marginTop: '0.8rem' }}>
@@ -78,12 +153,17 @@ export function DiarioView() {
               </button>
             </div>
           </div>
+        ) : sortedSessions.length === 0 ? (
+          <div className="empty" style={{ marginTop: '0.85rem' }}>
+            Nessuna sessione con questo filtro.
+          </div>
         ) : (
-          <div className="list" style={{ marginTop: '0.5rem' }}>
+          <div className="list" style={{ marginTop: '0.85rem' }}>
             {sortedSessions.map((s) => {
               const linked = s.topicId
                 ? topics.find((t) => t.id === s.topicId)
                 : undefined
+              const practiced = isPracticeDone(s.topicId, s.practice)
               return (
                 <article key={s.id} className="list-item">
                   <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
@@ -110,9 +190,22 @@ export function DiarioView() {
                   {s.practice && (
                     <p className="muted" style={{ margin: 0 }}>
                       Da praticare: {s.practice}
+                      {practiced ? ' · fatta' : ''}
                     </p>
                   )}
                   <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                    {s.topicId && s.practice?.trim() && !practiced && (
+                      <button
+                        className="btn accent small"
+                        type="button"
+                        onClick={() => markPracticed(s.topicId!, s.practice!)}
+                      >
+                        <CheckCircle2 size={14} /> Ho praticato
+                      </button>
+                    )}
+                    {s.topicId && s.practice?.trim() && practiced && (
+                      <span className="badge">Pratica fatta</span>
+                    )}
                     {s.topicId && (
                       <button
                         className="btn secondary small"

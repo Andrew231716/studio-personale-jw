@@ -1,4 +1,7 @@
+import { useRef, useState } from 'react'
+import { Download, Upload } from 'lucide-react'
 import { CloudSyncPanel } from '../components/CloudSyncPanel'
+import { applyBackup, downloadBackup, readBackupFile } from '../lib/backup'
 import type { AppView, FeatureFlags } from '../types'
 import { useAppStore, VIEW_LABELS } from '../store/useAppStore'
 
@@ -25,6 +28,9 @@ export function ImpostazioniView() {
   const updateSettings = useAppStore((s) => s.updateSettings)
   const updateTheme = useAppStore((s) => s.updateTheme)
   const resetTheme = useAppStore((s) => s.resetTheme)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [backupMsg, setBackupMsg] = useState('')
+  const [backupBusy, setBackupBusy] = useState(false)
 
   function moveNav(view: AppView, dir: -1 | 1) {
     const order = [...settings.navOrder]
@@ -33,6 +39,42 @@ export function ImpostazioniView() {
     if (idx < 0 || next < 0 || next >= order.length) return
     ;[order[idx], order[next]] = [order[next], order[idx]]
     updateSettings({ navOrder: order })
+  }
+
+  function exportBackup() {
+    setBackupMsg('')
+    try {
+      const name = downloadBackup()
+      setBackupMsg(`Backup scaricato: ${name}`)
+    } catch (e) {
+      setBackupMsg(e instanceof Error ? e.message : 'Esportazione non riuscita')
+    }
+  }
+
+  async function importBackup(file: File | null) {
+    if (!file) return
+    setBackupBusy(true)
+    setBackupMsg('')
+    try {
+      const backup = await readBackupFile(file)
+      const when = backup.exportedAt
+        ? new Date(backup.exportedAt).toLocaleString('it-IT')
+        : 'data sconosciuta'
+      const ok = window.confirm(
+        `Importare il backup del ${when}?\n\nI dati attuali di questo dispositivo verranno sostituiti.`,
+      )
+      if (!ok) {
+        setBackupMsg('Importazione annullata.')
+        return
+      }
+      applyBackup(backup)
+      setBackupMsg('Backup importato. I dati sono stati ripristinati.')
+    } catch (e) {
+      setBackupMsg(e instanceof Error ? e.message : 'Importazione non riuscita')
+    } finally {
+      setBackupBusy(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   return (
@@ -201,6 +243,39 @@ export function ImpostazioniView() {
       </section>
 
       <section className="panel">
+        <h2>Backup JSON</h2>
+        <p className="lede">
+          Salva una copia completa dei tuoi studi (argomenti, sessioni, decisioni, salvati,
+          impostazioni e chiave sync). Utile come cassaforte o per passare a un altro dispositivo.
+        </p>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <button className="btn accent" type="button" onClick={exportBackup}>
+            <Download size={16} /> Esporta backup JSON
+          </button>
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={backupBusy}
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload size={16} /> {backupBusy ? 'Importo…' : 'Importa backup JSON'}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => void importBackup(e.target.files?.[0] || null)}
+          />
+        </div>
+        {backupMsg && (
+          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+            {backupMsg}
+          </p>
+        )}
+      </section>
+
+      <section className="panel">
         <h2>Dati locali</h2>
         <p className="muted">
           Tutto resta nel tuo browser (localStorage). Nessun account richiesto.
@@ -209,6 +284,13 @@ export function ImpostazioniView() {
           className="btn danger"
           type="button"
           onClick={() => {
+            if (
+              !window.confirm(
+                'Cancellare tutti i dati locali di questo dispositivo? L’operazione non si può annullare (usa prima un backup JSON se ti serve).',
+              )
+            ) {
+              return
+            }
             localStorage.removeItem('studio-personale-jw-v1')
             window.location.reload()
           }}
