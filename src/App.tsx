@@ -158,7 +158,7 @@ export default function App() {
           {navItems.map((key) => renderNavButton(key))}
         </nav>
 
-        {/* Mobile: Home + percorso studio + Altro (barra in basso) */}
+        {/* Mobile: Home + percorso studio + Altro (in alto) */}
         <nav className="nav nav-mobile" aria-label="Sezioni principali">
           {primaryMobile.map((key) => renderNavButton(key))}
           {moreMobile.length > 0 && (
