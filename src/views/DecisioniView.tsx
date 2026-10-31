@@ -3,6 +3,7 @@ import { BookOpen, Link2, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { ProsConsEditor } from '../components/ProsConsEditor'
 import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
@@ -485,51 +486,21 @@ export function DecisioniView() {
               </div>
             </section>
 
-            <div className="grid-2">
-              <section className="panel">
-                <h3>Pro</h3>
-                {decision.pros.map((pro, idx) => (
-                  <ExpandableField
-                    key={`pro-${idx}`}
-                    label={`Pro ${idx + 1}`}
-                    value={pro}
-                    onChange={(value) => {
-                      const pros = [...decision.pros]
-                      pros[idx] = value
-                      updateDecision(decision.id, { pros })
-                    }}
-                  />
-                ))}
-                <button
-                  className="btn secondary"
-                  type="button"
-                  onClick={() => updateDecision(decision.id, { pros: [...decision.pros, ''] })}
-                >
-                  Aggiungi pro
-                </button>
-              </section>
-              <section className="panel">
-                <h3>Contro</h3>
-                {decision.cons.map((con, idx) => (
-                  <ExpandableField
-                    key={`con-${idx}`}
-                    label={`Contro ${idx + 1}`}
-                    value={con}
-                    onChange={(value) => {
-                      const cons = [...decision.cons]
-                      cons[idx] = value
-                      updateDecision(decision.id, { cons })
-                    }}
-                  />
-                ))}
-                <button
-                  className="btn secondary"
-                  type="button"
-                  onClick={() => updateDecision(decision.id, { cons: [...decision.cons, ''] })}
-                >
-                  Aggiungi contro
-                </button>
-              </section>
+            <div className="grid-2 proscons-grid">
+              <ProsConsEditor
+                title="Pro"
+                accent="pro"
+                items={decision.pros}
+                placeholder="Un vantaggio onesto…"
+                onChange={(pros) => updateDecision(decision.id, { pros })}
+              />
+              <ProsConsEditor
+                title="Contro"
+                accent="contro"
+                items={decision.cons}
+                placeholder="Un rischio o svantaggio…"
+                onChange={(cons) => updateDecision(decision.id, { cons })}
+              />
             </div>
 
             <section className="panel">
