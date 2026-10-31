@@ -50,8 +50,8 @@ const ICONS: Record<AppView, typeof Home> = {
   impostazioni: Settings2,
 }
 
-/** Percorso principale su mobile (ordine fisso). */
-const PRIMARY_MOBILE: AppView[] = ['argomenti', 'sessione', 'studio', 'diario']
+/** Percorso principale su mobile (ordine fisso). Home sempre per prima. */
+const PRIMARY_MOBILE: AppView[] = ['home', 'argomenti', 'sessione', 'studio', 'diario']
 
 function applyTheme(theme: ReturnType<typeof useAppStore.getState>['settings']['theme']) {
   const root = document.documentElement
