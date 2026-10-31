@@ -8,6 +8,7 @@ import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
 import { analyzeDecisionLucidity } from '../lib/decisionLucidity'
+import { normalizeJwItalian } from '../lib/jwItalianTerms'
 import { DECISION_STEPS } from '../lib/studyMethod'
 import { uid } from '../lib/id'
 import { useAppStore } from '../store/useAppStore'
@@ -650,7 +651,7 @@ export function DecisioniView() {
               />
               {aiText && (
                 <div className="analysis-box" role="region" aria-label="Elaborazione AI">
-                  {aiText}
+                  {normalizeJwItalian(aiText)}
                 </div>
               )}
             </section>
@@ -742,7 +743,7 @@ export function DecisioniView() {
                     role="region"
                     aria-label="Analisi di lucidità"
                   >
-                    {decision.lucidityAnalysis}
+                    {normalizeJwItalian(decision.lucidityAnalysis)}
                   </div>
                 </div>
               )}

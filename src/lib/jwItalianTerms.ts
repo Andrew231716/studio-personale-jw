@@ -1,6 +1,6 @@
 /**
  * Allinea il testo alla terminologia italiana di jw.org / Traduzione del Nuovo Mondo.
- * (es. «2 Corinti», non «2 Corinzi»; «Rivelazione», non «Apocalisse»)
+ * (es. «2 Corinti», non «2 Corinzi»; «ministero», non «ministeriale»)
  */
 
 type Replacer = [RegExp, string | ((...args: string[]) => string)]
@@ -19,14 +19,57 @@ const BOOK_REPLACEMENTS: Replacer[] = [
   [/\bApocalisse\b/gi, 'Rivelazione'],
   // Forma lunga → forma usata spesso nelle citazioni JW
   [/\bAtti degli Apostoli\b/gi, 'Atti'],
+  // Divisioni tipiche di altre traduzioni → nomi TNM
+  [/\bNuovo Testamento\b/g, 'Scritture greche cristiane'],
+  [/\bnuovo testamento\b/gi, 'Scritture greche cristiane'],
+  [/\bAntico Testamento\b/g, 'Scritture ebraiche'],
+  [/\bVecchio Testamento\b/g, 'Scritture ebraiche'],
+  [/\bantico testamento\b/gi, 'Scritture ebraiche'],
+  [/\bvecchio testamento\b/gi, 'Scritture ebraiche'],
 ]
 
-/** Altre forme tipiche da evitare nelle pubblicazioni JW italiane. */
+/**
+ * Forme da evitare nelle pubblicazioni JW italiane.
+ * Ordine: frasi più lunghe / specifiche prima, poi generiche.
+ */
 const TERM_REPLACEMENTS: Replacer[] = [
   [/\bJehovah\b/g, 'Geova'],
   [/\bJehovà\b/gi, 'Geova'],
   [/\bWatchtower\b/gi, 'Torre di Guardia'],
   [/\bKingdom Hall\b/gi, 'Sala del Regno'],
+
+  // «ministeriale» non è lo stile tipico di jw.org → «ministero»
+  [/\bimpegno ministeriale\b/gi, 'impegno nel ministero'],
+  [/\battivit[aà] ministeriali\b/gi, 'attività di ministero'],
+  [/\battivit[aà] ministeriale\b/gi, 'attività di ministero'],
+  [/\blavoro ministeriale\b/gi, 'lavoro di predicazione'],
+  [/\bservizio ministeriale\b/gi, 'ministero'],
+  [/\bresponsabilit[aà] ministeriali\b/gi, 'responsabilità nel ministero'],
+  [/\bresponsabilit[aà] ministeriale\b/gi, 'responsabilità nel ministero'],
+  [/\bcompiti ministeriali\b/gi, 'compiti di ministero'],
+  [/\bqualit[aà] ministeriali\b/gi, 'qualità nel ministero'],
+  [/\besperienza ministeriale\b/gi, 'esperienza nel ministero'],
+  [/\bvita ministeriale\b/gi, 'vita nel ministero'],
+  [/\bcarriera ministeriale\b/gi, 'servizio nel ministero'],
+  [/\baiuto ministeriale\b/gi, 'aiuto per il ministero'],
+  [/\baspetto ministeriale\b/gi, 'aspetto del ministero'],
+  [/\bruolo ministeriale\b/gi, 'ruolo nel ministero'],
+  [/\bformazione ministeriale\b/gi, 'formazione per il ministero'],
+  [/\bpreparazione ministeriale\b/gi, 'preparazione per il ministero'],
+  [/\bimpegno di predicazione ministeriale\b/gi, 'impegno nel ministero'],
+  // «servo ministeriale» → termine ufficiale
+  [/\bservi ministeriali\b/gi, 'servi di ministero'],
+  [/\bservo ministeriale\b/gi, 'servo di ministero'],
+  // residui dell’aggettivo
+  [/\bministeriali\b/gi, 'di ministero'],
+  [/\bministeriale\b/gi, 'di ministero'],
+
+  // Altre forme non tipiche delle pubblicazioni JW
+  [/\bevangelizzazione\b/gi, 'predicazione'],
+  [/\bevangelizzare\b/gi, 'predicare'],
+  [/\bparrocchia\b/gi, 'congregazione'],
+  [/\bparrocchie\b/gi, 'congregazioni'],
+  [/\bKingdom Ministry\b/gi, 'Ministero del Regno'],
 ]
 
 function romanToArabic(roman: string): string {
@@ -47,6 +90,10 @@ export function normalizeJwItalian(text: string): string {
   for (const [re, to] of [...BOOK_REPLACEMENTS, ...TERM_REPLACEMENTS]) {
     out = out.replace(re, to as never)
   }
+  // Ripulisci raddoppi accidentali tipo «di di ministero»
+  out = out.replace(/\bdi\s+di ministero\b/gi, 'di ministero')
+  out = out.replace(/\bnel\s+di ministero\b/gi, 'nel ministero')
+  out = out.replace(/\bdel\s+di ministero\b/gi, 'del ministero')
   return out
 }
 
@@ -64,9 +111,20 @@ export function isSectionHeading(line: string): boolean {
 }
 
 /** Nota da includere nei prompt di sistema. */
-export const JW_ITALIAN_TERM_HINT = `Terminologia biblica italiana di jw.org / Traduzione del Nuovo Mondo:
-- Usa «1 Corinti» e «2 Corinti» (MAI «Corinzi»).
-- Usa «Rivelazione» (MAI «Apocalisse»).
-- Usa i nomi dei libri come nella TNM italiana (es. Matteo, Giovanni, Atti, Romani, Efesini, Filippesi, Ebrei, Giacomo, 1 Pietro, Rivelazione).
-- Usa «Geova», «congregazione», «anziani», «Sala del Regno», «adunanze», «ministero», «territorio».
-Non usare termini di altre confessioni o di altre traduzioni bibliche quando esistono le forme JW.`
+export const JW_ITALIAN_TERM_HINT = `Terminologia italiana di jw.org / Traduzione del Nuovo Mondo (obbligatoria):
+Libri e Bibbia:
+- «1 Corinti» e «2 Corinti» (MAI «Corinzi»).
+- «Rivelazione» (MAI «Apocalisse»).
+- «Scritture ebraiche» / «Scritture greche cristiane» (MAI «Antico/Nuovo Testamento»).
+- Nomi dei libri come nella TNM italiana (Matteo, Giovanni, Atti, Romani, Efesini, Filippesi, Ebrei, Giacomo, 1 Pietro, Rivelazione).
+
+Ministero e congregazione (stile jw.org):
+- Preferisci SEMPRE «ministero», «nel ministero», «di ministero», «lavoro di predicazione».
+- MAI «ministeriale» / «ministeriali» (es. non «impegno ministeriale» ma «impegno nel ministero»).
+- «servo di ministero» / «servi di ministero» (non «servo ministeriale»).
+- «congregazione», «territorio», «anziani», «adunanze», «Sala del Regno».
+- «Riunione Vita e Ministero cristiano», «predicazione», «studio biblico», «campo».
+- «Geova», «Gesù Cristo», «Regno», «verità biblica».
+
+Evita linguaggio da altre confessioni: parrocchia, evangelizzazione (usa predicazione), clero, pastorale, vocazione sacerdotale, ecc.
+Se un termine non compare tipicamente su jw.org, riformulalo con parole semplici tipiche delle pubblicazioni JW.`

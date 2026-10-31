@@ -68,6 +68,8 @@ Formato della risposta:
 - Domande oneste da pormi ancora
 - Passo successivo prudente
 
+Terminologia: usa solo lo stile italiano di jw.org (es. «impegno nel ministero», MAI «impegno ministeriale»; «servo di ministero»; «1 Corinti», non «Corinzi»).
+
 Non giudicare la persona. Non sostituire la coscienza, gli anziani né la Bibbia. Non inventare fonti.`
 
   const analysis = await askAi({

@@ -170,7 +170,7 @@ function resourceKey(r: { url: string; lank?: string; docid?: string }) {
   return `${r.url}|${r.lank || ''}|${r.docid || ''}`
 }
 
-/** Allinea testi salvati alla terminologia jw.org (es. Corinti). */
+/** Allinea testi salvati alla terminologia jw.org (es. Corinti, ministero). */
 function normalizeTopicTerms(topic: StudyTopic): StudyTopic {
   return {
     ...topic,
@@ -193,6 +193,28 @@ function normalizeTopicTerms(topic: StudyTopic): StudyTopic {
       outcome: normalizeJwItalian(p.outcome || ''),
     })),
     transcript: topic.transcript ? normalizeJwItalian(topic.transcript) : topic.transcript,
+  }
+}
+
+function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
+  return {
+    ...decision,
+    title: normalizeJwItalian(decision.title || ''),
+    context: normalizeJwItalian(decision.context || ''),
+    conclusion: normalizeJwItalian(decision.conclusion || ''),
+    prayerNotes: normalizeJwItalian(decision.prayerNotes || ''),
+    chosenDecision: normalizeJwItalian(decision.chosenDecision || ''),
+    honestMotivations: normalizeJwItalian(decision.honestMotivations || ''),
+    lucidityAnalysis: decision.lucidityAnalysis
+      ? normalizeJwItalian(decision.lucidityAnalysis)
+      : decision.lucidityAnalysis,
+    pros: (decision.pros || []).map((p) => normalizeJwItalian(p || '')),
+    cons: (decision.cons || []).map((c) => normalizeJwItalian(c || '')),
+    priorities: (decision.priorities || []).map((p) => ({
+      ...p,
+      label: normalizeJwItalian(p.label || ''),
+      note: normalizeJwItalian(p.note || ''),
+    })),
   }
 }
 
@@ -330,16 +352,15 @@ export const useAppStore = create<AppState>()(
       },
       updateDecision: (id, patch) =>
         set((s) => ({
-          decisions: s.decisions.map((d) =>
-            d.id === id
-              ? {
-                  ...d,
-                  ...patch,
-                  linkedTopicIds: patch.linkedTopicIds ?? d.linkedTopicIds ?? [],
-                  updatedAt: new Date().toISOString(),
-                }
-              : d,
-          ),
+          decisions: s.decisions.map((d) => {
+            if (d.id !== id) return d
+            return normalizeDecisionTerms({
+              ...d,
+              ...patch,
+              linkedTopicIds: patch.linkedTopicIds ?? d.linkedTopicIds ?? [],
+              updatedAt: new Date().toISOString(),
+            })
+          }),
         })),
       removeDecision: (id) =>
         set((s) => ({
@@ -688,6 +709,12 @@ export const useAppStore = create<AppState>()(
           bibleReadingPlans: p.bibleReadingPlans || [],
           ministryNotes: p.ministryNotes || [],
           topics: (p.topics || current.topics || []).map(normalizeTopicTerms),
+          decisions: (p.decisions || current.decisions || []).map(normalizeDecisionTerms),
+          aiMessages: (p.aiMessages || current.aiMessages || []).map((m) =>
+            m.role === 'assistant'
+              ? { ...m, content: normalizeJwItalian(m.content || '') }
+              : m,
+          ),
         }
       },
       partialize: (s) => ({

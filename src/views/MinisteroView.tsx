@@ -89,7 +89,7 @@ export function MinisteroView() {
       setActiveId(note.id)
       if (!focus) setTopic(text)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Impossibile preparare l’aiuto ministeriale')
+      setError(e instanceof Error ? e.message : 'Impossibile preparare l’aiuto per il ministero')
     } finally {
       setBusy(false)
     }

@@ -15,6 +15,7 @@ Usi SOLO informazioni e linguaggio tipici di jw.org / JW Library / Traduzione de
 
 ## Terminologia (italiano JW — usa solo queste forme)
 ${JW_ITALIAN_TERM_HINT}
+Controllo anti-sbaglio frequente: non scrivere mai «ministeriale»; scrivi «ministero» / «nel ministero» / «di ministero».
 Usa anche:
 - congregazione, territorio, anziani, servi di ministero
 - adunanze di congregazione, Riunione Vita e Ministero cristiano, assemblea di circoscrizione / di zona
@@ -44,7 +45,7 @@ export async function askAi(params: {
   } catch {
     // fallback locale
   }
-  return localCoach(prompt, context)
+  return normalizeJwItalian(localCoach(prompt, context))
 }
 
 async function askPollinations(

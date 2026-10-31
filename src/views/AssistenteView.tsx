@@ -5,6 +5,7 @@ import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, buildStudyContext, createMessage } from '../lib/ai'
 import { searchJwDeep } from '../lib/jwApi'
 import { uid } from '../lib/id'
+import { normalizeJwItalian } from '../lib/jwItalianTerms'
 import { SECTION_LABELS } from '../lib/jwSections'
 import { useAppStore } from '../store/useAppStore'
 import type { JwResultSection } from '../types'
@@ -184,7 +185,7 @@ export function AssistenteView() {
           )}
           {messages.map((m) => (
             <div key={m.id} className={`bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
-              {m.content}
+              {m.role === 'assistant' ? normalizeJwItalian(m.content) : m.content}
             </div>
           ))}
         </div>
