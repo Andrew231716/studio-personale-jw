@@ -65,15 +65,16 @@ export function getSectionProgress(
       return {
         title: 'Argomenti già aperti',
         items: [
+          { label: 'Attivi', value: String(countBy(topics, (t) => t.status !== 'completato')) },
           { label: 'In corso', value: String(countBy(topics, (t) => t.status === 'in_corso')) },
-          { label: 'Da iniziare', value: String(countBy(topics, (t) => t.status === 'da_iniziare')) },
           {
-            label: 'Completati',
+            label: 'Archiviati',
             value: String(countBy(topics, (t) => t.status === 'completato')),
           },
-          { label: 'Totale', value: String(topics.length) },
         ],
-        hint: topics.length ? 'Tocca un argomento per aprirlo nel Quaderno.' : undefined,
+        hint: topics.length
+          ? 'Crea → Sessione o Quaderno. Archivia quando hai finito.'
+          : undefined,
       }
     case 'sessione':
       return {
@@ -87,13 +88,16 @@ export function getSectionProgress(
               : '—',
           },
         ],
-        hint: 'Ogni sessione resta nel Diario.',
+        hint: 'A fine sessione: archivia, continua nel Quaderno o programma altri giorni.',
       }
     case 'studio':
       return {
         title: 'Nel Quaderno',
         items: [
-          { label: 'Argomenti', value: String(topics.length) },
+          {
+            label: 'Attivi',
+            value: String(countBy(topics, (t) => t.status !== 'completato')),
+          },
           {
             label: 'Con risorse',
             value: String(countBy(topics, (t) => (t.resources?.length || 0) > 0)),
@@ -105,6 +109,7 @@ export function getSectionProgress(
             ),
           },
         ],
+        hint: 'Appunti dell’argomento attivo. Archivia quando lo studio è concluso.',
       }
     case 'diario':
       return {
@@ -115,8 +120,14 @@ export function getSectionProgress(
             label: 'Minuti totali',
             value: String(sessionLogs.reduce((n, s) => n + (s.minutesSpent || 0), 0)),
           },
+          {
+            label: 'Archiviati',
+            value: String(countBy(topics, (t) => t.status === 'completato')),
+          },
         ],
-        hint: sessionLogs.length ? 'Esporta un riepilogo quando vuoi.' : 'Completa una sessione per vederla qui.',
+        hint: sessionLogs.length
+          ? 'Le sessioni restano qui; gli argomenti si archiviano a parte.'
+          : 'Completa una sessione per vederla qui.',
       }
     case 'salvati':
       return {

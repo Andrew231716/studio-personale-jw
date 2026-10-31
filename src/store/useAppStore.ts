@@ -149,6 +149,10 @@ interface AppState {
   updateSessionDraft: (patch: Partial<StudySessionDraft>) => void
   completeSession: () => StudySessionLog | null
   abandonSession: () => void
+  /** Archivia un argomento (studiato / chiuso). */
+  archiveTopic: (id: string) => void
+  /** Riapri un argomento archiviato per continuare. */
+  reopenTopic: (id: string, status?: 'in_corso' | 'approfondire') => void
   addSchedule: (event: ScheduledStudy) => void
   removeSchedule: (id: string) => void
   saveResource: (resource: StudyResource, sourceQuery?: string) => SavedResource | null
@@ -439,8 +443,14 @@ export const useAppStore = create<AppState>()(
               outcome: '',
             })
           }
+          // Resta «in corso» se era nuovo; non archivia automaticamente
+          // (l’utente sceglie dopo: archiviare o programmare altri giorni).
+          const nextStatus =
+            topic.status === 'da_iniziare' || topic.status === 'completato'
+              ? 'in_corso'
+              : topic.status
           get().updateTopic(topic.id, {
-            status: 'in_corso',
+            status: nextStatus,
             reflections,
             questions,
             practices,
@@ -450,20 +460,35 @@ export const useAppStore = create<AppState>()(
           })
         }
 
+        // Resta in Sessione così compare la schermata «completata» con le scelte successive
         set((s) => ({
           sessionLogs: [log, ...s.sessionLogs].slice(0, 100),
           sessionDraft: null,
-          view: 'home',
+          view: 'sessione',
         }))
         return log
       },
       abandonSession: () => set({ sessionDraft: null }),
-      addSchedule: (event) =>
+      archiveTopic: (id) => {
+        get().updateTopic(id, { status: 'completato' })
+      },
+      reopenTopic: (id, status = 'in_corso') => {
+        get().updateTopic(id, { status })
+      },
+      addSchedule: (event) => {
+        // Programmare altri giorni = non archiviare: tieni l’argomento attivo
+        if (event.topicId) {
+          const topic = get().topics.find((t) => t.id === event.topicId)
+          if (topic && (topic.status === 'completato' || topic.status === 'da_iniziare')) {
+            get().updateTopic(event.topicId, { status: 'in_corso' })
+          }
+        }
         set((s) => ({
           schedules: [event, ...s.schedules]
             .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
             .slice(0, 50),
-        })),
+        }))
+      },
       removeSchedule: (id) =>
         set((s) => ({ schedules: s.schedules.filter((x) => x.id !== id) })),
       saveResource: (resource, sourceQuery) => {

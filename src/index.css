@@ -1055,6 +1055,109 @@ img {
   align-items: center;
 }
 
+/* ——— Percorso di studio (4 sezioni) ——— */
+.study-flow {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--secondary) 10%, transparent),
+      color-mix(in srgb, var(--surface) 94%, white) 55%
+    );
+}
+
+.study-flow-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.study-flow-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.15rem;
+  align-items: stretch;
+}
+
+.study-flow-steps > li {
+  display: flex;
+  align-items: stretch;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.study-flow-sep {
+  width: 0.55rem;
+  align-self: center;
+  border-top: 2px solid color-mix(in srgb, var(--secondary) 35%, var(--line));
+  margin: 0 0.1rem;
+}
+
+.study-flow-step {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--surface) 88%, white);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  min-width: 7.5rem;
+}
+
+.study-flow-step strong {
+  font-size: 0.92rem;
+  color: var(--primary);
+}
+
+.study-flow-step span {
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.study-flow-steps > li.is-active .study-flow-step {
+  border-color: color-mix(in srgb, var(--secondary) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 14%, white);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.study-flow-step:hover {
+  border-color: color-mix(in srgb, var(--secondary) 30%, var(--line));
+}
+
+@media (max-width: 640px) {
+  .study-flow-sep {
+    display: none;
+  }
+
+  .study-flow-steps {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+  }
+
+  .study-flow-steps > li {
+    display: block;
+  }
+
+  .study-flow-step {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 .search-meta {
   font-size: 0.82rem;
   margin: 0.15rem 0 0.35rem;

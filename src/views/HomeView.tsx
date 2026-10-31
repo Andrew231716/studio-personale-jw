@@ -12,6 +12,7 @@ import {
   sessionsThisWeek,
   studiedToday,
 } from '../lib/progress'
+import { pickFocusTopic } from '../lib/studyFlow'
 import { useAppStore } from '../store/useAppStore'
 
 export function HomeView() {
@@ -34,10 +35,7 @@ export function HomeView() {
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt))[0],
     [schedules],
   )
-  const focusTopic =
-    topics.find((t) => t.status === 'in_corso') ||
-    topics.find((t) => t.status === 'da_iniziare') ||
-    topics[0]
+  const focusTopic = pickFocusTopic(topics)
 
   useEffect(() => {
     if (!settings.features.recentJwFeed) return

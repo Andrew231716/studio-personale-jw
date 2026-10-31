@@ -1,10 +1,17 @@
 import { useMemo, useState } from 'react'
+import { Archive, BookMarked, PlayCircle, RotateCcw } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { SectionProgress } from '../components/SectionProgress'
+import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { askAi, buildStudyContext, createMessage } from '../lib/ai'
 import { uid } from '../lib/id'
+import {
+  activeTopics,
+  statusLabel,
+  topicHasUpcomingSchedule,
+} from '../lib/studyFlow'
 import { useAppStore } from '../store/useAppStore'
 
 export function StudioView() {
@@ -16,17 +23,34 @@ export function StudioView() {
   const pushAiMessage = useAppStore((s) => s.pushAiMessage)
   const setView = useAppStore((s) => s.setView)
   const startSession = useAppStore((s) => s.startSession)
+  const archiveTopic = useAppStore((s) => s.archiveTopic)
+  const reopenTopic = useAppStore((s) => s.reopenTopic)
+  const sessionLogs = useAppStore((s) => s.sessionLogs)
+  const schedules = useAppStore((s) => s.schedules)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiHint, setAiHint] = useState('')
+  const [archiveMsg, setArchiveMsg] = useState('')
 
-  const topic = useMemo(
-    () => topics.find((t) => t.id === activeTopicId) || topics[0] || null,
-    [topics, activeTopicId],
+  const openList = useMemo(() => activeTopics(topics), [topics])
+  const topic = useMemo(() => {
+    const preferred =
+      topics.find((t) => t.id === activeTopicId) ||
+      openList[0] ||
+      topics[0] ||
+      null
+    return preferred
+  }, [topics, activeTopicId, openList])
+
+  const topicSessions = useMemo(
+    () => (topic ? sessionLogs.filter((s) => s.topicId === topic.id) : []),
+    [sessionLogs, topic],
   )
+  const hasUpcoming = topicHasUpcomingSchedule(topic?.id, schedules)
 
   if (!topic) {
     return (
       <div className="stack">
+        <StudyFlowGuide current="studio" />
         <SectionProgress section="studio" />
         <div className="panel empty">
           Nessuno studio attivo. Aggiungi un argomento per iniziare.
@@ -64,26 +88,99 @@ export function StudioView() {
 
   return (
     <div className="stack">
+      <StudyFlowGuide current="studio" />
       <SectionProgress section="studio" />
       <section className="panel">
         <div className="section-head">
           <div>
-            <h2>Quaderno: {topic.title}</h2>
+            <p className="section-kicker">3 · Quaderno</p>
+            <h2>{topic.title}</h2>
+            <p className="lede">
+              Qui restano appunti, riflessioni e materiali. Le sessioni guidate alimentano questo
+              quaderno; le sessioni finite le rivedi nel Diario.
+            </p>
           </div>
-          <div className="row">
-            <button className="btn accent" type="button" onClick={() => startSession(topic.id)}>
-              Sessione guidata
-            </button>
+          <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <span className="badge">{statusLabel(topic.status)}</span>
             <select
               value={topic.id}
               onChange={(e) => setActiveTopic(e.target.value)}
             >
-              {topics.map((t) => (
-                <option key={t.id} value={t.id}>{t.title}</option>
-              ))}
+              {openList.length > 0 && (
+                <optgroup label="Attivi">
+                  {openList.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.title}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {topics.some((t) => t.status === 'completato') && (
+                <optgroup label="Archiviati">
+                  {topics
+                    .filter((t) => t.status === 'completato')
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
             </select>
           </div>
         </div>
+
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
+          <button className="btn accent" type="button" onClick={() => startSession(topic.id)}>
+            <PlayCircle size={16} /> Sessione guidata
+          </button>
+          <button className="btn secondary" type="button" onClick={() => setView('diario')}>
+            <BookMarked size={16} /> Diario
+            {topicSessions.length > 0 ? ` (${topicSessions.length})` : ''}
+          </button>
+          {topic.status === 'completato' ? (
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => {
+                reopenTopic(topic.id)
+                setArchiveMsg('Argomento riaperto: puoi continuare a studiarlo.')
+              }}
+            >
+              <RotateCcw size={16} /> Riapri argomento
+            </button>
+          ) : (
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={hasUpcoming}
+              title={
+                hasUpcoming
+                  ? 'Hai altri giorni programmati: togli gli eventi o lascialo attivo'
+                  : undefined
+              }
+              onClick={() => {
+                archiveTopic(topic.id)
+                setArchiveMsg(
+                  'Argomento archiviato. Lo trovi in Argomenti → Archiviati. Puoi riaprirlo quando vuoi.',
+                )
+              }}
+            >
+              <Archive size={16} /> Completa e archivia
+            </button>
+          )}
+        </div>
+        {hasUpcoming && topic.status !== 'completato' && (
+          <p className="muted" style={{ margin: '0.45rem 0 0' }}>
+            Hai altri studi programmati per questo argomento: resta attivo finché non li
+            concludi o li rimuovi.
+          </p>
+        )}
+        {archiveMsg && (
+          <p className="muted" style={{ margin: '0.45rem 0 0' }}>
+            {archiveMsg}
+          </p>
+        )}
 
         <div style={{ marginTop: '0.85rem' }}>
           <ExpandableField

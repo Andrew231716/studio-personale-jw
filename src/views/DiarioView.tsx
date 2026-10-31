@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
-import { BookMarked, FileText } from 'lucide-react'
+import { BookMarked, FileText, NotebookPen, PlayCircle } from 'lucide-react'
 import { SectionProgress } from '../components/SectionProgress'
+import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
+import { statusLabel } from '../lib/studyFlow'
 import { buildStudySummary, type StudySummary } from '../lib/studySummary'
 import type { SummaryPeriod } from '../types'
 import { useAppStore } from '../store/useAppStore'
@@ -11,6 +13,9 @@ export function DiarioView() {
   const topics = useAppStore((s) => s.topics)
   const decisions = useAppStore((s) => s.decisions)
   const startSession = useAppStore((s) => s.startSession)
+  const setActiveTopic = useAppStore((s) => s.setActiveTopic)
+  const archiveTopic = useAppStore((s) => s.archiveTopic)
+  const reopenTopic = useAppStore((s) => s.reopenTopic)
 
   const [period, setPeriod] = useState<SummaryPeriod>('settimana')
   const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10))
@@ -54,12 +59,14 @@ export function DiarioView() {
 
   return (
     <div className="stack">
+      <StudyFlowGuide current="diario" />
       <SectionProgress section="diario" />
       <section className="panel">
-        <p className="section-kicker">Diario</p>
-        <h2>I tuoi studi fatti</h2>
+        <p className="section-kicker">4 · Diario</p>
+        <h2>Sessioni già fatte</h2>
         <p className="lede">
-          Rivedi le sessioni completate e crea un riepilogo del giorno, della settimana o del mese.
+          Ogni sessione completata resta qui. L’argomento invece lo archivi tu quando hai
+          finito di studiarlo (salvo altri giorni già programmati).
         </p>
 
         {sortedSessions.length === 0 ? (
@@ -73,53 +80,77 @@ export function DiarioView() {
           </div>
         ) : (
           <div className="list" style={{ marginTop: '0.5rem' }}>
-            {sortedSessions.map((s) => (
-              <article key={s.id} className="list-item">
-                <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <strong>{s.topicTitle}</strong>
-                  <span className="badge">{s.minutesSpent} min</span>
-                </div>
-                <p className="muted" style={{ margin: 0 }}>
-                  {new Date(s.completedAt).toLocaleString('it-IT')}
-                </p>
-                {s.goal && (
-                  <p style={{ margin: 0 }}>
-                    <strong>Obiettivo:</strong> {s.goal}
-                  </p>
-                )}
-                {(s.highlight || s.reflection) && (
-                  <p style={{ margin: 0 }}>{s.highlight || s.reflection}</p>
-                )}
-                {s.answer && (
-                  <p style={{ margin: 0 }}>
-                    <strong>Risposta:</strong> {s.answer}
-                  </p>
-                )}
-                {s.practice && (
+            {sortedSessions.map((s) => {
+              const linked = s.topicId
+                ? topics.find((t) => t.id === s.topicId)
+                : undefined
+              return (
+                <article key={s.id} className="list-item">
+                  <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+                    <strong>{s.topicTitle}</strong>
+                    <span className="badge">{s.minutesSpent} min</span>
+                  </div>
                   <p className="muted" style={{ margin: 0 }}>
-                    Da praticare: {s.practice}
+                    {new Date(s.completedAt).toLocaleString('it-IT')}
+                    {linked ? ` · Argomento: ${statusLabel(linked.status)}` : ''}
                   </p>
-                )}
-                <div className="row">
-                  {s.topicId && (
+                  {s.goal && (
+                    <p style={{ margin: 0 }}>
+                      <strong>Obiettivo:</strong> {s.goal}
+                    </p>
+                  )}
+                  {(s.highlight || s.reflection) && (
+                    <p style={{ margin: 0 }}>{s.highlight || s.reflection}</p>
+                  )}
+                  {s.answer && (
+                    <p style={{ margin: 0 }}>
+                      <strong>Risposta:</strong> {s.answer}
+                    </p>
+                  )}
+                  {s.practice && (
+                    <p className="muted" style={{ margin: 0 }}>
+                      Da praticare: {s.practice}
+                    </p>
+                  )}
+                  <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                    {s.topicId && (
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        onClick={() => setActiveTopic(s.topicId)}
+                      >
+                        <NotebookPen size={14} /> Quaderno
+                      </button>
+                    )}
                     <button
                       className="btn secondary small"
                       type="button"
-                      onClick={() => useAppStore.getState().setActiveTopic(s.topicId)}
+                      onClick={() => startSession(s.topicId)}
                     >
-                      Apri quaderno
+                      <PlayCircle size={14} /> Nuova sessione
                     </button>
-                  )}
-                  <button
-                    className="btn secondary small"
-                    type="button"
-                    onClick={() => startSession(s.topicId)}
-                  >
-                    Nuova sessione
-                  </button>
-                </div>
-              </article>
-            ))}
+                    {linked && linked.status !== 'completato' && (
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        onClick={() => archiveTopic(linked.id)}
+                      >
+                        Archivia argomento
+                      </button>
+                    )}
+                    {linked && linked.status === 'completato' && (
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        onClick={() => reopenTopic(linked.id)}
+                      >
+                        Riapri argomento
+                      </button>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
           </div>
         )}
       </section>

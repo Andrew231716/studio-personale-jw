@@ -1,32 +1,44 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Flame } from 'lucide-react'
+import { Archive, BookMarked, Flame, NotebookPen } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { JwSearch } from '../components/JwSearch'
 import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
 import { SectionProgress } from '../components/SectionProgress'
+import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import {
   SESSION_STEPS,
   computeStreak,
   dailyEncouragement,
 } from '../lib/progress'
+import { pickFocusTopic, topicHasUpcomingSchedule } from '../lib/studyFlow'
 import { useAppStore } from '../store/useAppStore'
 
 export function SessioneView() {
   const topics = useAppStore((s) => s.topics)
   const draft = useAppStore((s) => s.sessionDraft)
   const logs = useAppStore((s) => s.sessionLogs)
+  const schedules = useAppStore((s) => s.schedules)
   const language = useAppStore((s) => s.settings.language)
   const startSession = useAppStore((s) => s.startSession)
   const updateDraft = useAppStore((s) => s.updateSessionDraft)
   const completeSession = useAppStore((s) => s.completeSession)
   const abandonSession = useAppStore((s) => s.abandonSession)
+  const archiveTopic = useAppStore((s) => s.archiveTopic)
+  const reopenTopic = useAppStore((s) => s.reopenTopic)
+  const setActiveTopic = useAppStore((s) => s.setActiveTopic)
+  const setView = useAppStore((s) => s.setView)
   const [doneLogId, setDoneLogId] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
+  const [afterChoice, setAfterChoice] = useState('')
 
   const streak = useMemo(() => computeStreak(logs), [logs])
   const lastLog = logs[0]
   const celebration = doneLogId ? logs.find((l) => l.id === doneLogId) : null
+  const celebrationTopic = celebration?.topicId
+    ? topics.find((t) => t.id === celebration.topicId)
+    : null
+  const hasMoreDaysPlanned = topicHasUpcomingSchedule(celebration?.topicId, schedules)
 
   useEffect(() => {
     if (!draft) return
@@ -44,8 +56,9 @@ export function SessioneView() {
   if (celebration) {
     return (
       <div className="session-shell">
+        <StudyFlowGuide current="sessione" />
         <section className="panel session-card celebrate">
-          <p className="section-kicker">Sessione completata</p>
+          <p className="section-kicker">Sessione completata e salvata nel Diario</p>
           <h2>Hai studiato con il cuore</h2>
           <p className="muted">
             {celebration.minutesSpent} min · {celebration.topicTitle}
@@ -84,22 +97,63 @@ export function SessioneView() {
             )}
           </div>
           <p className="encourage">{dailyEncouragement()}</p>
-          <div className="row">
-            <button className="btn accent" type="button" onClick={() => setDoneLogId(null)}>
-              Torna alle sessioni
-            </button>
-            <button
-              className="btn secondary"
-              type="button"
-              onClick={() => {
-                setDoneLogId(null)
-                startSession(celebration.topicId)
-              }}
-            >
-              Un altro passo
-            </button>
-          </div>
         </section>
+
+        {celebration.topicId && celebrationTopic && (
+          <section className="panel">
+            <p className="section-kicker">E adesso?</p>
+            <h3 style={{ marginTop: 0 }}>Chiudi o continua questo argomento</h3>
+            <p className="lede">
+              La sessione è già nel Diario. Se non hai altri giorni previsti, puoi archiviare
+              l’argomento. Se vuoi approfondire, tienilo aperto nel Quaderno o programma altri
+              giorni.
+            </p>
+            {hasMoreDaysPlanned && (
+              <p className="muted" style={{ marginTop: 0 }}>
+                Hai già altri studi programmati per questo argomento: resta attivo.
+              </p>
+            )}
+            <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <button
+                className="btn"
+                type="button"
+                disabled={hasMoreDaysPlanned || celebrationTopic.status === 'completato'}
+                onClick={() => {
+                  archiveTopic(celebration.topicId!)
+                  setAfterChoice('Argomento archiviato. Lo trovi in Argomenti → Archiviati.')
+                }}
+              >
+                <Archive size={16} /> Completa e archivia
+              </button>
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => {
+                  reopenTopic(celebration.topicId!, 'approfondire')
+                  setDoneLogId(null)
+                  setActiveTopic(celebration.topicId)
+                }}
+              >
+                <NotebookPen size={16} /> Continua nel Quaderno
+              </button>
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => {
+                  setDoneLogId(null)
+                  setView('diario')
+                }}
+              >
+                <BookMarked size={16} /> Apri il Diario
+              </button>
+            </div>
+            {afterChoice && (
+              <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+                {afterChoice}
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="panel">
           <ScheduleNextStudy
@@ -115,19 +169,37 @@ export function SessioneView() {
                 .join('\n')
             }
           />
+          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+            Se programmi altri giorni, l’argomento resta attivo (non viene archiviato).
+          </p>
         </section>
+
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <button className="btn secondary" type="button" onClick={() => setDoneLogId(null)}>
+            Torna alle sessioni
+          </button>
+          <button
+            className="btn ghost"
+            type="button"
+            style={{ color: 'inherit' }}
+            onClick={() => {
+              setDoneLogId(null)
+              startSession(celebration.topicId)
+            }}
+          >
+            Un’altra sessione subito
+          </button>
+        </div>
       </div>
     )
   }
 
   if (!draft) {
-    const focusTopic =
-      topics.find((t) => t.status === 'in_corso') ||
-      topics.find((t) => t.status === 'da_iniziare') ||
-      topics[0]
+    const focusTopic = pickFocusTopic(topics)
 
     return (
       <div className="session-shell">
+        <StudyFlowGuide current="sessione" />
         <SectionProgress section="sessione" />
         <section className="panel session-card">
           <div className="row" style={{ justifyContent: 'space-between' }}>
