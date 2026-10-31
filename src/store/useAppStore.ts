@@ -133,6 +133,8 @@ interface AppState {
   updateTheme: (patch: Partial<ThemeConfig>) => void
   resetTheme: () => void
   addTopic: (title: string, interest?: string) => string
+  /** Crea un argomento senza aprire la sessione (utile da Decisioni). */
+  createTopic: (title: string, interest?: string) => string
   updateTopic: (id: string, patch: Partial<StudyTopic>) => void
   removeTopic: (id: string) => void
   setActiveTopic: (id: string | null) => void
@@ -268,6 +270,13 @@ export const useAppStore = create<AppState>()(
         }))
         return topic.id
       },
+      createTopic: (title, interest = '') => {
+        const topic = seedTopic(title.trim(), interest.trim())
+        set((s) => ({
+          topics: [topic, ...s.topics],
+        }))
+        return topic.id
+      },
       updateTopic: (id, patch) =>
         set((s) => ({
           topics: s.topics.map((t) => {
@@ -296,6 +305,7 @@ export const useAppStore = create<AppState>()(
           ],
           pros: [''],
           cons: [''],
+          linkedTopicIds: [],
           relatedResources: [],
           conclusion: '',
           prayerNotes: '',
@@ -313,7 +323,14 @@ export const useAppStore = create<AppState>()(
       updateDecision: (id, patch) =>
         set((s) => ({
           decisions: s.decisions.map((d) =>
-            d.id === id ? { ...d, ...patch, updatedAt: new Date().toISOString() } : d,
+            d.id === id
+              ? {
+                  ...d,
+                  ...patch,
+                  linkedTopicIds: patch.linkedTopicIds ?? d.linkedTopicIds ?? [],
+                  updatedAt: new Date().toISOString(),
+                }
+              : d,
           ),
         })),
       removeDecision: (id) =>

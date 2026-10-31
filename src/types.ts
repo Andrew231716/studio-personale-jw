@@ -148,6 +148,8 @@ export interface DecisionItem {
   priorities: PriorityItem[]
   pros: string[]
   cons: string[]
+  /** Argomenti di studio collegati (anche più di uno) come base per decidere. */
+  linkedTopicIds?: string[]
   relatedResources: StudyResource[]
   conclusion: string
   prayerNotes: string

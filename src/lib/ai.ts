@@ -216,8 +216,12 @@ export function buildStudyContext(topic?: StudyTopic | null, results: JwResult[]
   return parts.join('\n\n')
 }
 
-export function buildDecisionContext(decision?: DecisionItem | null, results: JwResult[] = []): string {
-  if (!decision && !results.length) return ''
+export function buildDecisionContext(
+  decision?: DecisionItem | null,
+  results: JwResult[] = [],
+  linkedTopics: Array<{ title: string; interest?: string; status?: string }> = [],
+): string {
+  if (!decision && !results.length && !linkedTopics.length) return ''
   const parts: string[] = []
   if (decision) {
     parts.push(`Decisione: ${decision.title} (${decision.scale})`)
@@ -230,6 +234,23 @@ export function buildDecisionContext(decision?: DecisionItem | null, results: Jw
     }
     if (decision.pros.length) parts.push('Pro: ' + decision.pros.join('; '))
     if (decision.cons.length) parts.push('Contro: ' + decision.cons.join('; '))
+    if (decision.relatedResources?.length) {
+      parts.push(
+        'Materiali jw.org già collegati alla decisione:\n' +
+          decision.relatedResources
+            .slice(0, 12)
+            .map((r) => `- ${r.title}${r.bible ? ` [${r.bible}]` : ''}\n  URL: ${r.url}`)
+            .join('\n'),
+      )
+    }
+  }
+  if (linkedTopics.length) {
+    parts.push(
+      'Argomenti di studio collegati (base per decidere):\n' +
+        linkedTopics
+          .map((t) => `- ${t.title}${t.status ? ` (${t.status})` : ''}${t.interest ? `: ${t.interest.slice(0, 160)}` : ''}`)
+          .join('\n'),
+    )
   }
   if (results.length) {
     parts.push(
