@@ -277,6 +277,7 @@ img {
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;
+    min-height: 100dvh;
   }
 
   .sidebar {
@@ -284,16 +285,20 @@ img {
     top: 0;
     z-index: 20;
     height: auto;
-    padding: 0.85rem 0.9rem 0.75rem;
-    padding-top: max(0.85rem, env(safe-area-inset-top));
-    gap: 0.75rem;
+    padding: 0.7rem 0.9rem 0.65rem;
+    padding-top: max(0.7rem, env(safe-area-inset-top));
+    gap: 0;
     border-right: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    /* Solido: evita che il contenuto scorra “attraverso” l’header */
+    background: color-mix(in srgb, var(--primary) 94%, #061c1c);
+    box-shadow: 0 8px 20px rgba(6, 28, 28, 0.18);
   }
 
   .brand {
-    padding-bottom: 0.65rem;
-    gap: 0.4rem;
+    padding: 0.1rem 0.15rem 0.15rem;
+    border-bottom: 0;
+    gap: 0;
   }
 
   .brand-tag {
@@ -304,29 +309,60 @@ img {
     display: none;
   }
 
+  /* Barra tab fissa in basso: tutte le voci principali visibili */
   .nav-mobile {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
     display: flex;
-    gap: 0.4rem;
-    overflow-x: auto;
-    padding-bottom: 0.15rem;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .nav-mobile::-webkit-scrollbar {
-    display: none;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 0.15rem;
+    margin: 0;
+    padding: 0.3rem 0.3rem max(0.3rem, env(safe-area-inset-bottom));
+    overflow: visible;
+    background: color-mix(in srgb, var(--primary) 94%, #061c1c);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 -10px 28px rgba(6, 28, 28, 0.22);
   }
 
   .nav-mobile button {
-    flex: 0 0 auto;
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 0.18rem;
     white-space: nowrap;
-    min-height: 44px;
-    padding: 0.65rem 0.85rem;
-    font-size: 0.92rem;
+    min-height: 52px;
+    padding: 0.3rem 0.15rem;
+    font-size: 0.68rem;
+    line-height: 1.1;
+    border-radius: 10px;
+    text-align: center;
+  }
+
+  .nav-mobile button svg {
+    flex-shrink: 0;
   }
 
   .nav-more-panel {
     display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(56px + env(safe-area-inset-bottom));
+    z-index: 35;
+    max-height: min(52vh, 420px);
+    overflow: auto;
+    margin: 0;
+    padding: 0.85rem 0.9rem 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px 18px 0 0;
+    background: color-mix(in srgb, var(--primary) 94%, #061c1c);
+    box-shadow: 0 -12px 32px rgba(6, 28, 28, 0.28);
   }
 
   .sidebar-foot {
@@ -334,26 +370,31 @@ img {
   }
 
   .main {
-    padding: 1rem 0.95rem max(2rem, env(safe-area-inset-bottom));
+    padding: 1rem 0.95rem calc(5.25rem + env(safe-area-inset-bottom));
   }
 
+  /* Hero più compatto: il brand è già nell’header */
   .hero {
     min-height: 0;
-    padding: 1.15rem 1.1rem 1.25rem;
-    gap: 0.55rem;
+    padding: 1rem 1rem 1.1rem;
+    gap: 0.45rem;
   }
 
   .hero-logo {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
   }
 
   .hero h1 {
-    font-size: clamp(1.85rem, 8vw, 2.4rem);
+    font-size: clamp(1.55rem, 7vw, 2rem);
   }
 
   .hero p {
-    font-size: 0.98rem;
+    font-size: 0.95rem;
+  }
+
+  .panel.flat {
+    padding: 0.15rem 0.1rem;
   }
 
   .btn,

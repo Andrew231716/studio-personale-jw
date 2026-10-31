@@ -15,6 +15,15 @@ import {
 import { pickFocusTopic } from '../lib/studyFlow'
 import { useAppStore } from '../store/useAppStore'
 
+/** Rimuove residui markdown (es. `**`) dai titoli salvati. */
+function plainText(value: string): string {
+  return value
+    .replace(/\*{1,3}/g, '')
+    .replace(/_{1,3}/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function HomeView() {
   const settings = useAppStore((s) => s.settings)
   const topics = useAppStore((s) => s.topics)
@@ -130,11 +139,14 @@ export function HomeView() {
         <div className="meta-line">
           {streak > 0 && (
             <span className="streak-mark">
-              <Flame size={15} /> Serie di {streak} giorni
+              <Flame size={15} /> Serie di {streak === 1 ? '1 giorno' : `${streak} giorni`}
             </span>
           )}
           <span>
-            Questa settimana: <strong>{weekCount}</strong> sessioni
+            Questa settimana:{' '}
+            <strong>
+              {weekCount === 1 ? '1 sessione' : `${weekCount} sessioni`}
+            </strong>
           </span>
           {nextSchedule && (
             <span>
@@ -145,9 +157,13 @@ export function HomeView() {
 
         {focusTopic ? (
           <div className="focus-strip">
-            <h3>{focusTopic.title}</h3>
+            <h3>{plainText(focusTopic.title)}</h3>
             <p className="muted" style={{ margin: 0 }}>
-              {focusTopic.interest || focusTopic.objectives[0] || 'Pronto per una sessione guidata'}
+              {plainText(
+                focusTopic.interest ||
+                  focusTopic.objectives[0] ||
+                  'Pronto per una sessione guidata',
+              )}
             </p>
             <div className="row">
               <button className="btn" type="button" onClick={() => startSession(focusTopic.id)}>
@@ -171,11 +187,14 @@ export function HomeView() {
       </section>
 
       {logs[0] && (
-        <section className="section panel flat">
+        <section className="section panel">
           <p className="section-kicker">Ultima sessione</p>
-          <h2>{logs[0].topicTitle}</h2>
+          <h2>{plainText(logs[0].topicTitle) || 'Sessione'}</h2>
           <p className="lede">
-            {logs[0].minutesSpent} min · {logs[0].highlight || logs[0].gratitude || logs[0].goal}
+            {logs[0].minutesSpent} min
+            {plainText(logs[0].highlight || logs[0].gratitude || logs[0].goal || '')
+              ? ` · ${plainText(logs[0].highlight || logs[0].gratitude || logs[0].goal || '')}`
+              : ''}
           </p>
         </section>
       )}
