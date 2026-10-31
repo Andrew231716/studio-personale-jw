@@ -913,21 +913,21 @@ img {
 }
 
 .jw-btn-library {
-  background: #1a5f7a;
-  color: #f4fbff;
-  border: 1px solid #134a5e;
+  background: #2563eb;
+  color: #f8fbff;
+  border: 1px solid #1d4ed8;
 }
 
 .jw-btn-library:hover {
-  background: #15708f;
+  background: #1d4ed8;
 }
 
 /* Scrittura + JW Library affiancati */
 .jw-ref {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
   max-width: 100%;
 }
 
@@ -941,6 +941,7 @@ img {
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  min-width: 0;
 }
 
 .jw-ref-text:hover {
@@ -951,20 +952,21 @@ img {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.18rem 0.5rem;
+  padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: #1a5f7a;
-  color: #f4fbff;
+  background: #2563eb;
+  color: #f8fbff;
   font-size: 0.7rem;
   font-weight: 750;
   letter-spacing: 0.01em;
   text-decoration: none;
   white-space: nowrap;
-  border: 1px solid #134a5e;
+  flex-shrink: 0;
+  border: 1px solid #1d4ed8;
 }
 
 .jw-ref-library:hover {
-  background: #15708f;
+  background: #1d4ed8;
 }
 
 .badge {

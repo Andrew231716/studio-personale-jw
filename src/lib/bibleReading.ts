@@ -79,7 +79,7 @@ export const BIBLE_READING_SUGGESTIONS: Record<BibleReadingKind, BibleCatalogEnt
     { label: 'Creazione', query: 'creazione Genesi', blurb: 'Geova crea i cieli, la terra e l’umanità.', scriptures: [s('Genesi 1:1-31', 1, 1, 1), s('Genesi 2:1-25', 1, 2, 1)] },
     { label: 'Diluvio dei giorni di Noè', query: 'Noè diluvio', blurb: 'Giudizio e salvezza; paralleli ai nostri giorni.', scriptures: [s('Genesi 6–8', 1, 6, 1), s('Matteo 24:37-39', 40, 24, 37)] },
     { label: 'Torre di Babele', query: 'torre di Babele', blurb: 'Orgoglio umano e confusione delle lingue.', scriptures: [s('Genesi 11:1-9', 1, 11, 1)] },
-    { label: 'Abramo offerisce Isacco', query: 'Abramo Isacco sacrificio', blurb: 'Fede messa alla prova; Geova provvede.', scriptures: [s('Genesi 22:1-19', 1, 22, 1)] },
+    { label: 'Abramo offre Isacco', query: 'Abramo Isacco sacrificio', blurb: 'Fede messa alla prova; Geova provvede.', scriptures: [s('Genesi 22:1-19', 1, 22, 1)] },
     { label: 'Esodo dall’Egitto', query: 'uscita dall’Egitto Esodo', blurb: 'Liberazione, Pasqua e Mar Rosso.', scriptures: [s('Esodo 12:1-42', 2, 12, 1), s('Esodo 14:1-31', 2, 14, 1)] },
     { label: 'Dieci Comandamenti', query: 'Dieci Parole Sinai', blurb: 'Geova dà la Legge al Sinai.', scriptures: [s('Esodo 19:1-25', 2, 19, 1), s('Esodo 20:1-17', 2, 20, 1)] },
     { label: 'Caduta di Gerico', query: 'Gerico Giosuè', blurb: 'Vittoria grazie all’obbedienza.', scriptures: [s('Giosuè 6:1-27', 6, 6, 1)] },

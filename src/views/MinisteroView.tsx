@@ -142,7 +142,7 @@ export function MinisteroView() {
         <div className="seg-tabs" role="tablist" aria-label="Sezioni ministero">
           {(
             [
-              ['aiuto', 'Il mio aiuto'],
+              ['aiuto', 'Prepara'],
               ['articoli', 'Articoli'],
               ['video', 'Video'],
             ] as const
@@ -159,6 +159,12 @@ export function MinisteroView() {
             </button>
           ))}
         </div>
+
+        {tab === 'aiuto' && (
+          <p className="muted" style={{ margin: '0 0 0.85rem' }}>
+            Qui crei schemi, riassunti e spunti per conversare, partendo da jw.org.
+          </p>
+        )}
 
         <div className="field">
           <label htmlFor="min-topic">Tema</label>
@@ -187,7 +193,7 @@ export function MinisteroView() {
                 <Search size={16} />
                 {searchBusy ? 'Cerco…' : 'Cerca'}
               </button>
-            ) : (
+            ) : tab === 'aiuto' ? (
               <button
                 className="btn"
                 type="button"
@@ -195,49 +201,56 @@ export function MinisteroView() {
                 onClick={() => void generate()}
               >
                 <MessagesSquare size={16} />
-                {busy ? 'Preparo…' : 'Prepara schema'}
+                {busy ? 'Preparo…' : 'Prepara'}
               </button>
-            )}
+            ) : null}
           </div>
         </div>
 
         {tab === 'aiuto' && (
           <>
-            <div className="chip-row" style={{ marginBottom: '0.75rem' }}>
-              {(
-                [
-                  ['schema', 'Schema conversazione'],
-                  ['riassunto', 'Riassunto'],
-                  ['presentazione', 'Presentazione'],
-                  ['spunto', 'Spunti'],
-                  ['scritture', 'Scritture'],
-                ] as const
-              ).map(([k, label]) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={`chip ${kind === k ? 'active' : ''}`}
-                  onClick={() => setKind(k)}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="field" style={{ marginBottom: '0.85rem' }}>
+              <label>Tipo di preparazione</label>
+              <div className="chip-row">
+                {(
+                  [
+                    ['schema', 'Schema conversazione'],
+                    ['riassunto', 'Riassunto'],
+                    ['presentazione', 'Presentazione'],
+                    ['spunto', 'Spunti'],
+                    ['scritture', 'Scritture'],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={`chip ${kind === k ? 'active' : ''}`}
+                    onClick={() => setKind(k)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="chip-row">
-              {MINISTRY_SUGGESTIONS.slice(0, 8).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className="chip"
-                  disabled={busy}
-                  onClick={() => {
-                    setTopic(s)
-                    void generate(s)
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
+
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Temi suggeriti</label>
+              <div className="chip-row">
+                {MINISTRY_SUGGESTIONS.slice(0, 8).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className="chip"
+                    disabled={busy}
+                    onClick={() => {
+                      setTopic(s)
+                      void generate(s)
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           </>
         )}
