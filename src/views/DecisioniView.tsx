@@ -1,15 +1,16 @@
-import { useMemo, useState } from 'react'
-import { BookOpen, Link2, NotebookPen, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { BookOpen, Link2, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
+import { analyzeDecisionLucidity } from '../lib/decisionLucidity'
 import { DECISION_STEPS } from '../lib/studyMethod'
 import { uid } from '../lib/id'
 import { useAppStore } from '../store/useAppStore'
-import type { StudyResource } from '../types'
+import type { JwResult, StudyResource } from '../types'
 
 export function DecisioniView() {
   const decisions = useAppStore((s) => s.decisions)
@@ -30,6 +31,9 @@ export function DecisioniView() {
   const [scale, setScale] = useState<'piccola' | 'grande'>('piccola')
   const [aiText, setAiText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [lucidityBusy, setLucidityBusy] = useState(false)
+  const [lucidityError, setLucidityError] = useState('')
+  const [luciditySources, setLuciditySources] = useState<JwResult[]>([])
   const [newTopicTitle, setNewTopicTitle] = useState('')
   const [verseDraft, setVerseDraft] = useState('')
   const [materialFilter, setMaterialFilter] = useState<'tutti' | 'bible' | 'video' | 'article'>('tutti')
@@ -38,6 +42,12 @@ export function DecisioniView() {
     () => decisions.find((d) => d.id === activeDecisionId) || decisions[0] || null,
     [decisions, activeDecisionId],
   )
+
+  useEffect(() => {
+    setLuciditySources([])
+    setLucidityError('')
+    setAiText('')
+  }, [decision?.id])
 
   const linkedIds = decision?.linkedTopicIds || []
   const linkedTopics = useMemo(
@@ -142,6 +152,36 @@ export function DecisioniView() {
       setAiText(e instanceof Error ? e.message : 'Errore AI')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function runLucidityAnalysis() {
+    if (!decision) return
+    setLucidityBusy(true)
+    setLucidityError('')
+    try {
+      const { analysis, sources } = await analyzeDecisionLucidity({
+        decision,
+        language,
+        linkedTopics,
+      })
+      setLuciditySources(sources)
+      updateDecision(decision.id, {
+        lucidityAnalysis: analysis,
+        lucidityAnalyzedAt: new Date().toISOString(),
+        status: 'decisa',
+      })
+      pushAiMessage(
+        createMessage(
+          'user',
+          `Analizza la lucidità della mia decisione «${decision.title}» con materiali di jw.org.`,
+        ),
+      )
+      pushAiMessage(createMessage('assistant', analysis))
+    } catch (e) {
+      setLucidityError(e instanceof Error ? e.message : 'Analisi non riuscita')
+    } finally {
+      setLucidityBusy(false)
     }
   }
 
@@ -615,7 +655,7 @@ export function DecisioniView() {
                     className="btn secondary"
                     type="button"
                     disabled={busy}
-                    onClick={askDecisionAi}
+                    onClick={() => void askDecisionAi()}
                   >
                     {busy ? 'AI in corso…' : 'AI: elabora decisione'}
                   </button>
@@ -634,6 +674,121 @@ export function DecisioniView() {
                 >
                   {aiText}
                 </pre>
+              )}
+            </section>
+
+            <section className="panel">
+              <div className="section-head">
+                <div>
+                  <p className="section-kicker">Onestà e lucidità</p>
+                  <h3>La decisione che ho preso</h3>
+                  <p className="lede">
+                    Scrivi con onestà cosa hai scelto e perché. Poi l’analisi usa solo materiali di
+                    jw.org per capire se la scelta risulta ragionevole e lucida, senza lasciarsi
+                    guidare troppo dalle emozioni.
+                  </p>
+                </div>
+              </div>
+
+              <ExpandableField
+                label="Decisione presa"
+                value={decision.chosenDecision || ''}
+                onChange={(value) =>
+                  updateDecision(decision.id, {
+                    chosenDecision: value,
+                    status: value.trim() ? 'decisa' : decision.status,
+                  })
+                }
+                placeholder="Es. Ho deciso di accettare / rifiutare / rimandare…"
+                rows={3}
+              />
+              <ExpandableField
+                label="Motivazioni oneste"
+                value={decision.honestMotivations || ''}
+                onChange={(value) =>
+                  updateDecision(decision.id, { honestMotivations: value })
+                }
+                placeholder="Scrivi davvero perché l’hai scelta: anche paure, desideri, stanchezza o pressioni. L’onestà aiuta l’analisi."
+                rows={8}
+              />
+
+              <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
+                <button
+                  className="btn accent"
+                  type="button"
+                  disabled={
+                    lucidityBusy ||
+                    !(decision.chosenDecision || '').trim() ||
+                    !(decision.honestMotivations || '').trim()
+                  }
+                  onClick={() => void runLucidityAnalysis()}
+                >
+                  <Scale size={16} />
+                  {lucidityBusy
+                    ? 'Analisi con jw.org…'
+                    : 'Analizza lucidità e buon senso (jw.org)'}
+                </button>
+                {(decision.chosenDecision || '').trim() && (
+                  <button
+                    className="btn secondary"
+                    type="button"
+                    onClick={() => updateDecision(decision.id, { status: 'decisa' })}
+                  >
+                    Segna come decisa
+                  </button>
+                )}
+              </div>
+
+              {lucidityError && (
+                <p className="error-text" style={{ marginTop: '0.65rem' }}>
+                  {lucidityError}
+                </p>
+              )}
+
+              {decision.lucidityAnalysis && (
+                <div style={{ marginTop: '1rem' }}>
+                  <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+                    <strong>Analisi di lucidità</strong>
+                    {decision.lucidityAnalyzedAt && (
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        {new Date(decision.lucidityAnalyzedAt).toLocaleString('it-IT')}
+                      </span>
+                    )}
+                  </div>
+                  <pre
+                    className="bubble assistant"
+                    style={{ maxWidth: '100%', marginTop: '0.55rem', whiteSpace: 'pre-wrap' }}
+                  >
+                    {decision.lucidityAnalysis}
+                  </pre>
+                </div>
+              )}
+
+              {luciditySources.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                  <strong>Fonti jw.org usate per l’analisi</strong>
+                  <div className="list" style={{ marginTop: '0.5rem' }}>
+                    {luciditySources.slice(0, 8).map((r) => (
+                      <div className="list-item" key={`${r.id}-${r.url}`}>
+                        <strong>{r.title}</strong>
+                        {r.snippet && (
+                          <p className="muted" style={{ margin: '0.25rem 0 0' }}>
+                            {r.snippet.slice(0, 140)}
+                          </p>
+                        )}
+                        <div style={{ marginTop: 6 }}>
+                          <JwOpenButtons
+                            url={r.url}
+                            lank={r.lank}
+                            docid={r.docid}
+                            language={language}
+                            compact
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </section>
           </>

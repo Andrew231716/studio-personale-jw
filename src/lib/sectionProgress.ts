@@ -170,9 +170,15 @@ export function getSectionProgress(
             value: String(countBy(decisions, (d) => d.status === 'in_valutazione')),
           },
           { label: 'Decise', value: String(countBy(decisions, (d) => d.status === 'decisa')) },
+          {
+            label: 'Con analisi',
+            value: String(
+              countBy(decisions, (d) => Boolean(d.lucidityAnalysis?.trim())),
+            ),
+          },
         ],
         hint: decisions.length
-          ? 'Collega argomenti e scritture per soppesare meglio.'
+          ? 'Scrivi la scelta e le motivazioni oneste, poi analizzale con jw.org.'
           : 'Crea la prima decisione a sinistra.',
       }
     case 'videoStudio':

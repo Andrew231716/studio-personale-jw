@@ -226,6 +226,12 @@ export function buildDecisionContext(
   if (decision) {
     parts.push(`Decisione: ${decision.title} (${decision.scale})`)
     parts.push(`Contesto: ${decision.context}`)
+    if (decision.chosenDecision?.trim()) {
+      parts.push(`Decisione presa: ${decision.chosenDecision.trim()}`)
+    }
+    if (decision.honestMotivations?.trim()) {
+      parts.push(`Motivazioni oneste:\n${decision.honestMotivations.trim()}`)
+    }
     if (decision.priorities.length) {
       parts.push(
         'Priorità:\n' +

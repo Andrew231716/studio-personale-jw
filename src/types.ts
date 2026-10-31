@@ -153,6 +153,13 @@ export interface DecisionItem {
   relatedResources: StudyResource[]
   conclusion: string
   prayerNotes: string
+  /** La scelta effettivamente presa (onesta). */
+  chosenDecision?: string
+  /** Motivazioni scritte in modo onesto, anche se scomode. */
+  honestMotivations?: string
+  /** Analisi di lucidità / ragionevolezza basata su jw.org. */
+  lucidityAnalysis?: string
+  lucidityAnalyzedAt?: string
   status: 'aperta' | 'in_valutazione' | 'decisa'
   createdAt: string
   updatedAt: string
