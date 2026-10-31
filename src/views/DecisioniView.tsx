@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Link2, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react'
+import { BookOpen, CheckCircle2, Link2, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
@@ -36,6 +36,7 @@ export function DecisioniView() {
   const [lucidityBusy, setLucidityBusy] = useState(false)
   const [lucidityError, setLucidityError] = useState('')
   const [luciditySources, setLuciditySources] = useState<JwResult[]>([])
+  const [statusHint, setStatusHint] = useState('')
   const [newTopicTitle, setNewTopicTitle] = useState('')
   const [verseDraft, setVerseDraft] = useState('')
   const [materialFilter, setMaterialFilter] = useState<'tutti' | 'bible' | 'video' | 'article'>('tutti')
@@ -49,6 +50,7 @@ export function DecisioniView() {
     setLuciditySources([])
     setLucidityError('')
     setAiText('')
+    setStatusHint('')
   }, [decision?.id])
 
   const linkedIds = decision?.linkedTopicIds || []
@@ -171,8 +173,10 @@ export function DecisioniView() {
       updateDecision(decision.id, {
         lucidityAnalysis: analysis,
         lucidityAnalyzedAt: new Date().toISOString(),
-        status: 'decisa',
+        // L’analisi valuta la scelta: resta in valutazione finché non la segni come decisa.
+        status: decision.status === 'decisa' ? 'decisa' : 'in_valutazione',
       })
+      setStatusHint('')
       pushAiMessage(
         createMessage(
           'user',
@@ -672,12 +676,21 @@ export function DecisioniView() {
               <ExpandableField
                 label="Decisione presa"
                 value={decision.chosenDecision || ''}
-                onChange={(value) =>
+                onChange={(value) => {
+                  const trimmed = value.trim()
+                  const nextStatus = !trimmed
+                    ? decision.status === 'decisa'
+                      ? 'aperta'
+                      : decision.status
+                    : decision.status === 'decisa'
+                      ? 'decisa'
+                      : 'in_valutazione'
                   updateDecision(decision.id, {
                     chosenDecision: value,
-                    status: value.trim() ? 'decisa' : decision.status,
+                    status: nextStatus,
                   })
-                }
+                  if (statusHint) setStatusHint('')
+                }}
                 placeholder="Es. Ho deciso di accettare / rifiutare / rimandare…"
                 rows={3}
               />
@@ -707,16 +720,42 @@ export function DecisioniView() {
                     ? 'Analisi con jw.org…'
                     : 'Analizza lucidità e buon senso (jw.org)'}
                 </button>
-                {(decision.chosenDecision || '').trim() && (
+                {(decision.chosenDecision || '').trim() && decision.status !== 'decisa' && (
                   <button
                     className="btn secondary"
                     type="button"
-                    onClick={() => updateDecision(decision.id, { status: 'decisa' })}
+                    onClick={() => {
+                      updateDecision(decision.id, { status: 'decisa' })
+                      setStatusHint('Decisione segnata come decisa.')
+                    }}
                   >
-                    Segna come decisa
+                    <CheckCircle2 size={16} /> Segna come decisa
                   </button>
                 )}
+                {decision.status === 'decisa' && (
+                  <>
+                    <span className="badge" style={{ alignSelf: 'center' }}>
+                      <CheckCircle2 size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                      Decisa
+                    </span>
+                    <button
+                      className="btn secondary small"
+                      type="button"
+                      onClick={() => {
+                        updateDecision(decision.id, { status: 'in_valutazione' })
+                        setStatusHint('Rimessa in valutazione.')
+                      }}
+                    >
+                      Riapri
+                    </button>
+                  </>
+                )}
               </div>
+              {statusHint && (
+                <p className="muted" style={{ margin: '0.55rem 0 0' }}>
+                  {statusHint}
+                </p>
+              )}
 
               {lucidityError && (
                 <p className="error-text" style={{ marginTop: '0.65rem' }}>
