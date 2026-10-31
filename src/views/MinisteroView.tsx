@@ -8,6 +8,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { SectionProgress } from '../components/SectionProgress'
 import {
   MINISTRY_KIND_LABELS,
   MINISTRY_SUGGESTIONS,
@@ -129,6 +130,7 @@ export function MinisteroView() {
 
   return (
     <div className="stack">
+      <SectionProgress section="ministero" />
       <section className="panel">
         <div className="section-head">
           <div>

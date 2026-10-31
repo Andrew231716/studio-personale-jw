@@ -8,6 +8,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { SectionProgress } from '../components/SectionProgress'
 import {
   BIBLE_KIND_LABELS,
   BIBLE_READING_SUGGESTIONS,
@@ -156,6 +157,7 @@ export function LettureBibbiaView() {
 
   return (
     <div className="stack">
+      <SectionProgress section="lettureBibbia" />
       <section className="panel">
         <div className="section-head">
           <div>

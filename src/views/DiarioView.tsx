@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { BookMarked, FileText } from 'lucide-react'
+import { SectionProgress } from '../components/SectionProgress'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
 import { buildStudySummary, type StudySummary } from '../lib/studySummary'
 import type { SummaryPeriod } from '../types'
@@ -53,6 +54,7 @@ export function DiarioView() {
 
   return (
     <div className="stack">
+      <SectionProgress section="diario" />
       <section className="panel">
         <p className="section-kicker">Diario</p>
         <h2>I tuoi studi fatti</h2>

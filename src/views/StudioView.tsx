@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildStudyContext, createMessage } from '../lib/ai'
 import { uid } from '../lib/id'
 import { useAppStore } from '../store/useAppStore'
@@ -25,12 +26,15 @@ export function StudioView() {
 
   if (!topic) {
     return (
-      <div className="panel empty">
-        Nessuno studio attivo. Aggiungi un argomento per iniziare.
-        <div style={{ marginTop: '0.8rem' }}>
-          <button className="btn" type="button" onClick={() => setView('argomenti')}>
-            Vai agli argomenti
-          </button>
+      <div className="stack">
+        <SectionProgress section="studio" />
+        <div className="panel empty">
+          Nessuno studio attivo. Aggiungi un argomento per iniziare.
+          <div style={{ marginTop: '0.8rem' }}>
+            <button className="btn" type="button" onClick={() => setView('argomenti')}>
+              Vai agli argomenti
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -60,6 +64,7 @@ export function StudioView() {
 
   return (
     <div className="stack">
+      <SectionProgress section="studio" />
       <section className="panel">
         <div className="section-head">
           <div>

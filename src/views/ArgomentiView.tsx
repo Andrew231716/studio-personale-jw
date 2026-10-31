@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
+import { SectionProgress } from '../components/SectionProgress'
 import { useAppStore } from '../store/useAppStore'
 
 export function ArgomentiView() {
@@ -22,7 +23,9 @@ export function ArgomentiView() {
   }
 
   return (
-    <div className="split">
+    <div className="stack">
+      <SectionProgress section="argomenti" />
+      <div className="split">
       <section className="panel">
         <div className="section-head">
           <div>
@@ -129,6 +132,7 @@ export function ArgomentiView() {
           }}
         />
       </section>
+      </div>
     </div>
   )
 }

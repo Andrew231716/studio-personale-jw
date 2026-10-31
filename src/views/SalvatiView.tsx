@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { BookmarkPlus, NotebookPen, Trash2 } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { JwSearch } from '../components/JwSearch'
+import { SectionProgress } from '../components/SectionProgress'
 import { useAppStore } from '../store/useAppStore'
 import type { ContentKind, SavedResource } from '../types'
 
@@ -87,7 +88,9 @@ export function SalvatiView() {
   }
 
   return (
-    <div className="split">
+    <div className="stack">
+      <SectionProgress section="salvati" />
+      <div className="split">
       <section className="panel">
         <div className="section-head">
           <div>
@@ -271,6 +274,7 @@ export function SalvatiView() {
           ))}
         </div>
       </section>
+      </div>
     </div>
   )
 }

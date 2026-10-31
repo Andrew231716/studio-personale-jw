@@ -4,6 +4,7 @@ import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { JwSearch } from '../components/JwSearch'
 import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
+import { SectionProgress } from '../components/SectionProgress'
 import {
   SESSION_STEPS,
   computeStreak,
@@ -127,6 +128,7 @@ export function SessioneView() {
 
     return (
       <div className="session-shell">
+        <SectionProgress section="sessione" />
         <section className="panel session-card">
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <p className="section-kicker" style={{ margin: 0 }}>Percorso guidato</p>

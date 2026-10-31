@@ -3,6 +3,7 @@ import { BookOpen, Link2, NotebookPen, Plus, Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
 import { DECISION_STEPS } from '../lib/studyMethod'
@@ -145,7 +146,9 @@ export function DecisioniView() {
   }
 
   return (
-    <div className="split">
+    <div className="stack">
+      <SectionProgress section="decisioni" />
+      <div className="split">
       <div className="stack">
         <section className="panel">
           <h2>Decisioni</h2>
@@ -635,6 +638,7 @@ export function DecisioniView() {
             </section>
           </>
         )}
+      </div>
       </div>
     </div>
   )

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Flame, PlayCircle } from 'lucide-react'
+import { CloudSyncPanel } from '../components/CloudSyncPanel'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
+import { SectionProgress } from '../components/SectionProgress'
 import { formatScheduleLabel } from '../lib/calendar'
 import { fetchLatestVideos, type LatestMediaItem } from '../lib/jwApi'
 import {
@@ -71,6 +73,9 @@ export function HomeView() {
           </button>
         </div>
       </section>
+
+      <SectionProgress section="home" />
+      <CloudSyncPanel compact />
 
       <section className="section panel">
         <p className="section-kicker">Oggi</p>

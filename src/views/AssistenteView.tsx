@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BookmarkPlus } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, buildStudyContext, createMessage } from '../lib/ai'
 import { searchJwDeep } from '../lib/jwApi'
 import { uid } from '../lib/id'
@@ -106,7 +107,9 @@ export function AssistenteView() {
   }
 
   return (
-    <div className="split">
+    <div className="stack">
+      <SectionProgress section="assistente" />
+      <div className="split">
       <section className="panel">
         <div className="section-head">
           <div>
@@ -254,6 +257,7 @@ export function AssistenteView() {
           Contesto attuale: studio “{topic?.title || 'nessuno'}”, decisione “{decision?.title || 'nessuna'}”.
         </div>
       </section>
+      </div>
     </div>
   )
 }

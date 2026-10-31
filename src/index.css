@@ -1336,3 +1336,79 @@ img {
   color: #9b2c2c;
   margin: 0.5rem 0 0;
 }
+
+/* ——— Progress «Già fatto» ——— */
+.progress-panel {
+  padding: clamp(0.9rem, 1.8vw, 1.15rem) clamp(1.05rem, 2vw, 1.35rem);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--secondary) 10%, transparent),
+      color-mix(in srgb, var(--surface) 96%, white) 48%
+    );
+}
+
+.progress-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.progress-icon {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 12px;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--secondary) 16%, white);
+  flex-shrink: 0;
+}
+
+.progress-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  gap: 0.55rem 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.progress-stat {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.progress-stat strong {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--primary);
+}
+
+.progress-stat span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+/* ——— Sync compact / salvata ——— */
+.sync-compact {
+  padding: 0.85rem 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 92%, white);
+  box-shadow: var(--shadow);
+}
+
+.sync-saved {
+  padding: 0.85rem 1rem;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid color-mix(in srgb, var(--secondary) 22%, var(--line));
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      color-mix(in srgb, var(--surface) 94%, white) 55%
+    );
+}

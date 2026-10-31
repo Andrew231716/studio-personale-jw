@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BookmarkPlus, Captions, NotebookPen, PlayCircle, Search } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { SectionProgress } from '../components/SectionProgress'
 import {
   fetchLatestVideos,
   fetchVideoTranscript,
@@ -211,6 +212,7 @@ export function VideoStudioView() {
 
   return (
     <div className="stack">
+      <SectionProgress section="videoStudio" />
       <section className="panel">
         <div className="section-head">
           <div>

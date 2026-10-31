@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { BookOpen, Library, FileUp } from 'lucide-react'
+import { SectionProgress } from '../components/SectionProgress'
 import type { PdfExtractResult } from '../lib/pdfExtract'
 
 const MAX_MB = 40
@@ -112,6 +113,7 @@ export function PdfJwpubView() {
 
   return (
     <div className="stack">
+      <SectionProgress section="pdfJwpub" />
       <section className="panel">
         <p className="section-kicker">Documenti</p>
         <h2>PDF → EPUB</h2>
