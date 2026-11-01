@@ -25,7 +25,7 @@ interface Props {
   compact?: boolean
   /**
    * Se true, apre automaticamente quando digiti un riferimento completo.
-   * Il riaprire resta sempre possibile dalla lista / testo collegato.
+   * Dopo chiusura o cambio sezione non si riapre da solo.
    */
   autoOpenOnType?: boolean
 }
@@ -35,6 +35,21 @@ export type ScriptureAssistHandle = {
     ref: ParsedScriptureRef,
     anchor?: { x: number; y: number },
   ) => void
+}
+
+function refAutoKey(ref: Pick<ParsedScriptureRef, 'bible' | 'verse' | 'verseEnd'>) {
+  return `${ref.bible}:${ref.verseEnd || ref.verse}`
+}
+
+function keysInText(value: string): Set<string> {
+  return new Set(findScriptureRefsInText(value || '').map(refAutoKey))
+}
+
+/** Sopravvive al cambio sezione: refs già viste/chiuse non si riaprono da sole. */
+const sessionSeenKeys = new Set<string>()
+
+function rememberKeys(keys: Iterable<string>) {
+  for (const key of keys) sessionSeenKeys.add(key)
 }
 
 export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
@@ -48,6 +63,7 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
     const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
     const lastKey = useRef('')
     const preloadKey = useRef('')
+    const prevKeys = useRef<Set<string> | null>(null)
     const timer = useRef<number | null>(null)
 
     const refs = useMemo(() => findScriptureRefsInText(text || ''), [text])
@@ -56,8 +72,9 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
       parsed: ParsedScriptureRef,
       nextAnchor?: { x: number; y: number },
     ) {
-      const key = `${parsed.bible}:${parsed.verseEnd || parsed.verse}`
+      const key = refAutoKey(parsed)
       lastKey.current = key
+      sessionSeenKeys.add(key)
       if (nextAnchor) setAnchor(nextAnchor)
       setLoading(true)
       setError('')
@@ -97,11 +114,20 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
       timer.current = window.setTimeout(() => {
         void runPreload(text)
         if (autoOpenOnType) void runLookup(text)
+        else syncKeysWithoutOpening(text)
       }, 380)
       return () => {
         if (timer.current) window.clearTimeout(timer.current)
       }
     }, [text, language, autoOpenOnType])
+
+    function syncKeysWithoutOpening(value: string) {
+      const now = keysInText(value)
+      rememberKeys(now)
+      prevKeys.current = now
+      const parsed = latestScriptureNearEnd(value)
+      if (parsed) lastKey.current = refAutoKey(parsed)
+    }
 
     async function runPreload(value: string) {
       const hint = latestChapterHint(value)
@@ -121,11 +147,35 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
     }
 
     async function runLookup(value: string) {
+      const now = keysInText(value)
       const parsed = latestScriptureNearEnd(value)
+
+      // Primo snapshot dopo mount (o testo ancora vuoto → poi popolato):
+      // registra le scritture già presenti, non aprire nulla.
+      if (prevKeys.current === null) {
+        rememberKeys(now)
+        prevKeys.current = now
+        if (parsed) lastKey.current = refAutoKey(parsed)
+        return
+      }
+
+      const wasEmpty = prevKeys.current.size === 0
+      const newlyAdded = [...now].filter((k) => !prevKeys.current!.has(k))
+      prevKeys.current = now
+
+      // Caricamento bozza / rientro sezione: salto grande da vuoto a testo pieno
+      if (wasEmpty && now.size > 0) {
+        rememberKeys(now)
+        if (parsed) lastKey.current = refAutoKey(parsed)
+        return
+      }
+
       if (!parsed) return
-      const key = `${parsed.bible}:${parsed.verseEnd || parsed.verse}`
-      // Solo al primo riconoscimento: dopo chiusura si riapre cliccando la scrittura
-      if (key === lastKey.current) return
+      const key = refAutoKey(parsed)
+      if (sessionSeenKeys.has(key) || key === lastKey.current) return
+      if (!newlyAdded.includes(key)) return
+
+      // Nuovo riferimento digitato in questa sessione
       await openRef(parsed)
     }
 
@@ -140,6 +190,7 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
           language={language}
           anchor={anchor}
           onClose={() => {
+            if (verse) sessionSeenKeys.add(`${verse.bible}:${verse.verseEnd || verse.verse}`)
             setVerse(null)
             setError('')
             setAnchor(null)
