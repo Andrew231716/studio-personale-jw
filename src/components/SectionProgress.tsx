@@ -11,6 +11,7 @@ export function SectionProgress({ section }: { section: AppView }) {
   const savedSearches = useAppStore((s) => s.savedSearches)
   const bibleReadingPlans = useAppStore((s) => s.bibleReadingPlans)
   const ministryNotes = useAppStore((s) => s.ministryNotes)
+  const discourseNotes = useAppStore((s) => s.discourseNotes)
   const aiMessages = useAppStore((s) => s.aiMessages)
 
   const data = getSectionProgress(section, {
@@ -21,6 +22,7 @@ export function SectionProgress({ section }: { section: AppView }) {
     savedSearches,
     bibleReadingPlans,
     ministryNotes,
+    discourseNotes,
     aiMessages,
   })
 

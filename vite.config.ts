@@ -48,6 +48,22 @@ function localApiPlugin(): Plugin {
             res.end(text)
             return
           }
+          if (url.pathname === '/api/jw-bible') {
+            const language = url.searchParams.get('language') || 'I'
+            const book = url.searchParams.get('book') || ''
+            const chapter = url.searchParams.get('chapter') || ''
+            const locale = language === 'E' ? { r: 'r1', lp: 'lp-e' } : { r: 'r6', lp: 'lp-i' }
+            const target = `https://wol.jw.org/wol/b/${locale.r}/${locale.lp}/nwtsty/${book}/${chapter}`
+            const upstream = await fetch(target, {
+              headers: { Accept: 'application/json', 'User-Agent': 'JW-Studio/1.0' },
+            })
+            const text = await upstream.text()
+            res.statusCode = upstream.status
+            res.setHeader('Content-Type', 'application/json')
+            res.setHeader('Cache-Control', 'public, max-age=86400')
+            res.end(text)
+            return
+          }
           if (url.pathname === '/api/ai' && req.method === 'POST') {
             const body = await readBody(req)
             const upstream = await fetch('https://text.pollinations.ai/', {

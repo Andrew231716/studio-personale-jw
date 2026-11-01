@@ -3,6 +3,7 @@ import type {
   AppSettings,
   BibleReadingPlan,
   DecisionItem,
+  DiscourseNote,
   MinistryAssistNote,
   SavedResource,
   SavedSearch,
@@ -29,6 +30,8 @@ export interface ICloudSnapshot {
   savedSearches?: SavedSearch[]
   bibleReadingPlans?: BibleReadingPlan[]
   ministryNotes?: MinistryAssistNote[]
+  discourseNotes?: DiscourseNote[]
+  activeDiscourseId?: string | null
 }
 
 export interface ICloudConfig {

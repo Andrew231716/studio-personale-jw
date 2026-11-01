@@ -69,5 +69,11 @@ export function mergeSnapshots(local: ICloudSnapshot, remote: ICloudSnapshot): I
       remote.ministryNotes || [],
       'createdAt',
     ),
+    discourseNotes: byIdNewer(
+      local.discourseNotes || [],
+      remote.discourseNotes || [],
+      'updatedAt',
+    ),
+    activeDiscourseId: local.activeDiscourseId || remote.activeDiscourseId || null,
   }
 }

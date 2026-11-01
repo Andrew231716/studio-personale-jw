@@ -4,6 +4,7 @@ import type {
   AppSettings,
   BibleReadingPlan,
   DecisionItem,
+  DiscourseNote,
   MinistryAssistNote,
   SavedResource,
   SavedSearch,
@@ -34,6 +35,8 @@ export interface StudioBackup {
     savedSearches: SavedSearch[]
     bibleReadingPlans: BibleReadingPlan[]
     ministryNotes: MinistryAssistNote[]
+    discourseNotes?: DiscourseNote[]
+    activeDiscourseId?: string | null
   }
 }
 
@@ -57,6 +60,8 @@ export function buildBackup(): StudioBackup {
       savedSearches: s.savedSearches,
       bibleReadingPlans: s.bibleReadingPlans,
       ministryNotes: s.ministryNotes,
+      discourseNotes: s.discourseNotes,
+      activeDiscourseId: s.activeDiscourseId,
     },
   }
 }
@@ -114,6 +119,8 @@ export function applyBackup(backup: StudioBackup): void {
     savedSearches: Array.isArray(d.savedSearches) ? d.savedSearches : [],
     bibleReadingPlans: Array.isArray(d.bibleReadingPlans) ? d.bibleReadingPlans : [],
     ministryNotes: Array.isArray(d.ministryNotes) ? d.ministryNotes : [],
+    discourseNotes: Array.isArray(d.discourseNotes) ? d.discourseNotes : [],
+    activeDiscourseId: d.activeDiscourseId ?? null,
   })
 }
 
@@ -191,6 +198,10 @@ export function mergeBackup(backup: StudioBackup): void {
     cur.ministryNotes,
     Array.isArray(d.ministryNotes) ? d.ministryNotes : [],
   ).slice(0, 50)
+  const discourseNotes = mergeById(
+    cur.discourseNotes,
+    Array.isArray(d.discourseNotes) ? d.discourseNotes : [],
+  ).slice(0, 40)
   const aiMessages = mergeById(
     cur.aiMessages,
     Array.isArray(d.aiMessages) ? d.aiMessages : [],
@@ -206,9 +217,11 @@ export function mergeBackup(backup: StudioBackup): void {
     savedSearches,
     bibleReadingPlans,
     ministryNotes,
+    discourseNotes,
     aiMessages,
     activeTopicId: cur.activeTopicId || d.activeTopicId || null,
     activeDecisionId: cur.activeDecisionId || d.activeDecisionId || null,
+    activeDiscourseId: cur.activeDiscourseId || d.activeDiscourseId || null,
     sessionDraft: cur.sessionDraft || d.sessionDraft || null,
   })
 }

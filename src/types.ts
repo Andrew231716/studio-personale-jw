@@ -209,10 +209,20 @@ export type AppView =
   | 'salvati'
   | 'lettureBibbia'
   | 'ministero'
+  | 'discorso'
   | 'decisioni'
   | 'obiettiviDecisioni'
   | 'assistente'
   | 'impostazioni'
+
+/** Bozza appunti per un discorso pubblico. */
+export interface DiscourseNote {
+  id: string
+  title: string
+  body: string
+  createdAt: string
+  updatedAt: string
+}
 
 export type SummaryPeriod = 'giorno' | 'settimana' | 'mese'
 
@@ -273,6 +283,7 @@ export interface FeatureFlags {
   salvati: boolean
   lettureBibbia: boolean
   ministero: boolean
+  discorso: boolean
   decisioni: boolean
   obiettiviDecisioni: boolean
   assistente: boolean

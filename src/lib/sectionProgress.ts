@@ -2,6 +2,7 @@ import type {
   AppView,
   BibleReadingPlan,
   DecisionItem,
+  DiscourseNote,
   MinistryAssistNote,
   SavedResource,
   SavedSearch,
@@ -28,6 +29,7 @@ type StoreSlice = {
   savedSearches: SavedSearch[]
   bibleReadingPlans: BibleReadingPlan[]
   ministryNotes: MinistryAssistNote[]
+  discourseNotes?: DiscourseNote[]
   aiMessages: { role: string }[]
 }
 
@@ -47,6 +49,7 @@ export function getSectionProgress(
     savedSearches,
     bibleReadingPlans,
     ministryNotes,
+    discourseNotes = [],
     aiMessages,
   } = store
 
@@ -170,6 +173,20 @@ export function getSectionProgress(
         hint: ministryNotes.length
           ? 'Le schede salvate sono sotto, nella scheda Prepara.'
           : 'Prepara il primo schema da un tema o un articolo.',
+      }
+    case 'discorso':
+      return {
+        title: 'Bozze discorso',
+        items: [
+          { label: 'Discorsi', value: String(discourseNotes.length) },
+          {
+            label: 'Con testo',
+            value: String(countBy(discourseNotes, (n) => Boolean(n.body.trim()))),
+          },
+        ],
+        hint: discourseNotes.length
+          ? 'Dettatura, correzione sintassi e popup scritture da jw.org.'
+          : 'Crea una bozza: scrivi o detta col microfono.',
       }
     case 'decisioni':
       return {

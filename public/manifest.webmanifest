@@ -1,0 +1,24 @@
+{
+  "name": "JW Studio",
+  "short_name": "JW Studio",
+  "description": "Studio personale, discorsi e decisioni con jw.org — anche offline.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E8F0EC",
+  "theme_color": "#124A4A",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/jw-studio-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

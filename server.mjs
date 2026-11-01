@@ -50,6 +50,26 @@ app.get('/api/jw-media', async (req, res) => {
   }
 })
 
+app.get('/api/jw-bible', async (req, res) => {
+  try {
+    const language = String(req.query.language || 'I')
+    const book = String(req.query.book || '')
+    const chapter = String(req.query.chapter || '')
+    const locale = language === 'E' ? { r: 'r1', lp: 'lp-e' } : { r: 'r6', lp: 'lp-i' }
+    const url = `https://wol.jw.org/wol/b/${locale.r}/${locale.lp}/nwtsty/${book}/${chapter}`
+    const upstream = await fetch(url, {
+      headers: { Accept: 'application/json', 'User-Agent': 'JW-Studio/1.0' },
+    })
+    res
+      .status(upstream.status)
+      .type('application/json')
+      .set('Cache-Control', 'public, max-age=86400')
+      .send(await upstream.text())
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
+})
+
 app.post('/api/ai', express.json({ limit: '1mb' }), async (req, res) => {
   try {
     const upstream = await fetch('https://text.pollinations.ai/', {

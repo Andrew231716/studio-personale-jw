@@ -12,6 +12,7 @@ import {
   ListChecks,
   MessageSquareText,
   MessagesSquare,
+  Mic,
   NotebookPen,
   PlayCircle,
   Settings2,
@@ -30,7 +31,9 @@ import { VideoStudioView } from './views/VideoStudioView'
 import { SalvatiView } from './views/SalvatiView'
 import { LettureBibbiaView } from './views/LettureBibbiaView'
 import { MinisteroView } from './views/MinisteroView'
+import { DiscorsoView } from './views/DiscorsoView'
 import { DecisioniView } from './views/DecisioniView'
+import { OnlineStatus } from './components/OnlineStatus'
 import { ObiettiviDecisioniView } from './views/ObiettiviDecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
@@ -48,6 +51,7 @@ const ICONS: Record<AppView, typeof Home> = {
   salvati: Bookmark,
   lettureBibbia: BookMarked,
   ministero: MessagesSquare,
+  discorso: Mic,
   decisioni: Compass,
   obiettiviDecisioni: ListChecks,
   assistente: MessageSquareText,
@@ -110,6 +114,7 @@ export default function App() {
         if (key === 'salvati') return settings.features.salvati !== false
         if (key === 'lettureBibbia') return settings.features.lettureBibbia !== false
         if (key === 'ministero') return settings.features.ministero !== false
+        if (key === 'discorso') return settings.features.discorso !== false
         if (key === 'decisioni') return settings.features.decisioni
         if (key === 'obiettiviDecisioni') return settings.features.obiettiviDecisioni !== false
         if (key === 'assistente') return settings.features.assistente
@@ -209,6 +214,7 @@ export default function App() {
       </aside>
       <main className="main">
         <div className="main-inner">
+          <OnlineStatus />
           <InAppReminders />
           {view === 'home' && <HomeView />}
           {view === 'argomenti' && <ArgomentiView />}
@@ -220,6 +226,7 @@ export default function App() {
           {view === 'salvati' && <SalvatiView />}
           {view === 'lettureBibbia' && <LettureBibbiaView />}
           {view === 'ministero' && <MinisteroView />}
+          {view === 'discorso' && <DiscorsoView />}
           {view === 'decisioni' && <DecisioniView />}
           {view === 'obiettiviDecisioni' && <ObiettiviDecisioniView />}
           {view === 'assistente' && <AssistenteView />}

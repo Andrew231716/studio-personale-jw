@@ -13,6 +13,7 @@ import type {
   AppView,
   BibleReadingPlan,
   DecisionItem,
+  DiscourseNote,
   MinistryAssistNote,
   SavedResource,
   SavedSearch,
@@ -53,6 +54,7 @@ const defaultSettings: AppSettings = {
     salvati: true,
     lettureBibbia: true,
     ministero: true,
+    discorso: true,
     decisioni: true,
     obiettiviDecisioni: true,
     assistente: true,
@@ -71,6 +73,7 @@ const defaultSettings: AppSettings = {
     'salvati',
     'lettureBibbia',
     'ministero',
+    'discorso',
     'decisioni',
     'obiettiviDecisioni',
     'assistente',
@@ -130,6 +133,8 @@ interface AppState {
   savedSearches: SavedSearch[]
   bibleReadingPlans: BibleReadingPlan[]
   ministryNotes: MinistryAssistNote[]
+  discourseNotes: DiscourseNote[]
+  activeDiscourseId: string | null
   setView: (view: AppView) => void
   updateSettings: (patch: Partial<AppSettings>) => void
   updateTheme: (patch: Partial<ThemeConfig>) => void
@@ -173,6 +178,10 @@ interface AppState {
   pushMinistryNote: (note: MinistryAssistNote) => void
   updateMinistryNote: (id: string, patch: Partial<MinistryAssistNote>) => void
   removeMinistryNote: (id: string) => void
+  addDiscourseNote: (title?: string) => string
+  updateDiscourseNote: (id: string, patch: Partial<DiscourseNote>) => void
+  removeDiscourseNote: (id: string) => void
+  setActiveDiscourse: (id: string | null) => void
 }
 
 function resourceKey(r: { url: string; lank?: string; docid?: string }) {
@@ -303,6 +312,8 @@ export const useAppStore = create<AppState>()(
       savedSearches: [],
       bibleReadingPlans: [],
       ministryNotes: [],
+      discourseNotes: [],
+      activeDiscourseId: null,
       setView: (view) => set({ view }),
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -711,6 +722,46 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           ministryNotes: s.ministryNotes.filter((n) => n.id !== id),
         })),
+      addDiscourseNote: (title = 'Nuovo discorso') => {
+        const now = new Date().toISOString()
+        const note: DiscourseNote = {
+          id: uid('disc'),
+          title: title.trim() || 'Nuovo discorso',
+          body: '',
+          createdAt: now,
+          updatedAt: now,
+        }
+        set((s) => ({
+          discourseNotes: [note, ...s.discourseNotes].slice(0, 40),
+          activeDiscourseId: note.id,
+          view: 'discorso',
+        }))
+        return note.id
+      },
+      updateDiscourseNote: (id, patch) =>
+        set((s) => ({
+          discourseNotes: s.discourseNotes.map((n) =>
+            n.id === id
+              ? {
+                  ...n,
+                  ...patch,
+                  title: patch.title !== undefined ? patch.title : n.title,
+                  body: patch.body !== undefined ? patch.body : n.body,
+                  updatedAt: new Date().toISOString(),
+                }
+              : n,
+          ),
+        })),
+      removeDiscourseNote: (id) =>
+        set((s) => {
+          const next = s.discourseNotes.filter((n) => n.id !== id)
+          return {
+            discourseNotes: next,
+            activeDiscourseId:
+              s.activeDiscourseId === id ? next[0]?.id || null : s.activeDiscourseId,
+          }
+        }),
+      setActiveDiscourse: (id) => set({ activeDiscourseId: id, view: 'discorso' }),
     }),
     {
       name: 'studio-personale-jw-v1',
@@ -730,6 +781,7 @@ export const useAppStore = create<AppState>()(
               salvati: p.settings?.features?.salvati !== false,
               lettureBibbia: p.settings?.features?.lettureBibbia !== false,
               ministero: p.settings?.features?.ministero !== false,
+              discorso: p.settings?.features?.discorso !== false,
             },
             iCloud: {
               ...current.settings.iCloud!,
@@ -774,6 +826,11 @@ export const useAppStore = create<AppState>()(
                 if (lettureIdx >= 0) order.splice(lettureIdx + 1, 0, 'ministero')
                 else order.push('ministero')
               }
+              if (!order.includes('discorso')) {
+                const minIdx = order.indexOf('ministero')
+                if (minIdx >= 0) order.splice(minIdx + 1, 0, 'discorso')
+                else order.push('discorso')
+              }
               if (!order.includes('obiettiviDecisioni')) {
                 const decIdx = order.indexOf('decisioni')
                 if (decIdx >= 0) order.splice(decIdx + 1, 0, 'obiettiviDecisioni')
@@ -789,6 +846,8 @@ export const useAppStore = create<AppState>()(
           savedSearches: p.savedSearches || [],
           bibleReadingPlans: p.bibleReadingPlans || [],
           ministryNotes: p.ministryNotes || [],
+          discourseNotes: p.discourseNotes || [],
+          activeDiscourseId: p.activeDiscourseId ?? null,
           topics: (p.topics || current.topics || []).map(normalizeTopicTerms),
           decisions: (p.decisions || current.decisions || []).map(normalizeDecisionTerms),
           aiMessages: (p.aiMessages || current.aiMessages || []).map((m) =>
@@ -812,6 +871,8 @@ export const useAppStore = create<AppState>()(
         savedSearches: s.savedSearches,
         bibleReadingPlans: s.bibleReadingPlans,
         ministryNotes: s.ministryNotes,
+        discourseNotes: s.discourseNotes,
+        activeDiscourseId: s.activeDiscourseId,
       }),
     },
   ),
@@ -828,6 +889,7 @@ export const VIEW_LABELS: Record<AppView, string> = {
   salvati: 'Da studiare',
   lettureBibbia: 'Letture Bibbia',
   ministero: 'Ministero',
+  discorso: 'Discorso',
   decisioni: 'Decisioni',
   obiettiviDecisioni: 'Obiettivi',
   assistente: 'Assistente AI',
