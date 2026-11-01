@@ -502,7 +502,7 @@ export function StudioView() {
                     })
                   }
                 >
-                  Elimina
+                  Elimina pratica
                 </button>
               </div>
               <ExpandableField
