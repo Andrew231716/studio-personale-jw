@@ -15,6 +15,7 @@ const CONTENT_W = PAGE_W - MARGIN * 2
 const FOOTER_Y = PAGE_H - 12
 
 function slugPeriod(summary: StudySummary): string {
+  if (summary.slug?.trim()) return summary.slug.trim()
   const d = summary.range.start.toISOString().slice(0, 10)
   return `jw-studio-riepilogo-${summary.period}-${d}`
 }
@@ -143,7 +144,7 @@ export async function exportSummaryPdf(summary: StudySummary): Promise<void> {
   doc.setFontSize(11)
   doc.text('JW STUDIO', MARGIN, 12)
   doc.setFontSize(16)
-  doc.text('Riepilogo di studio', MARGIN, 21)
+  doc.text(summary.heading || 'Riepilogo di studio', MARGIN, 21)
   y = 36
 
   doc.setTextColor(47, 111, 106)
@@ -214,7 +215,7 @@ function epubEscape(s: string): string {
 
 export async function exportSummaryEpub(summary: StudySummary): Promise<void> {
   const zip = new JSZip()
-  const title = `Riepilogo JW Studio — ${summary.range.label}`
+  const title = `${summary.heading || 'Riepilogo JW Studio'} — ${summary.range.label}`
   const htmlBody = summaryToHtml(summary)
     .replace(/^[\s\S]*<body>/i, '')
     .replace(/<\/body>[\s\S]*$/i, '')

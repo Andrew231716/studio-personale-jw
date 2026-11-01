@@ -1,7 +1,16 @@
 import { useRef, useState } from 'react'
-import { Download, Upload } from 'lucide-react'
+import { Bell, Download, Upload } from 'lucide-react'
 import { CloudSyncPanel } from '../components/CloudSyncPanel'
-import { applyBackup, downloadBackup, readBackupFile } from '../lib/backup'
+import {
+  applyBackup,
+  downloadBackup,
+  mergeBackup,
+  readBackupFile,
+} from '../lib/backup'
+import {
+  notificationPermission,
+  requestNotificationPermission,
+} from '../lib/reminders'
 import type { AppView, FeatureFlags } from '../types'
 import { useAppStore, VIEW_LABELS } from '../store/useAppStore'
 
@@ -32,6 +41,9 @@ export function ImpostazioniView() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [backupMsg, setBackupMsg] = useState('')
   const [backupBusy, setBackupBusy] = useState(false)
+  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
+  const [notifMsg, setNotifMsg] = useState('')
+  const [notifPerm, setNotifPerm] = useState(() => notificationPermission())
 
   function moveNav(view: AppView, dir: -1 | 1) {
     const order = [...settings.navOrder]
@@ -61,20 +73,47 @@ export function ImpostazioniView() {
       const when = backup.exportedAt
         ? new Date(backup.exportedAt).toLocaleString('it-IT')
         : 'data sconosciuta'
-      const ok = window.confirm(
-        `Importare il backup del ${when}?\n\nI dati attuali di questo dispositivo verranno sostituiti.`,
-      )
-      if (!ok) {
-        setBackupMsg('Importazione annullata.')
-        return
+      if (importMode === 'replace') {
+        const ok = window.confirm(
+          `Sostituire tutti i dati locali con il backup del ${when}?\n\nI dati attuali di questo dispositivo verranno cancellati.`,
+        )
+        if (!ok) {
+          setBackupMsg('Importazione annullata.')
+          return
+        }
+        applyBackup(backup)
+        setBackupMsg('Backup importato. I dati sono stati sostituiti.')
+      } else {
+        const ok = window.confirm(
+          `Unire il backup del ${when} con i dati di questo dispositivo?\n\nGli elementi con lo stesso id restano nella versione più recente; il resto si somma.`,
+        )
+        if (!ok) {
+          setBackupMsg('Importazione annullata.')
+          return
+        }
+        mergeBackup(backup)
+        setBackupMsg('Backup unito. I dati locali e quelli del file sono stati combinati.')
       }
-      applyBackup(backup)
-      setBackupMsg('Backup importato. I dati sono stati ripristinati.')
     } catch (e) {
       setBackupMsg(e instanceof Error ? e.message : 'Importazione non riuscita')
     } finally {
       setBackupBusy(false)
       if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  async function enableNotifications() {
+    setNotifMsg('')
+    const perm = await requestNotificationPermission()
+    setNotifPerm(perm)
+    if (perm === 'granted') {
+      setNotifMsg('Promemoria di sistema attivati per studi e obiettivi in scadenza.')
+    } else if (perm === 'denied') {
+      setNotifMsg('Permesso negato dal browser. Puoi riattivarlo nelle impostazioni del sito.')
+    } else if (perm === 'unsupported') {
+      setNotifMsg('Questo browser non supporta le notifiche.')
+    } else {
+      setNotifMsg('Permesso non ancora concesso.')
     }
   }
 
@@ -244,11 +283,45 @@ export function ImpostazioniView() {
       </section>
 
       <section className="panel">
+        <h2>Promemoria</h2>
+        <p className="lede">
+          L’app mostra già un avviso interno per studi programmati e obiettivi in scadenza. Puoi
+          anche attivare le notifiche del sistema (quando la scheda è aperta).
+        </p>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <button
+            className="btn accent"
+            type="button"
+            disabled={notifPerm === 'granted' || notifPerm === 'unsupported'}
+            onClick={() => void enableNotifications()}
+          >
+            <Bell size={16} />{' '}
+            {notifPerm === 'granted' ? 'Notifiche attive' : 'Attiva notifiche di sistema'}
+          </button>
+        </div>
+        {notifMsg && (
+          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+            {notifMsg}
+          </p>
+        )}
+      </section>
+
+      <section className="panel">
         <h2>Backup JSON</h2>
         <p className="lede">
           Salva una copia completa dei tuoi studi (argomenti, sessioni, decisioni, salvati,
           impostazioni e chiave sync). Utile come cassaforte o per passare a un altro dispositivo.
         </p>
+        <div className="field">
+          <label>Modalità importazione</label>
+          <select
+            value={importMode}
+            onChange={(e) => setImportMode(e.target.value as 'merge' | 'replace')}
+          >
+            <option value="merge">Unisci (consigliato) — somma senza cancellare il locale</option>
+            <option value="replace">Sostituisci — cancella i dati attuali e ripristina il file</option>
+          </select>
+        </div>
         <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
           <button className="btn accent" type="button" onClick={exportBackup}>
             <Download size={16} /> Esporta backup JSON
@@ -259,7 +332,12 @@ export function ImpostazioniView() {
             disabled={backupBusy}
             onClick={() => fileRef.current?.click()}
           >
-            <Upload size={16} /> {backupBusy ? 'Importo…' : 'Importa backup JSON'}
+            <Upload size={16} />{' '}
+            {backupBusy
+              ? 'Importo…'
+              : importMode === 'merge'
+                ? 'Importa e unisci'
+                : 'Importa e sostituisci'}
           </button>
           <input
             ref={fileRef}

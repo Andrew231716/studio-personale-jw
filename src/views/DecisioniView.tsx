@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  BookMarked,
   BookOpen,
   CheckCircle2,
   ClipboardList,
+  FileText,
   Footprints,
   Link2,
   NotebookPen,
@@ -26,7 +28,9 @@ import {
 } from '../lib/decisionFollowUp'
 import { extractGoalsFromPlan, goalsFromTitles, mergeGoals } from '../lib/decisionGoals'
 import { analyzeDecisionLucidity } from '../lib/decisionLucidity'
+import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
 import { normalizeJwItalian } from '../lib/jwItalianTerms'
+import { buildDecisionOnlySummary } from '../lib/studySummary'
 import {
   buildDecisionRecap,
   DECISION_STEPS,
@@ -59,6 +63,7 @@ export function DecisioniView() {
   const [lucidityError, setLucidityError] = useState('')
   const [luciditySources, setLuciditySources] = useState<JwResult[]>([])
   const [statusHint, setStatusHint] = useState('')
+  const [exportBusy, setExportBusy] = useState<'pdf' | 'epub' | null>(null)
   const [situationBusy, setSituationBusy] = useState(false)
   const [nextStepsBusy, setNextStepsBusy] = useState(false)
   const [followUpError, setFollowUpError] = useState('')
@@ -123,6 +128,22 @@ export function DecisioniView() {
     () => (recapInput ? buildDecisionRecap(recapInput) : null),
     [recapInput],
   )
+
+  async function exportDecision(kind: 'pdf' | 'epub') {
+    if (!decision) return
+    setExportBusy(kind)
+    setStatusHint('')
+    try {
+      const summary = buildDecisionOnlySummary(decision)
+      if (kind === 'pdf') await exportSummaryPdf(summary)
+      else await exportSummaryEpub(summary)
+      setStatusHint(kind === 'pdf' ? 'PDF della decisione scaricato.' : 'EPUB della decisione scaricato.')
+    } catch (e) {
+      setStatusHint(e instanceof Error ? e.message : 'Esportazione non riuscita')
+    } finally {
+      setExportBusy(null)
+    }
+  }
 
   async function runSituationPoint() {
     if (!decision) return
@@ -414,6 +435,22 @@ export function DecisioniView() {
                       <button
                         className="btn secondary small"
                         type="button"
+                        disabled={!!exportBusy}
+                        onClick={() => void exportDecision('pdf')}
+                      >
+                        <FileText size={14} /> PDF
+                      </button>
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        disabled={!!exportBusy}
+                        onClick={() => void exportDecision('epub')}
+                      >
+                        <BookMarked size={14} /> EPUB
+                      </button>
+                      <button
+                        className="btn secondary small"
+                        type="button"
                         onClick={() => {
                           updateDecision(decision.id, { status: 'in_valutazione' })
                           setStatusHint('Rimessa in valutazione.')
@@ -538,21 +575,39 @@ export function DecisioniView() {
             <section className="panel">
               <div className="section-head">
                 <h2 style={{ margin: 0 }}>Dettaglio decisione</h2>
-                <button
-                  className="btn danger"
-                  type="button"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Eliminare la decisione «${decision.title}»? Obiettivi e analisi andranno persi.`,
-                      )
-                    ) {
-                      removeDecision(decision.id)
-                    }
-                  }}
-                >
-                  Elimina
-                </button>
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    className="btn secondary small"
+                    type="button"
+                    disabled={!!exportBusy}
+                    onClick={() => void exportDecision('pdf')}
+                  >
+                    <FileText size={14} /> Esporta PDF
+                  </button>
+                  <button
+                    className="btn secondary small"
+                    type="button"
+                    disabled={!!exportBusy}
+                    onClick={() => void exportDecision('epub')}
+                  >
+                    <BookMarked size={14} /> EPUB
+                  </button>
+                  <button
+                    className="btn danger"
+                    type="button"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Eliminare la decisione «${decision.title}»? Obiettivi e analisi andranno persi.`,
+                        )
+                      ) {
+                        removeDecision(decision.id)
+                      }
+                    }}
+                  >
+                    Elimina
+                  </button>
+                </div>
               </div>
               <ExpandableField
                 label="Titolo"

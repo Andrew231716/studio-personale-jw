@@ -13,10 +13,13 @@ export function ObiettiviDecisioniView() {
   const setActiveDecision = useAppStore((s) => s.setActiveDecision)
   const setView = useAppStore((s) => s.setView)
 
-  const [filter, setFilter] = useState<'tutti' | 'da_fare' | 'fatti'>('tutti')
+  const [filter, setFilter] = useState<'tutti' | 'da_fare' | 'fatti' | 'scadenza'>('tutti')
   const [newGoalFor, setNewGoalFor] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState('')
+  const [draftDue, setDraftDue] = useState('')
   const [pickDecisionId, setPickDecisionId] = useState('')
+
+  const today = new Date().toISOString().slice(0, 10)
 
   const rows = decisions
     .map((d) => ({
@@ -28,7 +31,7 @@ export function ObiettiviDecisioniView() {
   const totalGoals = rows.reduce((n, r) => n + r.goals.length, 0)
   const doneGoals = rows.reduce((n, r) => n + r.goals.filter((g) => g.done).length, 0)
 
-  function addGoal(decisionId: string, title: string) {
+  function addGoal(decisionId: string, title: string, dueDate?: string) {
     const text = normalizeJwItalian(title.trim())
     if (!text) return
     const decision = decisions.find((d) => d.id === decisionId)
@@ -41,11 +44,13 @@ export function ObiettiviDecisioniView() {
           title: text,
           done: false,
           notes: '',
+          dueDate: dueDate || draftDue || undefined,
           createdAt: new Date().toISOString(),
         },
       ],
     })
     setDraftTitle('')
+    setDraftDue('')
     setNewGoalFor(null)
     setPickDecisionId('')
   }
@@ -66,6 +71,7 @@ export function ObiettiviDecisioniView() {
               [
                 ['tutti', 'Tutti'],
                 ['da_fare', 'Da fare'],
+                ['scadenza', 'In scadenza'],
                 ['fatti', 'Completati'],
               ] as const
             ).map(([id, label]) => (
@@ -120,6 +126,13 @@ export function ObiettiviDecisioniView() {
                   placeholder="Es. Parlare con l’anziano questa settimana"
                   style={{ flex: 1, minWidth: 160 }}
                 />
+                <input
+                  type="date"
+                  value={draftDue}
+                  onChange={(e) => setDraftDue(e.target.value)}
+                  aria-label="Scadenza"
+                  title="Scadenza"
+                />
                 <button
                   className="btn accent"
                   type="button"
@@ -148,6 +161,9 @@ export function ObiettiviDecisioniView() {
           const visible = goals.filter((g) => {
             if (filter === 'da_fare') return !g.done
             if (filter === 'fatti') return g.done
+            if (filter === 'scadenza') {
+              return !g.done && !!g.dueDate && g.dueDate <= today
+            }
             return true
           })
           if (filter !== 'tutti' && visible.length === 0 && goals.length > 0) return null
@@ -268,6 +284,41 @@ export function ObiettiviDecisioniView() {
                         }
                         rows={2}
                       />
+                      <div className="field">
+                        <label htmlFor={`obj-due-${g.id}`}>Scadenza</label>
+                        <input
+                          id={`obj-due-${g.id}`}
+                          type="date"
+                          value={g.dueDate || ''}
+                          onChange={(e) =>
+                            updateDecision(decision.id, {
+                              goals: goals.map((x) =>
+                                x.id === g.id
+                                  ? { ...x, dueDate: e.target.value || undefined }
+                                  : x,
+                              ),
+                            })
+                          }
+                        />
+                        {g.dueDate && !g.done && (
+                          <p
+                            className={`muted ${
+                              g.dueDate < today
+                                ? 'goal-due-overdue'
+                                : g.dueDate === today
+                                  ? 'goal-due-today'
+                                  : ''
+                            }`}
+                            style={{ margin: '0.35rem 0 0' }}
+                          >
+                            {g.dueDate < today
+                              ? 'Scaduto'
+                              : g.dueDate === today
+                                ? 'Scade oggi'
+                                : `Entro il ${g.dueDate}`}
+                          </p>
+                        )}
+                      </div>
                       <ExpandableField
                         label={`Note ${idx + 1}`}
                         value={g.notes || ''}

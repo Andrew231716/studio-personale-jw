@@ -20,6 +20,10 @@ export interface StudySummary {
   topics: StudyTopic[]
   decisions: DecisionItem[]
   totalMinutes: number
+  /** Nome file senza estensione (export singolo). */
+  slug?: string
+  /** Titolo copertina PDF/EPUB. */
+  heading?: string
 }
 
 export interface SummaryField {
@@ -77,6 +81,60 @@ export function getPeriodRange(period: SummaryPeriod, anchor = new Date()): Peri
     start,
     end,
     label: start.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }),
+  }
+}
+
+/** Riepilogo di un solo argomento (quaderno + sessioni collegate). */
+export function buildTopicOnlySummary(
+  topic: StudyTopic,
+  sessions: StudySessionLog[],
+): StudySummary {
+  const linked = sessions
+    .filter((s) => s.topicId === topic.id)
+    .sort((a, b) => a.completedAt.localeCompare(b.completedAt))
+  const stamp = topic.title
+    .toLowerCase()
+    .replace(/[^a-z0-9àèéìòù]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40)
+  return {
+    period: 'mese',
+    range: {
+      start: new Date(topic.createdAt),
+      end: new Date(),
+      label: `Argomento: ${topic.title}`,
+    },
+    generatedAt: new Date().toISOString(),
+    sessions: linked,
+    topics: [topic],
+    decisions: [],
+    totalMinutes: linked.reduce((n, s) => n + (s.minutesSpent || 0), 0),
+    slug: `jw-studio-argomento-${stamp || topic.id}`,
+    heading: 'Export argomento',
+  }
+}
+
+/** Riepilogo di una sola decisione. */
+export function buildDecisionOnlySummary(decision: DecisionItem): StudySummary {
+  const stamp = decision.title
+    .toLowerCase()
+    .replace(/[^a-z0-9àèéìòù]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40)
+  return {
+    period: 'mese',
+    range: {
+      start: new Date(decision.createdAt),
+      end: new Date(decision.updatedAt || decision.createdAt),
+      label: `Decisione: ${decision.title}`,
+    },
+    generatedAt: new Date().toISOString(),
+    sessions: [],
+    topics: [],
+    decisions: [decision],
+    totalMinutes: 0,
+    slug: `jw-studio-decisione-${stamp || decision.id}`,
+    heading: 'Export decisione',
   }
 }
 
@@ -285,12 +343,24 @@ export function buildSummaryBlocks(summary: StudySummary): SummaryBlock[] {
     pushField(fields, 'Elaborazione AI', d.aiElaboration)
     pushField(fields, 'Preghiera', d.prayerNotes)
     pushField(fields, 'Analisi di lucidità', d.lucidityAnalysis)
-    if (!fields.length) return
+    const lists: SummaryBlock['lists'] = []
+    const goals = (d.goals || [])
+      .filter((g) => cleanExportText(g.title))
+      .map((g) => {
+        const title = cleanExportText(g.title)
+        const due = g.dueDate ? ` · entro ${g.dueDate}` : ''
+        const done = g.done ? ' (fatto)' : ''
+        const notes = cleanExportText(g.notes)
+        return notes ? `${title}${due}${done} — ${notes}` : `${title}${due}${done}`
+      })
+    if (goals.length) lists.push({ title: 'Obiettivi', items: goals })
+    if (!fields.length && !lists.length) return
     blocks.push({
       kind: 'decision',
       title: niceTitle(d.title, 'Decisione'),
       subtitle: `Decisione · ${d.scale === 'grande' ? 'grande' : 'piccola'} · ${d.status}`,
       fields,
+      lists,
     })
   })
 

@@ -13,9 +13,18 @@ interface Props {
   highlighted?: boolean
 }
 
+function dueClass(dueDate?: string, done?: boolean): string {
+  if (!dueDate || done) return ''
+  const today = new Date().toISOString().slice(0, 10)
+  if (dueDate < today) return 'goal-due-overdue'
+  if (dueDate === today) return 'goal-due-today'
+  return ''
+}
+
 export function DecisionGoalsPanel({ decision, onChange, highlighted }: Props) {
   const goals = decision.goals || []
   const [draft, setDraft] = useState('')
+  const [draftDue, setDraftDue] = useState('')
   const doneCount = goals.filter((g) => g.done).length
 
   function addGoal(title: string) {
@@ -28,10 +37,12 @@ export function DecisionGoalsPanel({ decision, onChange, highlighted }: Props) {
         title: text,
         done: false,
         notes: '',
+        dueDate: draftDue || undefined,
         createdAt: new Date().toISOString(),
       },
     ])
     setDraft('')
+    setDraftDue('')
   }
 
   function importFromPlan() {
@@ -112,6 +123,32 @@ export function DecisionGoalsPanel({ decision, onChange, highlighted }: Props) {
                 }
                 rows={2}
               />
+              <div className="field">
+                <label htmlFor={`goal-due-${g.id}`}>Scadenza</label>
+                <input
+                  id={`goal-due-${g.id}`}
+                  type="date"
+                  value={g.dueDate || ''}
+                  onChange={(e) =>
+                    onChange(
+                      goals.map((x) =>
+                        x.id === g.id
+                          ? { ...x, dueDate: e.target.value || undefined }
+                          : x,
+                      ),
+                    )
+                  }
+                />
+                {g.dueDate && !g.done && (
+                  <p className={`muted ${dueClass(g.dueDate, g.done)}`} style={{ margin: '0.35rem 0 0' }}>
+                    {g.dueDate < new Date().toISOString().slice(0, 10)
+                      ? 'Scaduto'
+                      : g.dueDate === new Date().toISOString().slice(0, 10)
+                        ? 'Scade oggi'
+                        : `Entro il ${g.dueDate}`}
+                  </p>
+                )}
+              </div>
               <ExpandableField
                 label={`Note obiettivo ${idx + 1}`}
                 value={g.notes || ''}
@@ -128,22 +165,31 @@ export function DecisionGoalsPanel({ decision, onChange, highlighted }: Props) {
         </div>
       )}
 
-      <div className="row" style={{ marginTop: '0.85rem', flexWrap: 'wrap', gap: 8 }}>
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Nuovo obiettivo…"
-          onKeyDown={(e) => e.key === 'Enter' && addGoal(draft)}
-          style={{ flex: 1, minWidth: 160 }}
-        />
-        <button
-          className="btn"
-          type="button"
-          disabled={!draft.trim()}
-          onClick={() => addGoal(draft)}
-        >
-          <Plus size={16} /> Aggiungi
-        </button>
+      <div className="stack" style={{ marginTop: '0.85rem' }}>
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Nuovo obiettivo…"
+            onKeyDown={(e) => e.key === 'Enter' && addGoal(draft)}
+            style={{ flex: 1, minWidth: 160 }}
+          />
+          <input
+            type="date"
+            value={draftDue}
+            onChange={(e) => setDraftDue(e.target.value)}
+            aria-label="Scadenza nuovo obiettivo"
+            title="Scadenza"
+          />
+          <button
+            className="btn"
+            type="button"
+            disabled={!draft.trim()}
+            onClick={() => addGoal(draft)}
+          >
+            <Plus size={16} /> Aggiungi
+          </button>
+        </div>
       </div>
     </section>
   )

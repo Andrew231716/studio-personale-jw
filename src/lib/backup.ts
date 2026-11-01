@@ -117,6 +117,102 @@ export function applyBackup(backup: StudioBackup): void {
   })
 }
 
+function stampOf(item: { updatedAt?: string; createdAt?: string; savedAt?: string }): number {
+  const raw = item.updatedAt || item.createdAt || item.savedAt || ''
+  const t = Date.parse(raw)
+  return Number.isFinite(t) ? t : 0
+}
+
+/** Unisce due liste per id: resta la versione più recente; gli id solo locali restano. */
+function mergeById<
+  T extends { id: string; updatedAt?: string; createdAt?: string; savedAt?: string },
+>(local: T[], incoming: T[]): T[] {
+  const map = new Map<string, T>()
+  for (const item of local) map.set(item.id, item)
+  for (const item of incoming) {
+    const prev = map.get(item.id)
+    if (!prev || stampOf(item) >= stampOf(prev)) map.set(item.id, item)
+  }
+  return Array.from(map.values())
+}
+
+/**
+ * Unisce backup e dati locali senza cancellare ciò che esiste solo qui.
+ * A parità di id vince l’elemento più recente (updatedAt/createdAt).
+ */
+export function mergeBackup(backup: StudioBackup): void {
+  const d = backup.data
+  const cur = useAppStore.getState()
+  const settings: AppSettings = {
+    ...cur.settings,
+    ...(d.settings || {}),
+    features: {
+      ...cur.settings.features,
+      ...(d.settings?.features || {}),
+    },
+    theme: {
+      ...cur.settings.theme,
+      ...(d.settings?.theme || {}),
+    },
+    cloudSync: d.settings?.cloudSync || cur.settings.cloudSync,
+    iCloud: d.settings?.iCloud || cur.settings.iCloud,
+  }
+
+  const topics = mergeById(cur.topics, Array.isArray(d.topics) ? d.topics : [])
+  const decisions = mergeById(
+    cur.decisions,
+    Array.isArray(d.decisions) ? d.decisions : [],
+  )
+  const sessionLogs = mergeById(
+    cur.sessionLogs,
+    Array.isArray(d.sessionLogs) ? d.sessionLogs : [],
+  )
+    .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
+    .slice(0, 100)
+  const schedules = mergeById(
+    cur.schedules,
+    Array.isArray(d.schedules) ? d.schedules : [],
+  )
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+    .slice(0, 50)
+  const savedResources = mergeById(
+    cur.savedResources,
+    Array.isArray(d.savedResources) ? d.savedResources : [],
+  ).slice(0, 200)
+  const savedSearches = mergeById(
+    cur.savedSearches,
+    Array.isArray(d.savedSearches) ? d.savedSearches : [],
+  ).slice(0, 100)
+  const bibleReadingPlans = mergeById(
+    cur.bibleReadingPlans,
+    Array.isArray(d.bibleReadingPlans) ? d.bibleReadingPlans : [],
+  ).slice(0, 50)
+  const ministryNotes = mergeById(
+    cur.ministryNotes,
+    Array.isArray(d.ministryNotes) ? d.ministryNotes : [],
+  ).slice(0, 50)
+  const aiMessages = mergeById(
+    cur.aiMessages,
+    Array.isArray(d.aiMessages) ? d.aiMessages : [],
+  ).slice(-200)
+
+  useAppStore.setState({
+    settings,
+    topics,
+    decisions,
+    sessionLogs,
+    schedules,
+    savedResources,
+    savedSearches,
+    bibleReadingPlans,
+    ministryNotes,
+    aiMessages,
+    activeTopicId: cur.activeTopicId || d.activeTopicId || null,
+    activeDecisionId: cur.activeDecisionId || d.activeDecisionId || null,
+    sessionDraft: cur.sessionDraft || d.sessionDraft || null,
+  })
+}
+
 export async function readBackupFile(file: File): Promise<StudioBackup> {
   const text = await file.text()
   return parseBackup(text)

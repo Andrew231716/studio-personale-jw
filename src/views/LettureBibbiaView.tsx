@@ -7,6 +7,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
+import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { SectionProgress } from '../components/SectionProgress'
 import {
@@ -404,12 +405,18 @@ export function LettureBibbiaView() {
                     {active.blurb && <p className="muted">{active.blurb}</p>}
                   </div>
                 </div>
-                <pre
-                  className="bubble assistant"
-                  style={{ maxWidth: '100%', whiteSpace: 'pre-wrap', margin: 0 }}
-                >
-                  {active.plan}
-                </pre>
+                <ExpandableField
+                  label="Titolo percorso"
+                  value={active.title}
+                  onChange={(value) => updateBiblePlan(active.id, { title: value })}
+                  rows={1}
+                />
+                <ExpandableField
+                  label="Piano di lettura (modificabile)"
+                  value={active.plan}
+                  onChange={(value) => updateBiblePlan(active.id, { plan: value })}
+                  rows={12}
+                />
 
                 <h4>Scritture da aprire</h4>
                 <div className="list">

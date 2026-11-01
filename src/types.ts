@@ -146,6 +146,8 @@ export interface DecisionGoal {
   title: string
   done: boolean
   notes?: string
+  /** Scadenza (YYYY-MM-DD), opzionale. */
+  dueDate?: string
   createdAt: string
 }
 
@@ -257,6 +259,7 @@ export interface MinistryAssistNote {
   sourceTitle?: string
   sourceUrl?: string
   createdAt: string
+  updatedAt?: string
 }
 
 export interface FeatureFlags {

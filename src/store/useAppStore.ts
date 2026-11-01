@@ -171,6 +171,7 @@ interface AppState {
   updateBibleReadingPlan: (id: string, patch: Partial<BibleReadingPlan>) => void
   removeBibleReadingPlan: (id: string) => void
   pushMinistryNote: (note: MinistryAssistNote) => void
+  updateMinistryNote: (id: string, patch: Partial<MinistryAssistNote>) => void
   removeMinistryNote: (id: string) => void
 }
 
@@ -224,6 +225,7 @@ function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
           ...g,
           title: normalizeJwItalian(g.title || ''),
           notes: g.notes ? normalizeJwItalian(g.notes) : g.notes,
+          dueDate: g.dueDate || undefined,
         }))
       : decision.goals || [],
     aiElaboration: decision.aiElaboration
@@ -696,6 +698,14 @@ export const useAppStore = create<AppState>()(
       pushMinistryNote: (note) =>
         set((s) => ({
           ministryNotes: [note, ...s.ministryNotes].slice(0, 50),
+        })),
+      updateMinistryNote: (id, patch) =>
+        set((s) => ({
+          ministryNotes: s.ministryNotes.map((n) =>
+            n.id === id
+              ? { ...n, ...patch, updatedAt: new Date().toISOString() }
+              : n,
+          ),
         })),
       removeMinistryNote: (id) =>
         set((s) => ({

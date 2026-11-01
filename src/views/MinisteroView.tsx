@@ -7,6 +7,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
+import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { SectionProgress } from '../components/SectionProgress'
 import {
@@ -29,6 +30,7 @@ export function MinisteroView() {
   const language = useAppStore((s) => s.settings.language)
   const notes = useAppStore((s) => s.ministryNotes)
   const pushNote = useAppStore((s) => s.pushMinistryNote)
+  const updateNote = useAppStore((s) => s.updateMinistryNote)
   const removeNote = useAppStore((s) => s.removeMinistryNote)
   const saveResource = useAppStore((s) => s.saveResource)
   const addTopic = useAppStore((s) => s.addTopic)
@@ -283,12 +285,18 @@ export function MinisteroView() {
                     )}
                   </div>
                 </div>
-                <pre
-                  className="bubble assistant"
-                  style={{ maxWidth: '100%', whiteSpace: 'pre-wrap', margin: 0 }}
-                >
-                  {active.content}
-                </pre>
+                <ExpandableField
+                  label="Titolo"
+                  value={active.title}
+                  onChange={(value) => updateNote(active.id, { title: value })}
+                  rows={1}
+                />
+                <ExpandableField
+                  label="Contenuto (modificabile)"
+                  value={active.content}
+                  onChange={(value) => updateNote(active.id, { content: value })}
+                  rows={12}
+                />
                 <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
                   <button className="btn" type="button" onClick={saveAsStudy}>
                     <NotebookPen size={14} /> Salva nel Quaderno

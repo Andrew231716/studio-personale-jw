@@ -35,6 +35,7 @@ import { ObiettiviDecisioniView } from './views/ObiettiviDecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
 import { BrandLogo } from './components/BrandLogo'
+import { InAppReminders } from './components/InAppReminders'
 
 const ICONS: Record<AppView, typeof Home> = {
   home: Home,
@@ -208,6 +209,7 @@ export default function App() {
       </aside>
       <main className="main">
         <div className="main-inner">
+          <InAppReminders />
           {view === 'home' && <HomeView />}
           {view === 'argomenti' && <ArgomentiView />}
           {view === 'sessione' && <SessioneView />}

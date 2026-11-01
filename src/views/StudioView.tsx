@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react'
-import { Archive, BookMarked, PlayCircle, RotateCcw, Trash2 } from 'lucide-react'
+import { Archive, BookMarked, FileText, PlayCircle, RotateCcw, Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { askAi, buildStudyContext, createMessage } from '../lib/ai'
+import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
 import { uid } from '../lib/id'
 import {
   activeTopics,
   statusLabel,
   topicHasUpcomingSchedule,
 } from '../lib/studyFlow'
+import { buildTopicOnlySummary } from '../lib/studySummary'
 import { useAppStore } from '../store/useAppStore'
 
 export function StudioView() {
@@ -35,6 +37,7 @@ export function StudioView() {
   const [archiveMsg, setArchiveMsg] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
+  const [exportBusy, setExportBusy] = useState<'pdf' | 'epub' | null>(null)
 
   const openList = useMemo(() => activeTopics(topics), [topics])
   const topic = useMemo(() => {
@@ -90,6 +93,22 @@ export function StudioView() {
       setAiHintKind(null)
     } finally {
       setAiBusy(false)
+    }
+  }
+
+  async function exportTopic(kind: 'pdf' | 'epub') {
+    if (!topic) return
+    setExportBusy(kind)
+    setArchiveMsg('')
+    try {
+      const summary = buildTopicOnlySummary(topic, sessionLogs)
+      if (kind === 'pdf') await exportSummaryPdf(summary)
+      else await exportSummaryEpub(summary)
+      setArchiveMsg(kind === 'pdf' ? 'PDF dell’argomento scaricato.' : 'EPUB dell’argomento scaricato.')
+    } catch (e) {
+      setArchiveMsg(e instanceof Error ? e.message : 'Esportazione non riuscita')
+    } finally {
+      setExportBusy(null)
     }
   }
 
@@ -235,6 +254,22 @@ export function StudioView() {
           <button className="btn secondary" type="button" onClick={() => setView('diario')}>
             <BookMarked size={16} /> Diario
             {topicSessions.length > 0 ? ` (${topicSessions.length})` : ''}
+          </button>
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={!!exportBusy}
+            onClick={() => void exportTopic('pdf')}
+          >
+            <FileText size={16} /> {exportBusy === 'pdf' ? 'PDF…' : 'Esporta PDF'}
+          </button>
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={!!exportBusy}
+            onClick={() => void exportTopic('epub')}
+          >
+            <BookMarked size={16} /> {exportBusy === 'epub' ? 'EPUB…' : 'Esporta EPUB'}
           </button>
           {topic.status === 'completato' ? (
             <button
