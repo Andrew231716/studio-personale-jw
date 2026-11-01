@@ -252,7 +252,8 @@ export function DiarioView() {
         <p className="section-kicker">Esporta</p>
         <h2>Riepilogo in un unico file</h2>
         <p className="lede">
-          Raccoglie sessioni, risposte, riflessioni e decisioni del periodo scelto.
+          Un documento chiaro da rileggere o condividere: sessioni, quaderno e decisioni del
+          periodo, senza link lunghi né testo confuso.
         </p>
 
         <div className="grid-2">

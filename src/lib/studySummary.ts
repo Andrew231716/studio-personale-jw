@@ -1,3 +1,4 @@
+import { isSectionHeading, normalizeJwItalian } from './jwItalianTerms'
 import type {
   DecisionItem,
   StudySessionLog,
@@ -19,6 +20,19 @@ export interface StudySummary {
   topics: StudyTopic[]
   decisions: DecisionItem[]
   totalMinutes: number
+}
+
+export interface SummaryField {
+  label: string
+  value: string
+}
+
+export interface SummaryBlock {
+  kind: 'session' | 'topic' | 'decision'
+  title: string
+  subtitle?: string
+  fields: SummaryField[]
+  lists?: Array<{ title: string; items: string[] }>
 }
 
 function startOfDay(d: Date): Date {
@@ -105,6 +119,181 @@ export function buildStudySummary(input: {
   }
 }
 
+/** Pulisce testo per export: markdown, titoli sezione, lettere separate da spazi. */
+export function cleanExportText(raw: string | undefined | null): string {
+  if (!raw) return ''
+  let s = String(raw).replace(/\u00a0/g, ' ')
+  s = s.replace(/[*_]{1,3}/g, '')
+  s = s.replace(/^#+\s*/gm, '')
+  s = collapseSpacedLetters(s)
+  s = s.replace(/[ \t]+\n/g, '\n')
+  s = s.replace(/\n{3,}/g, '\n\n')
+  s = s.replace(/[ \t]{2,}/g, ' ')
+  s = normalizeJwItalian(s)
+  return s.trim()
+}
+
+/** «A p p l i c a r e» → «Applicare» (bug tipico di parsing AI). */
+function collapseSpacedLetters(s: string): string {
+  const words = s.trim().split(/\s+/).filter(Boolean)
+  if (words.length < 6) return s
+  const singleCount = words.filter((w) => /^[\wÀ-ÿ]$/i.test(w)).length
+  if (singleCount / words.length < 0.55) return s
+
+  const out: string[] = []
+  let buf = ''
+  for (const w of words) {
+    if (/^[\wÀ-ÿ]$/i.test(w)) {
+      buf += w
+      continue
+    }
+    if (buf) {
+      out.push(buf)
+      buf = ''
+    }
+    out.push(w)
+  }
+  if (buf) out.push(buf)
+  return out.join(' ')
+}
+
+function looksLikeGuideDump(s: string): boolean {
+  return /\b(OBIETTIVI|RIFLESSIONI|DOMANDE|PRATICHE|RIASSUNTO|TITOLO)\b/i.test(s)
+}
+
+function firstUsefulParagraph(s: string): string {
+  const cleaned = cleanExportText(s)
+  if (!cleaned) return ''
+  if (!looksLikeGuideDump(cleaned)) return cleaned
+  const cut = cleaned.split(/\b(?:OBIETTIVI|RIFLESSIONI|DOMANDE|PRATICHE|RIASSUNTO)\b/i)[0]
+  return cleanExportText(cut).slice(0, 600)
+}
+
+function niceTitle(raw: string, fallback: string): string {
+  const t = cleanExportText(raw)
+  if (!t || isSectionHeading(t) || t === '*' || t === '**') return fallback
+  return t
+}
+
+function pushField(fields: SummaryField[], label: string, value?: string | null) {
+  const v = cleanExportText(value)
+  if (v) fields.push({ label, value: v })
+}
+
+function shortMaterial(title?: string, url?: string): string {
+  const name = cleanExportText(title)
+  if (!name && !url) return ''
+  if (!url) return name
+  try {
+    const u = new URL(url)
+    if (u.hostname.includes('jw.org')) {
+      return name ? `${name} (jw.org)` : 'Materiale su jw.org'
+    }
+  } catch {
+    /* ignore */
+  }
+  return name || 'Materiale collegato'
+}
+
+export function buildSummaryBlocks(summary: StudySummary): SummaryBlock[] {
+  const blocks: SummaryBlock[] = []
+
+  summary.sessions.forEach((s, i) => {
+    const fields: SummaryField[] = []
+    pushField(
+      fields,
+      'Quando',
+      `${new Date(s.completedAt).toLocaleString('it-IT')} · ${s.minutesSpent} min`,
+    )
+    pushField(fields, 'Preghiera', s.prayer)
+    pushField(fields, 'Obiettivo', s.goal)
+    pushField(fields, 'Materiale', shortMaterial(s.resourceTitle, s.resourceUrl))
+    pushField(fields, 'Scrittura', s.keyVerse)
+    pushField(fields, 'Cosa mi ha colpito', s.highlight)
+    pushField(fields, 'Riflessione', s.reflection)
+    pushField(fields, 'Domanda', s.question)
+    pushField(fields, 'Risposta', s.answer)
+    pushField(fields, 'Da praticare', s.practice)
+    pushField(fields, 'Gratitudine', s.gratitude)
+
+    blocks.push({
+      kind: 'session',
+      title: niceTitle(s.topicTitle, `Sessione ${i + 1}`),
+      subtitle: `Sessione ${i + 1}`,
+      fields,
+    })
+  })
+
+  summary.topics.forEach((t) => {
+    const fields: SummaryField[] = []
+    const interest = firstUsefulParagraph(t.interest)
+    pushField(fields, 'Perché studio questo', interest)
+
+    const lists: SummaryBlock['lists'] = []
+    const objectives = (t.objectives || [])
+      .map(cleanExportText)
+      .filter((o) => o && !isSectionHeading(o))
+    if (objectives.length) lists.push({ title: 'Obiettivi', items: objectives })
+
+    const reflections = (t.reflections || [])
+      .filter((r) => cleanExportText(r.response))
+      .map((r) => {
+        const prompt = cleanExportText(r.prompt)
+        const response = cleanExportText(r.response)
+        return prompt ? `${prompt}\n→ ${response}` : response
+      })
+    if (reflections.length) lists.push({ title: 'Riflessioni', items: reflections })
+
+    const questions = (t.questions || [])
+      .filter((q) => cleanExportText(q.question) || cleanExportText(q.answer))
+      .map((q) => {
+        const question = cleanExportText(q.question) || 'Domanda'
+        const answer = cleanExportText(q.answer)
+        return answer ? `${question}\n→ ${answer}` : question
+      })
+    if (questions.length) lists.push({ title: 'Domande', items: questions })
+
+    const practices = (t.practices || [])
+      .filter((p) => cleanExportText(p.action))
+      .map((p) => {
+        const action = cleanExportText(p.action)
+        const outcome = cleanExportText(p.outcome)
+        const tried = p.tried ? ' (fatta)' : ''
+        return outcome ? `${action}${tried} → ${outcome}` : `${action}${tried}`
+      })
+    if (practices.length) lists.push({ title: 'Pratiche', items: practices })
+
+    if (!fields.length && !lists.length) return
+
+    blocks.push({
+      kind: 'topic',
+      title: niceTitle(t.title, 'Quaderno'),
+      subtitle: 'Dal Quaderno',
+      fields,
+      lists,
+    })
+  })
+
+  summary.decisions.forEach((d) => {
+    const fields: SummaryField[] = []
+    pushField(fields, 'Contesto', d.context)
+    pushField(fields, 'Scelta', d.chosenDecision)
+    pushField(fields, 'Motivazioni', d.honestMotivations)
+    pushField(fields, 'Conclusione', d.conclusion)
+    pushField(fields, 'Preghiera', d.prayerNotes)
+    pushField(fields, 'Analisi di lucidità', d.lucidityAnalysis)
+    if (!fields.length) return
+    blocks.push({
+      kind: 'decision',
+      title: niceTitle(d.title, 'Decisione'),
+      subtitle: `Decisione · ${d.scale === 'grande' ? 'grande' : 'piccola'} · ${d.status}`,
+      fields,
+    })
+  })
+
+  return blocks
+}
+
 export function summaryToPlainText(summary: StudySummary): string {
   const lines: string[] = [
     'JW Studio — Riepilogo studio personale',
@@ -114,123 +303,103 @@ export function summaryToPlainText(summary: StudySummary): string {
     '',
   ]
 
-  if (!summary.sessions.length && !summary.topics.length && !summary.decisions.length) {
+  const blocks = buildSummaryBlocks(summary)
+  if (!blocks.length) {
     lines.push('Nessuno studio registrato in questo periodo.')
     return lines.join('\n')
   }
 
-  summary.sessions.forEach((s, i) => {
-    lines.push(`—— Sessione ${i + 1}: ${s.topicTitle} ——`)
-    lines.push(`Data: ${new Date(s.completedAt).toLocaleString('it-IT')} · ${s.minutesSpent} min`)
-    if (s.prayer) lines.push(`Preghiera: ${s.prayer}`)
-    if (s.goal) lines.push(`Obiettivo: ${s.goal}`)
-    if (s.resourceTitle) lines.push(`Materiale: ${s.resourceTitle}${s.resourceUrl ? ` (${s.resourceUrl})` : ''}`)
-    if (s.keyVerse) lines.push(`Scrittura: ${s.keyVerse}`)
-    if (s.highlight) lines.push(`Highlight: ${s.highlight}`)
-    if (s.reflection) lines.push(`Riflessione: ${s.reflection}`)
-    if (s.question) lines.push(`Domanda: ${s.question}`)
-    if (s.answer) lines.push(`Risposta: ${s.answer}`)
-    if (s.practice) lines.push(`Pratica: ${s.practice}`)
-    if (s.gratitude) lines.push(`Gratitudine: ${s.gratitude}`)
+  for (const block of blocks) {
+    lines.push(`${block.subtitle ? block.subtitle + ' — ' : ''}${block.title}`)
+    for (const f of block.fields) {
+      lines.push(`${f.label}: ${f.value}`)
+    }
+    for (const list of block.lists || []) {
+      lines.push(list.title)
+      for (const item of list.items) {
+        lines.push(`• ${item.replace(/\n/g, '\n  ')}`)
+      }
+    }
     lines.push('')
-  })
+  }
 
-  summary.topics.forEach((t) => {
-    lines.push(`—— Quaderno: ${t.title} ——`)
-    if (t.interest) lines.push(`Interesse: ${t.interest}`)
-    if (t.objectives.length) lines.push(`Obiettivi: ${t.objectives.filter(Boolean).join('; ')}`)
-    t.reflections
-      .filter((r) => r.response.trim())
-      .forEach((r) => lines.push(`Riflessione — ${r.prompt}: ${r.response}`))
-    t.questions
-      .filter((q) => q.answer.trim() || q.question.trim())
-      .forEach((q) => {
-        lines.push(`D: ${q.question}`)
-        if (q.answer) lines.push(`R: ${q.answer}`)
-      })
-    t.practices
-      .filter((p) => p.action.trim())
-      .forEach((p) =>
-        lines.push(`Pratica${p.tried ? ' (provata)' : ''}: ${p.action}${p.outcome ? ` → ${p.outcome}` : ''}`),
-      )
-    lines.push('')
-  })
-
-  summary.decisions.forEach((d) => {
-    lines.push(`—— Decisione: ${d.title} (${d.scale}) ——`)
-    if (d.context) lines.push(`Contesto: ${d.context}`)
-    if (d.conclusion) lines.push(`Conclusione: ${d.conclusion}`)
-    if (d.prayerNotes) lines.push(`Preghiera: ${d.prayerNotes}`)
-    lines.push('')
-  })
-
-  lines.push('— Fine riepilogo JW Studio —')
+  lines.push('Fine riepilogo JW Studio')
   lines.push('App non affiliata a jw.org. Contenuto personale dell’utente.')
   return lines.join('\n')
 }
 
-export function summaryToHtml(summary: StudySummary): string {
-  const escape = (s: string) =>
-    s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
-  const blocks: string[] = [
-    `<h1>JW Studio — Riepilogo studio</h1>`,
-    `<p><strong>${escape(summary.range.label)}</strong><br/>Generato: ${escape(new Date(summary.generatedAt).toLocaleString('it-IT'))}<br/>Sessioni: ${summary.sessions.length} · Minuti: ${summary.totalMinutes}</p>`,
+function htmlParagraphs(value: string): string {
+  return escapeHtml(value)
+    .split(/\n+/)
+    .filter(Boolean)
+    .map((p) => `<p>${p}</p>`)
+    .join('')
+}
+
+export function summaryToHtml(summary: StudySummary): string {
+  const blocks = buildSummaryBlocks(summary)
+  const parts: string[] = [
+    `<header class="cover">`,
+    `<p class="brand">JW Studio</p>`,
+    `<h1>Riepilogo di studio</h1>`,
+    `<p class="period">${escapeHtml(summary.range.label)}</p>`,
+    `<p class="stats"><span>${summary.sessions.length} session${summary.sessions.length === 1 ? 'e' : 'i'}</span><span>${summary.totalMinutes} minuti</span><span>${summary.topics.length} argoment${summary.topics.length === 1 ? 'o' : 'i'}</span></p>`,
+    `<p class="meta">Generato il ${escapeHtml(new Date(summary.generatedAt).toLocaleString('it-IT'))}</p>`,
+    `</header>`,
   ]
 
-  if (!summary.sessions.length && !summary.topics.length) {
-    blocks.push('<p>Nessuno studio registrato in questo periodo.</p>')
+  if (!blocks.length) {
+    parts.push('<p class="empty">Nessuno studio registrato in questo periodo.</p>')
   }
 
-  summary.sessions.forEach((s, i) => {
-    blocks.push(`<h2>Sessione ${i + 1}: ${escape(s.topicTitle)}</h2>`)
-    blocks.push(
-      `<p>${escape(new Date(s.completedAt).toLocaleString('it-IT'))} · ${s.minutesSpent} min</p>`,
-    )
-    const fields: Array<[string, string | undefined]> = [
-      ['Preghiera', s.prayer],
-      ['Obiettivo', s.goal],
-      ['Materiale', s.resourceTitle],
-      ['Scrittura', s.keyVerse],
-      ['Highlight', s.highlight],
-      ['Riflessione', s.reflection],
-      ['Domanda', s.question],
-      ['Risposta', s.answer],
-      ['Pratica', s.practice],
-      ['Gratitudine', s.gratitude],
-    ]
-    fields.forEach(([label, value]) => {
-      if (value?.trim()) blocks.push(`<p><strong>${label}:</strong> ${escape(value)}</p>`)
-    })
-  })
+  for (const block of blocks) {
+    parts.push(`<section class="block block-${block.kind}">`)
+    if (block.subtitle) parts.push(`<p class="kicker">${escapeHtml(block.subtitle)}</p>`)
+    parts.push(`<h2>${escapeHtml(block.title)}</h2>`)
+    for (const f of block.fields) {
+      parts.push(`<div class="field"><h3>${escapeHtml(f.label)}</h3>${htmlParagraphs(f.value)}</div>`)
+    }
+    for (const list of block.lists || []) {
+      parts.push(`<div class="list-block"><h3>${escapeHtml(list.title)}</h3><ul>`)
+      for (const item of list.items) {
+        parts.push(`<li>${escapeHtml(item).replace(/\n/g, '<br/>')}</li>`)
+      }
+      parts.push(`</ul></div>`)
+    }
+    parts.push(`</section>`)
+  }
 
-  summary.topics.forEach((t) => {
-    blocks.push(`<h2>Quaderno: ${escape(t.title)}</h2>`)
-    if (t.interest) blocks.push(`<p><strong>Interesse:</strong> ${escape(t.interest)}</p>`)
-    t.reflections
-      .filter((r) => r.response.trim())
-      .forEach((r) =>
-        blocks.push(
-          `<p><strong>${escape(r.prompt)}</strong><br/>${escape(r.response)}</p>`,
-        ),
-      )
-    t.questions
-      .filter((q) => q.answer.trim())
-      .forEach((q) =>
-        blocks.push(
-          `<p><strong>D:</strong> ${escape(q.question)}<br/><strong>R:</strong> ${escape(q.answer)}</p>`,
-        ),
-      )
-  })
+  parts.push(
+    `<footer><p>Fine riepilogo · App non affiliata a jw.org · Contenuto personale dell’utente.</p></footer>`,
+  )
 
   return `<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"/><title>Riepilogo JW Studio</title>
-  <style>
-    body{font-family:Georgia,serif;line-height:1.5;max-width:720px;margin:2rem auto;padding:0 1rem;color:#16302c}
-    h1,h2{font-family:Georgia,serif;letter-spacing:-0.02em}
-    h2{margin-top:1.6rem;border-top:1px solid #d5e0db;padding-top:1rem}
-  </style></head><body>${blocks.join('\n')}</body></html>`
+<style>
+  :root { color-scheme: light; }
+  body{font-family:Georgia,"Times New Roman",serif;line-height:1.55;max-width:40rem;margin:0 auto;padding:1.5rem 1.1rem 2.5rem;color:#16302c;background:#f7fbf8}
+  .brand{margin:0;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:#2f6f6a;font-weight:700}
+  h1{font-size:1.85rem;line-height:1.15;margin:.35rem 0 .5rem;letter-spacing:-.02em}
+  .period{margin:0;font-size:1.05rem;color:#2f6f6a}
+  .stats{display:flex;flex-wrap:wrap;gap:.45rem;margin:1rem 0 .55rem;padding:0;list-style:none}
+  .stats span{background:#e7f0ec;border:1px solid #d5e0db;border-radius:999px;padding:.28rem .7rem;font-size:.85rem}
+  .meta,.empty,.kicker{color:#5b736c;font-size:.92rem}
+  .kicker{margin:0 0 .2rem;text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;font-weight:700}
+  .block{margin:1.5rem 0;padding:1.1rem 1rem;background:#fff;border:1px solid #d5e0db;border-radius:14px}
+  h2{margin:0 0 .85rem;font-size:1.35rem;letter-spacing:-.02em}
+  h3{margin:0 0 .25rem;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:#2f6f6a}
+  .field{margin:0 0 .9rem}
+  .field p{margin:.15rem 0 0}
+  .list-block{margin:0 0 .9rem}
+  ul{margin:.35rem 0 0;padding-left:1.15rem}
+  li{margin:.35rem 0}
+  footer{margin-top:2rem;padding-top:1rem;border-top:1px solid #d5e0db;color:#5b736c;font-size:.85rem}
+</style></head><body>${parts.join('\n')}</body></html>`
 }
