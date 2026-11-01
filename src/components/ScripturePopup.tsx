@@ -46,20 +46,33 @@ export function ScripturePopup({
   }, [verse?.bible, verse?.verse, loading, error, anchor?.x, anchor?.y])
 
   useEffect(() => {
+    function clamp(nx: number, ny: number) {
+      const w = typeof window !== 'undefined' ? window.innerWidth : 400
+      const h = typeof window !== 'undefined' ? window.innerHeight : 600
+      const panelW = panelRef.current?.offsetWidth || 340
+      const panelH = panelRef.current?.offsetHeight || 200
+      return {
+        x: Math.min(Math.max(8, nx), Math.max(8, w - Math.min(panelW, w - 16))),
+        y: Math.min(Math.max(8, ny), Math.max(8, h - Math.min(80, panelH))),
+      }
+    }
     function onMove(e: PointerEvent) {
       if (!drag.current) return
-      const nx = e.clientX - drag.current.ox
-      const ny = e.clientY - drag.current.oy
-      setPos({ x: nx, y: ny })
+      setPos(clamp(e.clientX - drag.current.ox, e.clientY - drag.current.oy))
     }
     function onUp() {
       drag.current = null
     }
+    function onResize() {
+      setPos((p) => clamp(p.x, p.y))
+    }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    window.addEventListener('resize', onResize)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('resize', onResize)
     }
   }, [])
 

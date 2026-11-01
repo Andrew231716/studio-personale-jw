@@ -85,7 +85,10 @@ export function DecisioniView() {
     setFollowUpError('')
   }, [decision?.id])
 
-  const linkedIds = decision?.linkedTopicIds || []
+  const linkedIds = useMemo(
+    () => decision?.linkedTopicIds || [],
+    [decision?.linkedTopicIds],
+  )
   const linkedTopics = useMemo(
     () => topics.filter((t) => linkedIds.includes(t.id)),
     [topics, linkedIds],
@@ -317,7 +320,7 @@ export function DecisioniView() {
   return (
     <div className="stack">
       <SectionProgress section="decisioni" />
-      <div className="split">
+      <div className="split split-aside-main">
       <div className="stack">
         <section className="panel">
           <h2>Decisioni</h2>
@@ -377,9 +380,9 @@ export function DecisioniView() {
                 </div>
                 {(d.linkedTopicIds?.length || 0) > 0 && (
                   <p className="muted" style={{ margin: '0.25rem 0 0' }}>
-                    {d.linkedTopicIds!.length} argoment
-                    {d.linkedTopicIds!.length === 1 ? 'o' : 'i'} collegat
-                    {d.linkedTopicIds!.length === 1 ? 'o' : 'i'}
+                    {d.linkedTopicIds?.length} argoment
+                    {d.linkedTopicIds?.length === 1 ? 'o' : 'i'} collegat
+                    {d.linkedTopicIds?.length === 1 ? 'o' : 'i'}
                   </p>
                 )}
               </div>

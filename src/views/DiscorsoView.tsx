@@ -36,6 +36,7 @@ import {
 import {
   SECTION_KIND_LABEL,
   ensureSections,
+  joinSections,
   sectionIndexForElapsed,
   totalMinutes,
 } from '../lib/discourseStructure'
@@ -137,9 +138,16 @@ export function DiscorsoView() {
   }, [])
 
   useEffect(() => {
+    if (!activeId && notes[0]?.id) {
+      setActive(notes[0].id)
+    }
+  }, [activeId, notes, setActive])
+
+  useEffect(() => {
     if (!note) {
       setTitleDraft('')
       setSections([])
+      setActiveSectionId(null)
       return
     }
     setTitleDraft(note.title)
@@ -339,7 +347,7 @@ export function DiscorsoView() {
 
   function saveToQuaderno() {
     if (!note) return
-    const body = note.body || bodyJoined
+    const body = joinSections(sections) || bodyJoined
     const id = addTopic(note.title || 'Discorso', 'Appunti discorso')
     updateTopic(id, {
       interest: body.slice(0, 1200),
@@ -355,7 +363,12 @@ export function DiscorsoView() {
     if (!note) return
     setExportBusy(kind)
     try {
-      const snapshot = { ...note, sections, body: note.body || bodyJoined }
+      const snapshot = {
+        ...note,
+        sections,
+        body: joinSections(sections),
+        estimatedMinutes: totalMinutes(sections),
+      }
       if (kind === 'pdf') await exportDiscoursePdf(snapshot)
       else if (kind === 'epub') await exportDiscourseEpub(snapshot, { language })
       else downloadDiscourseText(snapshot)
@@ -681,8 +694,15 @@ export function DiscorsoView() {
                   <strong>{n.title || 'Senza titolo'}</strong>
                   <p className="muted" style={{ margin: '0.25rem 0 0' }}>
                     {(n.estimatedMinutes || totalMinutes(ensureSections(n)))} min ·{' '}
-                    {(n.body || '').slice(0, 90) || 'Vuoto'}
-                    {(n.body || '').length > 90 ? '…' : ''}
+                    {(() => {
+                      const preview = ensureSections(n)
+                        .map((s) => s.body.trim())
+                        .filter(Boolean)
+                        .join(' · ')
+                      return preview
+                        ? `${preview.slice(0, 90)}${preview.length > 90 ? '…' : ''}`
+                        : 'Vuoto'
+                    })()}
                   </p>
                 </div>
               ))}
