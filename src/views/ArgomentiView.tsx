@@ -24,6 +24,18 @@ export function ArgomentiView() {
   const [title, setTitle] = useState('')
   const [interest, setInterest] = useState('')
   const [showArchived, setShowArchived] = useState(false)
+  const [renameId, setRenameId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+
+  function confirmRemove(id: string, name: string) {
+    if (
+      window.confirm(
+        `Eliminare l’argomento «${name}»? Quaderno e collegamenti andranno persi. Le sessioni nel Diario restano.`,
+      )
+    ) {
+      removeTopic(id)
+    }
+  }
 
   const openTopics = useMemo(() => activeTopics(topics), [topics])
   const closedTopics = useMemo(() => archivedTopics(topics), [topics])
@@ -97,8 +109,38 @@ export function ArgomentiView() {
             )}
             {openTopics.map((t) => (
               <div className="list-item" key={t.id}>
-                <div className="row" style={{ justifyContent: 'space-between' }}>
-                  <strong>{t.title}</strong>
+                <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+                  {renameId === t.id ? (
+                    <div className="row" style={{ flex: 1, flexWrap: 'wrap', gap: 8 }}>
+                      <input
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        aria-label="Nuovo titolo"
+                        style={{ flex: 1, minWidth: 140 }}
+                        autoFocus
+                      />
+                      <button
+                        className="btn accent small"
+                        type="button"
+                        disabled={!renameDraft.trim()}
+                        onClick={() => {
+                          updateTopic(t.id, { title: renameDraft.trim() })
+                          setRenameId(null)
+                        }}
+                      >
+                        Salva
+                      </button>
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        onClick={() => setRenameId(null)}
+                      >
+                        Annulla
+                      </button>
+                    </div>
+                  ) : (
+                    <strong>{t.title}</strong>
+                  )}
                   <span className="badge">{statusLabel(t.status)}</span>
                 </div>
                 {t.interest && (
@@ -137,6 +179,16 @@ export function ArgomentiView() {
                   <button
                     className="btn secondary small"
                     type="button"
+                    onClick={() => {
+                      setRenameId(t.id)
+                      setRenameDraft(t.title)
+                    }}
+                  >
+                    Rinomina
+                  </button>
+                  <button
+                    className="btn secondary small"
+                    type="button"
                     onClick={() => archiveTopic(t.id)}
                   >
                     <Archive size={14} /> Archivia
@@ -144,7 +196,7 @@ export function ArgomentiView() {
                   <button
                     className="btn danger small"
                     type="button"
-                    onClick={() => removeTopic(t.id)}
+                    onClick={() => confirmRemove(t.id, t.title)}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -185,7 +237,7 @@ export function ArgomentiView() {
                         <button
                           className="btn danger small"
                           type="button"
-                          onClick={() => removeTopic(t.id)}
+                          onClick={() => confirmRemove(t.id, t.title)}
                         >
                           <Trash2 size={14} />
                         </button>

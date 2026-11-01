@@ -31,6 +31,7 @@ export function HomeView() {
   const schedules = useAppStore((s) => s.schedules)
   const sessionDraft = useAppStore((s) => s.sessionDraft)
   const setView = useAppStore((s) => s.setView)
+  const setActiveTopic = useAppStore((s) => s.setActiveTopic)
   const startSession = useAppStore((s) => s.startSession)
   const [latest, setLatest] = useState<LatestMediaItem[]>([])
   const [feedError, setFeedError] = useState('')
@@ -156,6 +157,34 @@ export function HomeView() {
           )}
         </div>
 
+        {nextSchedule && (
+          <div className="focus-strip" style={{ marginBottom: '0.85rem' }}>
+            <h3>{plainText(nextSchedule.title)}</h3>
+            <p className="muted" style={{ margin: 0 }}>
+              {formatScheduleLabel(nextSchedule.startsAt)}
+              {nextSchedule.topicTitle ? ` · ${plainText(nextSchedule.topicTitle)}` : ''}
+            </p>
+            <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <button
+                className="btn accent"
+                type="button"
+                onClick={() => startSession(nextSchedule.topicId)}
+              >
+                <PlayCircle size={16} /> Inizia sessione
+              </button>
+              {nextSchedule.topicId && (
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={() => setActiveTopic(nextSchedule.topicId)}
+                >
+                  Apri quaderno
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {focusTopic ? (
           <div className="focus-strip">
             <h3>{plainText(focusTopic.title)}</h3>
@@ -197,6 +226,27 @@ export function HomeView() {
               ? ` · ${plainText(logs[0].highlight || logs[0].gratitude || logs[0].goal || '')}`
               : ''}
           </p>
+          <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <button className="btn secondary" type="button" onClick={() => setView('diario')}>
+              Apri Diario
+            </button>
+            {logs[0].topicId && (
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => setActiveTopic(logs[0].topicId)}
+              >
+                Apri Quaderno
+              </button>
+            )}
+            <button
+              className="btn"
+              type="button"
+              onClick={() => startSession(logs[0].topicId)}
+            >
+              <PlayCircle size={16} /> Nuova sessione
+            </button>
+          </div>
         </section>
       )}
 

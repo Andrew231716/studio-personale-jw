@@ -29,7 +29,12 @@ export function StudioView() {
   const schedules = useAppStore((s) => s.schedules)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiHint, setAiHint] = useState('')
+  const [aiHintKind, setAiHintKind] = useState<'riflessione' | 'risposte' | 'pratiche' | null>(
+    null,
+  )
   const [archiveMsg, setArchiveMsg] = useState('')
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
 
   const openList = useMemo(() => activeTopics(topics), [topics])
   const topic = useMemo(() => {
@@ -67,6 +72,7 @@ export function StudioView() {
   async function helpElaborate(kind: 'riflessione' | 'risposte' | 'pratiche') {
     setAiBusy(true)
     setAiHint('')
+    setAiHintKind(kind)
     const prompt =
       kind === 'riflessione'
         ? 'Aiutami a elaborare i miei punti di riflessione in modo più profondo e pratico, restando fedele ai materiali di jw.org.'
@@ -81,9 +87,59 @@ export function StudioView() {
       pushAiMessage(createMessage('assistant', answer))
     } catch (e) {
       setAiHint(e instanceof Error ? e.message : 'Assistente non disponibile')
+      setAiHintKind(null)
     } finally {
       setAiBusy(false)
     }
+  }
+
+  function applyAiHint() {
+    if (!topic || !aiHint.trim() || !aiHintKind) return
+    const text = aiHint.trim()
+    if (aiHintKind === 'riflessione') {
+      updateTopic(topic.id, {
+        reflections: [
+          {
+            id: uid('ref'),
+            prompt: 'Elaborazione AI',
+            response: text,
+          },
+          ...topic.reflections,
+        ],
+      })
+    } else if (aiHintKind === 'risposte') {
+      updateTopic(topic.id, {
+        questions: [
+          {
+            id: uid('q'),
+            question: 'Elaborazione AI',
+            answer: text,
+          },
+          ...topic.questions,
+        ],
+      })
+    } else {
+      const lines = text
+        .split(/\n+/)
+        .map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim())
+        .filter((l) => l.length > 8)
+        .slice(0, 6)
+      const actions = lines.length ? lines : [text.slice(0, 280)]
+      updateTopic(topic.id, {
+        practices: [
+          ...actions.map((action) => ({
+            id: uid('prac'),
+            action,
+            tried: false,
+            outcome: '',
+          })),
+          ...topic.practices,
+        ],
+      })
+    }
+    setAiHint('')
+    setAiHintKind(null)
+    setArchiveMsg('Suggerimento inserito nel Quaderno.')
   }
 
   return (
@@ -92,9 +148,51 @@ export function StudioView() {
       <SectionProgress section="studio" />
       <section className="panel">
         <div className="section-head">
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <p className="section-kicker">3 · Quaderno</p>
-            <h2>{topic.title}</h2>
+            {editingTitle ? (
+              <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 6 }}>
+                <input
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  aria-label="Titolo argomento"
+                  style={{ flex: 1, minWidth: 160 }}
+                  autoFocus
+                />
+                <button
+                  className="btn accent small"
+                  type="button"
+                  disabled={!titleDraft.trim()}
+                  onClick={() => {
+                    updateTopic(topic.id, { title: titleDraft.trim() })
+                    setEditingTitle(false)
+                  }}
+                >
+                  Salva
+                </button>
+                <button
+                  className="btn secondary small"
+                  type="button"
+                  onClick={() => setEditingTitle(false)}
+                >
+                  Annulla
+                </button>
+              </div>
+            ) : (
+              <div className="row" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <h2 style={{ margin: 0 }}>{topic.title}</h2>
+                <button
+                  className="btn secondary small"
+                  type="button"
+                  onClick={() => {
+                    setTitleDraft(topic.title)
+                    setEditingTitle(true)
+                  }}
+                >
+                  Rinomina
+                </button>
+              </div>
+            )}
             <p className="lede">
               Qui restano appunti, riflessioni e materiali. Le sessioni guidate alimentano questo
               quaderno; le sessioni finite le rivedi nel Diario.
@@ -337,12 +435,20 @@ export function StudioView() {
             <JwSearch
               compact
               language={settings.language}
-              onAddResource={(res) =>
+              onAddResource={(res) => {
+                const key = `${res.url}|${res.lank || ''}|${res.docid || ''}`
+                const exists = topic.resources.some(
+                  (r) => `${r.url}|${r.lank || ''}|${r.docid || ''}` === key,
+                )
+                if (exists) {
+                  setArchiveMsg('Questo materiale è già nel Quaderno.')
+                  return
+                }
                 updateTopic(topic.id, {
                   resources: [...topic.resources, res],
                   status: 'in_corso',
                 })
-              }
+              }}
             />
           </div>
         </section>
@@ -565,7 +671,26 @@ export function StudioView() {
 
       {aiHint && (
         <section className="panel">
-          <h3>Suggerimento dell’assistente</h3>
+          <div className="section-head">
+            <h3>Suggerimento dell’assistente</h3>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              {aiHintKind && (
+                <button className="btn accent small" type="button" onClick={applyAiHint}>
+                  Inserisci nel Quaderno
+                </button>
+              )}
+              <button
+                className="btn secondary small"
+                type="button"
+                onClick={() => {
+                  setAiHint('')
+                  setAiHintKind(null)
+                }}
+              >
+                Chiudi
+              </button>
+            </div>
+          </div>
           <pre className="bubble assistant" style={{ maxWidth: '100%', whiteSpace: 'pre-wrap', margin: 0 }}>
             {aiHint}
           </pre>

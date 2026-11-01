@@ -115,6 +115,13 @@ export function localInputToIso(value: string): string {
   return d.toISOString()
 }
 
+/** ISO → valore per input datetime-local (fuso locale). */
+export function isoToLocalInput(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return defaultNextStudyLocalInput(24)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function formatScheduleLabel(iso: string): string {
   try {
     return new Intl.DateTimeFormat('it-IT', {

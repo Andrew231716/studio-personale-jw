@@ -151,14 +151,20 @@ interface AppState {
   updateSessionDraft: (patch: Partial<StudySessionDraft>) => void
   completeSession: () => StudySessionLog | null
   abandonSession: () => void
+  updateSessionLog: (id: string, patch: Partial<StudySessionLog>) => void
+  removeSessionLog: (id: string) => void
+  /** Collega una sessione libera a un argomento esistente. */
+  linkSessionToTopic: (sessionId: string, topicId: string) => void
   /** Archivia un argomento (studiato / chiuso). */
   archiveTopic: (id: string) => void
   /** Riapri un argomento archiviato per continuare. */
   reopenTopic: (id: string, status?: 'in_corso' | 'approfondire') => void
   addSchedule: (event: ScheduledStudy) => void
+  updateSchedule: (id: string, patch: Partial<ScheduledStudy>) => void
   removeSchedule: (id: string) => void
   saveResource: (resource: StudyResource, sourceQuery?: string) => SavedResource | null
   removeSavedResource: (id: string) => void
+  removeSavedResources: (ids: string[]) => void
   saveSearch: (query: string, note?: string, resultCount?: number) => SavedSearch | null
   removeSavedSearch: (id: string) => void
   pushBibleReadingPlan: (plan: BibleReadingPlan) => void
@@ -334,6 +340,11 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           topics: s.topics.filter((t) => t.id !== id),
           activeTopicId: s.activeTopicId === id ? null : s.activeTopicId,
+          schedules: s.schedules.filter((ev) => ev.topicId !== id),
+          decisions: s.decisions.map((d) => ({
+            ...d,
+            linkedTopicIds: (d.linkedTopicIds || []).filter((tid) => tid !== id),
+          })),
         })),
       setActiveTopic: (id) => set({ activeTopicId: id, view: id ? 'studio' : get().view }),
       addDecision: (title, scale = 'piccola') => {
@@ -559,6 +570,26 @@ export const useAppStore = create<AppState>()(
         return log
       },
       abandonSession: () => set({ sessionDraft: null }),
+      updateSessionLog: (id, patch) =>
+        set((s) => ({
+          sessionLogs: s.sessionLogs.map((log) =>
+            log.id === id ? { ...log, ...patch } : log,
+          ),
+        })),
+      removeSessionLog: (id) =>
+        set((s) => ({ sessionLogs: s.sessionLogs.filter((log) => log.id !== id) })),
+      linkSessionToTopic: (sessionId, topicId) => {
+        const topic = get().topics.find((t) => t.id === topicId)
+        const log = get().sessionLogs.find((l) => l.id === sessionId)
+        if (!topic || !log) return
+        get().updateSessionLog(sessionId, {
+          topicId,
+          topicTitle: topic.title,
+        })
+        if (topic.status === 'da_iniziare') {
+          get().updateTopic(topicId, { status: 'in_corso' })
+        }
+      },
       archiveTopic: (id) => {
         get().updateTopic(id, { status: 'completato' })
       },
@@ -579,6 +610,12 @@ export const useAppStore = create<AppState>()(
             .slice(0, 50),
         }))
       },
+      updateSchedule: (id, patch) =>
+        set((s) => ({
+          schedules: s.schedules
+            .map((ev) => (ev.id === id ? { ...ev, ...patch } : ev))
+            .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+        })),
       removeSchedule: (id) =>
         set((s) => ({ schedules: s.schedules.filter((x) => x.id !== id) })),
       saveResource: (resource, sourceQuery) => {
@@ -598,6 +635,13 @@ export const useAppStore = create<AppState>()(
       },
       removeSavedResource: (id) =>
         set((s) => ({ savedResources: s.savedResources.filter((r) => r.id !== id) })),
+      removeSavedResources: (ids) => {
+        if (!ids.length) return
+        const setIds = new Set(ids)
+        set((s) => ({
+          savedResources: s.savedResources.filter((r) => !setIds.has(r.id)),
+        }))
+      },
       saveSearch: (query, note, resultCount) => {
         const q = query.trim()
         if (!q) return null

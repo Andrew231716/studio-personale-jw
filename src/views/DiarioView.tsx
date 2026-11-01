@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react'
-import { BookMarked, CheckCircle2, FileText, NotebookPen, PlayCircle } from 'lucide-react'
+import {
+  BookMarked,
+  CheckCircle2,
+  FileText,
+  Link2,
+  NotebookPen,
+  PlayCircle,
+  Trash2,
+} from 'lucide-react'
 import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
@@ -18,6 +26,8 @@ export function DiarioView() {
   const updateTopic = useAppStore((s) => s.updateTopic)
   const archiveTopic = useAppStore((s) => s.archiveTopic)
   const reopenTopic = useAppStore((s) => s.reopenTopic)
+  const removeSessionLog = useAppStore((s) => s.removeSessionLog)
+  const linkSessionToTopic = useAppStore((s) => s.linkSessionToTopic)
 
   const [period, setPeriod] = useState<SummaryPeriod>('settimana')
   const [anchor, setAnchor] = useState(() => new Date().toISOString().slice(0, 10))
@@ -25,6 +35,7 @@ export function DiarioView() {
   const [message, setMessage] = useState('')
   const [topicFilter, setTopicFilter] = useState<'tutti' | 'libere' | string>('tutti')
   const [practiceHint, setPracticeHint] = useState('')
+  const [linkDraft, setLinkDraft] = useState<Record<string, string>>({})
 
   const summary: StudySummary = useMemo(
     () =>
@@ -45,6 +56,11 @@ export function DiarioView() {
     return topics.filter((t) => ids.has(t.id))
   }, [sessions, topics])
 
+  const openTopics = useMemo(
+    () => topics.filter((t) => t.status !== 'completato'),
+    [topics],
+  )
+
   const sortedSessions = useMemo(() => {
     const list = [...sessions].sort((a, b) => b.completedAt.localeCompare(a.completedAt))
     if (topicFilter === 'tutti') return list
@@ -60,7 +76,7 @@ export function DiarioView() {
     return topic.practices.some((p) => p.action.trim() === action && p.tried)
   }
 
-  function markPracticed(topicId: string, practice: string) {
+  function markPracticed(topicId: string, practice: string, tried: boolean) {
     const topic = topics.find((t) => t.id === topicId)
     if (!topic) return
     const action = practice.trim()
@@ -70,10 +86,14 @@ export function DiarioView() {
     if (idx >= 0) {
       practices[idx] = {
         ...practices[idx],
-        tried: true,
-        outcome: practices[idx].outcome || 'Segnato dal Diario',
+        tried,
+        outcome: tried
+          ? practices[idx].outcome || 'Segnato dal Diario'
+          : practices[idx].outcome === 'Segnato dal Diario'
+            ? ''
+            : practices[idx].outcome,
       }
-    } else {
+    } else if (tried) {
       practices.unshift({
         id: uid('prac'),
         action,
@@ -82,7 +102,9 @@ export function DiarioView() {
       })
     }
     updateTopic(topicId, { practices })
-    setPracticeHint('Pratica segnata come fatta nel Quaderno.')
+    setPracticeHint(
+      tried ? 'Pratica segnata come fatta nel Quaderno.' : 'Pratica rimessa come da fare.',
+    )
   }
 
   async function runExport(kind: 'pdf' | 'epub') {
@@ -172,15 +194,42 @@ export function DiarioView() {
                   </div>
                   <p className="muted" style={{ margin: 0 }}>
                     {new Date(s.completedAt).toLocaleString('it-IT')}
-                    {linked ? ` · Argomento: ${statusLabel(linked.status)}` : ''}
+                    {linked ? ` · Argomento: ${statusLabel(linked.status)}` : ' · Sessione libera'}
                   </p>
                   {s.goal && (
                     <p style={{ margin: 0 }}>
                       <strong>Obiettivo:</strong> {s.goal}
                     </p>
                   )}
+                  {s.prayer?.trim() && (
+                    <p style={{ margin: 0 }}>
+                      <strong>Preghiera:</strong> {s.prayer}
+                    </p>
+                  )}
+                  {s.keyVerse?.trim() && (
+                    <p style={{ margin: 0 }}>
+                      <strong>Scrittura:</strong> {s.keyVerse}
+                    </p>
+                  )}
+                  {(s.resourceTitle || s.resourceUrl) && (
+                    <p style={{ margin: 0 }}>
+                      <strong>Materiale:</strong>{' '}
+                      {s.resourceUrl ? (
+                        <a href={s.resourceUrl} target="_blank" rel="noreferrer">
+                          {s.resourceTitle || s.resourceUrl}
+                        </a>
+                      ) : (
+                        s.resourceTitle
+                      )}
+                    </p>
+                  )}
                   {(s.highlight || s.reflection) && (
                     <p style={{ margin: 0 }}>{s.highlight || s.reflection}</p>
+                  )}
+                  {s.question?.trim() && (
+                    <p style={{ margin: 0 }}>
+                      <strong>Domanda:</strong> {s.question}
+                    </p>
                   )}
                   {s.answer && (
                     <p style={{ margin: 0 }}>
@@ -193,18 +242,68 @@ export function DiarioView() {
                       {practiced ? ' · fatta' : ''}
                     </p>
                   )}
+                  {s.gratitude?.trim() && (
+                    <p style={{ margin: 0 }}>
+                      <strong>Gratitudine:</strong> {s.gratitude}
+                    </p>
+                  )}
+
+                  {!s.topicId && openTopics.length > 0 && (
+                    <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                      <select
+                        value={linkDraft[s.id] || ''}
+                        onChange={(e) =>
+                          setLinkDraft((prev) => ({ ...prev, [s.id]: e.target.value }))
+                        }
+                        aria-label="Collega ad argomento"
+                        style={{ flex: 1, minWidth: 140 }}
+                      >
+                        <option value="">Collega ad argomento…</option>
+                        {openTopics.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        disabled={!linkDraft[s.id]}
+                        onClick={() => {
+                          const tid = linkDraft[s.id]
+                          if (!tid) return
+                          linkSessionToTopic(s.id, tid)
+                          setLinkDraft((prev) => {
+                            const next = { ...prev }
+                            delete next[s.id]
+                            return next
+                          })
+                          setPracticeHint('Sessione collegata all’argomento.')
+                        }}
+                      >
+                        <Link2 size={14} /> Collega
+                      </button>
+                    </div>
+                  )}
+
                   <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
                     {s.topicId && s.practice?.trim() && !practiced && (
                       <button
                         className="btn accent small"
                         type="button"
-                        onClick={() => markPracticed(s.topicId!, s.practice!)}
+                        onClick={() => markPracticed(s.topicId!, s.practice!, true)}
                       >
                         <CheckCircle2 size={14} /> Ho praticato
                       </button>
                     )}
                     {s.topicId && s.practice?.trim() && practiced && (
-                      <span className="badge">Pratica fatta</span>
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        onClick={() => markPracticed(s.topicId!, s.practice!, false)}
+                      >
+                        Annulla pratica
+                      </button>
                     )}
                     {s.topicId && (
                       <button
@@ -240,6 +339,21 @@ export function DiarioView() {
                         Riapri argomento
                       </button>
                     )}
+                    <button
+                      className="btn danger small"
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            'Eliminare questa sessione dal Diario? L’azione non si può annullare.',
+                          )
+                        ) {
+                          removeSessionLog(s.id)
+                        }
+                      }}
+                    >
+                      <Trash2 size={14} /> Elimina
+                    </button>
                   </div>
                 </article>
               )

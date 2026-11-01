@@ -33,6 +33,7 @@ export function SalvatiView() {
   const savedResources = useAppStore((s) => s.savedResources)
   const savedSearches = useAppStore((s) => s.savedSearches)
   const removeSavedResource = useAppStore((s) => s.removeSavedResource)
+  const removeSavedResources = useAppStore((s) => s.removeSavedResources)
   const removeSavedSearch = useAppStore((s) => s.removeSavedSearch)
   const addTopic = useAppStore((s) => s.addTopic)
   const updateTopic = useAppStore((s) => s.updateTopic)
@@ -176,9 +177,28 @@ export function SalvatiView() {
 
         {selected.length > 0 && (
           <div className="stack" style={{ marginTop: '1rem' }}>
-            <p className="muted" style={{ margin: 0 }}>
-              {selected.length} selezionati
-            </p>
+            <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <p className="muted" style={{ margin: 0 }}>
+                {selected.length} selezionati
+              </p>
+              <button
+                className="btn danger small"
+                type="button"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Rimuovere ${selected.length} materiali salvati?`,
+                    )
+                  ) {
+                    removeSavedResources(selected)
+                    setSelected([])
+                    setHint('Materiali rimossi da «Da studiare».')
+                  }
+                }}
+              >
+                <Trash2 size={14} /> Elimina selezionati
+              </button>
+            </div>
             <div className="field">
               <label>Nuovo studio da selezione</label>
               <div className="row">

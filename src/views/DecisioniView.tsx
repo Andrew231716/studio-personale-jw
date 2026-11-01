@@ -395,7 +395,12 @@ export function DecisioniView() {
                   <div className="section-head">
                     <div>
                       <p className="section-kicker">Decisione presa</p>
-                      <h2>{decision.title}</h2>
+                      <ExpandableField
+                        label="Titolo decisione"
+                        value={decision.title}
+                        onChange={(value) => updateDecision(decision.id, { title: value })}
+                        rows={1}
+                      />
                       <p className="lede">
                         Puoi ancora modificare la scelta. I dettagli del percorso sono sotto, in un
                         solo pannello.
@@ -419,7 +424,15 @@ export function DecisioniView() {
                       <button
                         className="btn danger small"
                         type="button"
-                        onClick={() => removeDecision(decision.id)}
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Eliminare la decisione «${decision.title}»? Obiettivi e analisi andranno persi.`,
+                            )
+                          ) {
+                            removeDecision(decision.id)
+                          }
+                        }}
                       >
                         Elimina
                       </button>
@@ -524,15 +537,29 @@ export function DecisioniView() {
             {!isDecided && (
             <section className="panel">
               <div className="section-head">
-                <h2>{decision.title}</h2>
+                <h2 style={{ margin: 0 }}>Dettaglio decisione</h2>
                 <button
                   className="btn danger"
                   type="button"
-                  onClick={() => removeDecision(decision.id)}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Eliminare la decisione «${decision.title}»? Obiettivi e analisi andranno persi.`,
+                      )
+                    ) {
+                      removeDecision(decision.id)
+                    }
+                  }}
                 >
                   Elimina
                 </button>
               </div>
+              <ExpandableField
+                label="Titolo"
+                value={decision.title}
+                onChange={(value) => updateDecision(decision.id, { title: value })}
+                rows={1}
+              />
               <ExpandableField
                 label="Contesto"
                 value={decision.context}
@@ -765,6 +792,20 @@ export function DecisioniView() {
               <div className="stack">
                 {decision.priorities.map((p, idx) => (
                   <div className="list-item" key={p.id}>
+                    <div className="row" style={{ justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        aria-label={`Elimina priorità ${idx + 1}`}
+                        onClick={() =>
+                          updateDecision(decision.id, {
+                            priorities: decision.priorities.filter((x) => x.id !== p.id),
+                          })
+                        }
+                      >
+                        <Trash2 size={14} /> Elimina priorità
+                      </button>
+                    </div>
                     <ExpandableField
                       label={`Priorità ${idx + 1}`}
                       value={p.label}
