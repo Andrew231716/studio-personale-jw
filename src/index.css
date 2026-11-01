@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "Manrope";
+  src: url("/fonts/manrope-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/fonts/fraunces-latin.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --primary: #124a4a;
   --secondary: #2f6f6a;
@@ -7,8 +23,8 @@
   --text: #16302c;
   --muted: #5b736c;
   --radius: 16px;
-  --font-display: "Fraunces", Georgia, serif;
-  --font-body: "Manrope", "Segoe UI", sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
   --space: 1rem;
   --line: color-mix(in srgb, var(--primary) 12%, transparent);
   --shadow: 0 12px 40px rgba(18, 74, 74, 0.1);
@@ -1845,6 +1861,75 @@ img {
   font-size: 1.12rem;
   line-height: 1.45;
   color: var(--text);
+}
+
+.scripture-popup-context {
+  margin: 0.35rem 0;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.scripture-ref-btn {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  font: inherit;
+  color: inherit;
+}
+
+.scripture-ref-btn.active {
+  outline: 2px solid color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.pwa-hint,
+.network-need-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: calc(var(--radius) + 2px);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  background: color-mix(in srgb, var(--surface) 90%, white);
+  font-size: 0.92rem;
+}
+
+.mic-level {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  overflow: hidden;
+  margin-top: 0.45rem;
+}
+
+.mic-level > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.08s linear;
+}
+
+.discourse-section {
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 2px);
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--surface) 88%, white);
+}
+
+.discourse-section.is-active-practice {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.discourse-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1.35rem;
 }
 
 .goal-due-overdue {

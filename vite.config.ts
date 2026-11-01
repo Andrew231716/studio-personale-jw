@@ -2,6 +2,36 @@ import react from '@vitejs/plugin-react'
 import type { Connect, Plugin } from 'vite'
 import { defineConfig } from 'vite'
 
+function swManifestPlugin(): Plugin {
+  return {
+    name: 'sw-manifest',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const assets = Object.keys(bundle)
+        .filter((f) => !f.endsWith('.map'))
+        .map((f) => `/${f.replace(/^\/+/, '')}`)
+      const list = [
+        '/',
+        '/index.html',
+        '/favicon.svg',
+        '/logo.svg',
+        '/icon-192.png',
+        '/apple-touch-icon.png',
+        '/manifest.webmanifest',
+        '/sw.js',
+        '/fonts/manrope-latin.woff2',
+        '/fonts/fraunces-latin.woff2',
+        ...assets,
+      ]
+      this.emitFile({
+        type: 'asset',
+        fileName: 'sw-manifest.json',
+        source: JSON.stringify(Array.from(new Set(list))),
+      })
+    },
+  }
+}
+
 function localApiPlugin(): Plugin {
   return {
     name: 'local-api',
@@ -111,7 +141,7 @@ function readBody(req: Connect.IncomingMessage): Promise<string> {
 }
 
 export default defineConfig({
-  plugins: [react(), localApiPlugin()],
+  plugins: [react(), localApiPlugin(), swManifestPlugin()],
   server: {
     host: true,
     port: 5173,

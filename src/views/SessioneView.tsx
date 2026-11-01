@@ -4,6 +4,7 @@ import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { JwSearch } from '../components/JwSearch'
 import { ScheduleNextStudy } from '../components/ScheduleNextStudy'
+import { ScriptureAssist } from '../components/ScriptureAssist'
 import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import {
@@ -422,17 +423,42 @@ export function SessioneView() {
                 />
               )
             })()}
+            <ScriptureAssist
+              text={`${draft.keyVerse}\n${draft.highlight}\n${draft.reflection}`}
+              language={language}
+              compact
+              onInsert={(snippet) =>
+                updateDraft({
+                  reflection: draft.reflection.trim()
+                    ? `${draft.reflection.trim()}\n\n${snippet}`
+                    : snippet,
+                })
+              }
+            />
           </div>
         )}
 
         {draft.step === 4 && (
-          <ExpandableField
-            label="La mia meditazione"
-            value={draft.reflection}
-            onChange={(value) => updateDraft({ reflection: value })}
-            placeholder="Con le tue parole: cosa impari su Geova? Come ti parla questo punto?"
-            rows={6}
-          />
+          <>
+            <ExpandableField
+              label="La mia meditazione"
+              value={draft.reflection}
+              onChange={(value) => updateDraft({ reflection: value })}
+              placeholder="Con le tue parole: cosa impari su Geova? Come ti parla questo punto? Es. Mt 6:33"
+              rows={6}
+            />
+            <ScriptureAssist
+              text={draft.reflection}
+              language={language}
+              onInsert={(snippet) =>
+                updateDraft({
+                  reflection: draft.reflection.trim()
+                    ? `${draft.reflection.trim()}\n\n${snippet}`
+                    : snippet,
+                })
+              }
+            />
+          </>
         )}
 
         {draft.step === 5 && (

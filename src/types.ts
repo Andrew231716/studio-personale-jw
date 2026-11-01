@@ -215,11 +215,27 @@ export type AppView =
   | 'assistente'
   | 'impostazioni'
 
+export type DiscourseSectionKind = 'introduzione' | 'punto' | 'conclusione'
+
+export interface DiscourseSection {
+  id: string
+  kind: DiscourseSectionKind
+  title: string
+  body: string
+  /** Minuti stimati per questa sezione. */
+  minutes: number
+}
+
 /** Bozza appunti per un discorso pubblico. */
 export interface DiscourseNote {
   id: string
   title: string
+  /** Testo unificato (compatibilità / export). */
   body: string
+  sections?: DiscourseSection[]
+  estimatedMinutes?: number
+  /** Scheda Ministero da cui è nata la bozza. */
+  sourceMinistryNoteId?: string
   createdAt: string
   updatedAt: string
 }

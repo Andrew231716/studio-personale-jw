@@ -6,6 +6,7 @@ import {
   buildDecisionConclusion,
 } from '../lib/studyMethod'
 import { uid } from '../lib/id'
+import { defaultSections, joinSections, totalMinutes } from '../lib/discourseStructure'
 import { isSectionHeading, normalizeJwItalian, normalizeJwItalianList } from '../lib/jwItalianTerms'
 import type {
   AiMessage,
@@ -178,7 +179,10 @@ interface AppState {
   pushMinistryNote: (note: MinistryAssistNote) => void
   updateMinistryNote: (id: string, patch: Partial<MinistryAssistNote>) => void
   removeMinistryNote: (id: string) => void
-  addDiscourseNote: (title?: string) => string
+  addDiscourseNote: (
+    title?: string,
+    opts?: { body?: string; sourceMinistryNoteId?: string },
+  ) => string
   updateDiscourseNote: (id: string, patch: Partial<DiscourseNote>) => void
   removeDiscourseNote: (id: string) => void
   setActiveDiscourse: (id: string | null) => void
@@ -722,12 +726,16 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           ministryNotes: s.ministryNotes.filter((n) => n.id !== id),
         })),
-      addDiscourseNote: (title = 'Nuovo discorso') => {
+      addDiscourseNote: (title = 'Nuovo discorso', opts) => {
         const now = new Date().toISOString()
+        const sections = defaultSections(opts?.body || '')
         const note: DiscourseNote = {
           id: uid('disc'),
           title: title.trim() || 'Nuovo discorso',
-          body: '',
+          body: joinSections(sections),
+          sections,
+          estimatedMinutes: totalMinutes(sections),
+          sourceMinistryNoteId: opts?.sourceMinistryNoteId,
           createdAt: now,
           updatedAt: now,
         }
@@ -740,17 +748,22 @@ export const useAppStore = create<AppState>()(
       },
       updateDiscourseNote: (id, patch) =>
         set((s) => ({
-          discourseNotes: s.discourseNotes.map((n) =>
-            n.id === id
-              ? {
-                  ...n,
-                  ...patch,
-                  title: patch.title !== undefined ? patch.title : n.title,
-                  body: patch.body !== undefined ? patch.body : n.body,
-                  updatedAt: new Date().toISOString(),
-                }
-              : n,
-          ),
+          discourseNotes: s.discourseNotes.map((n) => {
+            if (n.id !== id) return n
+            const next = {
+              ...n,
+              ...patch,
+              title: patch.title !== undefined ? patch.title : n.title,
+              body: patch.body !== undefined ? patch.body : n.body,
+              sections: patch.sections !== undefined ? patch.sections : n.sections,
+              updatedAt: new Date().toISOString(),
+            }
+            if (patch.sections) {
+              next.body = joinSections(patch.sections)
+              next.estimatedMinutes = totalMinutes(patch.sections)
+            }
+            return next
+          }),
         })),
       removeDiscourseNote: (id) =>
         set((s) => {

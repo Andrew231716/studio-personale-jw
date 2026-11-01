@@ -35,6 +35,7 @@ export function MinisteroView() {
   const saveResource = useAppStore((s) => s.saveResource)
   const addTopic = useAppStore((s) => s.addTopic)
   const updateTopic = useAppStore((s) => s.updateTopic)
+  const addDiscourseNote = useAppStore((s) => s.addDiscourseNote)
   const setView = useAppStore((s) => s.setView)
 
   const [kind, setKind] = useState<MinistryAssistKind>('schema')
@@ -300,6 +301,19 @@ export function MinisteroView() {
                 <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
                   <button className="btn" type="button" onClick={saveAsStudy}>
                     <NotebookPen size={14} /> Salva nel Quaderno
+                  </button>
+                  <button
+                    className="btn secondary"
+                    type="button"
+                    onClick={() => {
+                      addDiscourseNote(active.title || 'Discorso', {
+                        body: active.content,
+                        sourceMinistryNoteId: active.id,
+                      })
+                      setView('discorso')
+                    }}
+                  >
+                    Apri in Discorso
                   </button>
                   {active.resources[0] && (
                     <button

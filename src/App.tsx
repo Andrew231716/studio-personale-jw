@@ -34,6 +34,7 @@ import { MinisteroView } from './views/MinisteroView'
 import { DiscorsoView } from './views/DiscorsoView'
 import { DecisioniView } from './views/DecisioniView'
 import { OnlineStatus } from './components/OnlineStatus'
+import { PwaInstallHint } from './components/PwaInstallHint'
 import { ObiettiviDecisioniView } from './views/ObiettiviDecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
@@ -215,6 +216,7 @@ export default function App() {
       <main className="main">
         <div className="main-inner">
           <OnlineStatus />
+          <PwaInstallHint />
           <InAppReminders />
           {view === 'home' && <HomeView />}
           {view === 'argomenti' && <ArgomentiView />}

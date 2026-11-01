@@ -26,7 +26,7 @@ export function ScripturePopup({
       <div className="scripture-popup-head">
         <p className="section-kicker" style={{ margin: 0 }}>
           <BookOpen size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-          Bibbia · jw.org
+          TNM · jw.org
         </p>
         <button className="btn secondary small" type="button" aria-label="Chiudi" onClick={onClose}>
           <X size={14} />
@@ -39,7 +39,24 @@ export function ScripturePopup({
       {verse && !loading && (
         <>
           <h3 style={{ margin: '0.2rem 0 0.55rem' }}>{verse.label}</h3>
+          {verse.before && (
+            <p className="scripture-popup-context">
+              <span className="muted">← {verse.verse - 1}</span> {verse.before}
+            </p>
+          )}
           <p className="scripture-popup-text">{verse.text}</p>
+          {verse.after && (
+            <p className="scripture-popup-context">
+              <span className="muted">
+                { (verse.verseEnd || verse.verse) + 1 } →
+              </span>{' '}
+              {verse.after}
+            </p>
+          )}
+          <p className="muted" style={{ margin: '0.55rem 0 0', fontSize: '0.82rem' }}>
+            Traduzione del Nuovo Mondo · testo da jw.org / JW Library
+            {verse.cached ? ' · cache locale' : ''}
+          </p>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
             <JwOpenButtons
               url={verse.url}
@@ -66,11 +83,6 @@ export function ScripturePopup({
               <ExternalLink size={14} />
             </a>
           </div>
-          {verse.cached && (
-            <p className="muted" style={{ margin: '0.55rem 0 0', fontSize: '0.85rem' }}>
-              Da cache locale (utile anche offline).
-            </p>
-          )}
         </>
       )}
     </aside>

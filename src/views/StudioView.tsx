@@ -3,6 +3,7 @@ import { Archive, BookMarked, FileText, PlayCircle, RotateCcw, Trash2 } from 'lu
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { ScriptureAssist } from '../components/ScriptureAssist'
 import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { askAi, buildStudyContext, createMessage } from '../lib/ai'
@@ -319,8 +320,26 @@ export function StudioView() {
           <ExpandableField
             label="Perché mi interessa / note"
             value={topic.interest}
-            placeholder="Studio personale"
+            placeholder="Studio personale — prova Proverbi 14:12 o Pr 14:12"
             onChange={(value) => updateTopic(topic.id, { interest: value })}
+          />
+        </div>
+
+        <div style={{ marginTop: '0.65rem' }}>
+          <ScriptureAssist
+            text={[
+              topic.interest,
+              ...topic.reflections.map((r) => `${r.prompt}\n${r.response}`),
+              ...topic.questions.map((q) => `${q.question}\n${q.answer}`),
+            ].join('\n')}
+            language={settings.language}
+            onInsert={(snippet) =>
+              updateTopic(topic.id, {
+                interest: topic.interest.trim()
+                  ? `${topic.interest.trim()}\n\n${snippet}`
+                  : snippet,
+              })
+            }
           />
         </div>
 

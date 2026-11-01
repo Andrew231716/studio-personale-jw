@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Bell, Download, Upload } from 'lucide-react'
+import { Bell, BookOpen, Download, Upload } from 'lucide-react'
 import { CloudSyncPanel } from '../components/CloudSyncPanel'
 import {
   applyBackup,
@@ -7,6 +7,11 @@ import {
   mergeBackup,
   readBackupFile,
 } from '../lib/backup'
+import {
+  downloadOfflineBiblePack,
+  getCachedChapterCount,
+  getCachedVerseCount,
+} from '../lib/bibleText'
 import {
   notificationPermission,
   requestNotificationPermission,
@@ -45,6 +50,9 @@ export function ImpostazioniView() {
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
   const [notifMsg, setNotifMsg] = useState('')
   const [notifPerm, setNotifPerm] = useState(() => notificationPermission())
+  const [packBusy, setPackBusy] = useState(false)
+  const [packMsg, setPackMsg] = useState('')
+  const language = settings.language
 
   function moveNav(view: AppView, dir: -1 | 1) {
     const order = [...settings.navOrder]
@@ -303,6 +311,53 @@ export function ImpostazioniView() {
         {notifMsg && (
           <p className="muted" style={{ margin: '0.65rem 0 0' }}>
             {notifMsg}
+          </p>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Bibbia offline</h2>
+        <p className="lede">
+          I versetti aperti restano in cache. Puoi scaricare un pacchetto di libri frequenti
+          (Salmi, Proverbi, Vangeli…) per i popup anche senza rete.
+        </p>
+        <p className="muted">
+          Ora in cache: {getCachedChapterCount()} capitoli · {getCachedVerseCount()} versetti.
+        </p>
+        <button
+          className="btn secondary"
+          type="button"
+          disabled={packBusy || !navigator.onLine}
+          onClick={() => {
+            void (async () => {
+              setPackBusy(true)
+              setPackMsg('Scarico…')
+              try {
+                const { chapters } = await downloadOfflineBiblePack({
+                  language,
+                  maxChaptersPerBook: 8,
+                  onProgress: (r, label) =>
+                    setPackMsg(`${Math.round(r * 100)}% · ${label}`),
+                })
+                setPackMsg(`Completato: ${chapters} capitoli salvati.`)
+              } catch (e) {
+                setPackMsg(e instanceof Error ? e.message : 'Download non riuscito')
+              } finally {
+                setPackBusy(false)
+              }
+            })()
+          }}
+        >
+          <BookOpen size={16} /> {packBusy ? 'Scarico…' : 'Scarica pacchetto offline'}
+        </button>
+        {!navigator.onLine && (
+          <p className="network-need-hint" style={{ marginTop: '0.65rem' }}>
+            Serve connessione per scaricare il pacchetto.
+          </p>
+        )}
+        {packMsg && (
+          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+            {packMsg}
           </p>
         )}
       </section>

@@ -17,6 +17,7 @@ import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { ProsConsEditor } from '../components/ProsConsEditor'
+import { ScriptureAssist } from '../components/ScriptureAssist'
 import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
@@ -619,7 +620,18 @@ export function DecisioniView() {
                 label="Contesto"
                 value={decision.context}
                 onChange={(value) => updateDecision(decision.id, { context: value })}
-                placeholder="Cosa sto decidendo e perché ora?"
+                placeholder="Cosa sto decidendo e perché ora? Es. Giacomo 1:5"
+              />
+              <ScriptureAssist
+                text={`${decision.context}\n${decision.prayerNotes}\n${decision.chosenDecision || ''}`}
+                language={language}
+                onInsert={(snippet) =>
+                  updateDecision(decision.id, {
+                    context: decision.context.trim()
+                      ? `${decision.context.trim()}\n\n${snippet}`
+                      : snippet,
+                  })
+                }
               />
               <ExpandableField
                 label="Appunti di preghiera"

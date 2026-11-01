@@ -25,8 +25,8 @@ export function OnlineStatus() {
     <div className="offline-banner" role="status">
       <WifiOff size={14} />
       <span>
-        Sei offline. Funzionano appunti, Quaderno, Diario, Decisioni e Discorso. AI, ricerca
-        jw.org e sync richiedono connessione.
+        Sei offline. Disponibili: Discorso, Quaderno, Diario, Decisioni, appunti e versetti già
+        in cache/pacchetto. Richiedono rete: AI, ricerca jw.org, sync e nuovi capitoli Bibbia.
       </span>
     </div>
   )
