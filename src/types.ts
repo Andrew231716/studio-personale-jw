@@ -160,6 +160,8 @@ export interface DecisionItem {
   /** Analisi di lucidità / ragionevolezza basata su jw.org. */
   lucidityAnalysis?: string
   lucidityAnalyzedAt?: string
+  /** Riassunto breve delle conclusioni sulla decisione presa. */
+  conclusionsSummary?: string
   status: 'aperta' | 'in_valutazione' | 'decisa'
   createdAt: string
   updatedAt: string

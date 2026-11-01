@@ -1589,6 +1589,18 @@ img {
   gap: 1rem;
 }
 
+.recap-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.4rem;
+  color: var(--text);
+}
+
+.recap-list li::marker {
+  color: var(--secondary);
+}
+
 /* Focus topic strip */
 .focus-strip {
   display: grid;

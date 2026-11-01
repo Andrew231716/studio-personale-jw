@@ -279,6 +279,7 @@ export function buildSummaryBlocks(summary: StudySummary): SummaryBlock[] {
     pushField(fields, 'Contesto', d.context)
     pushField(fields, 'Scelta', d.chosenDecision)
     pushField(fields, 'Motivazioni', d.honestMotivations)
+    pushField(fields, 'Riassunto conclusioni', d.conclusionsSummary)
     pushField(fields, 'Conclusione', d.conclusion)
     pushField(fields, 'Preghiera', d.prayerNotes)
     pushField(fields, 'Analisi di lucidità', d.lucidityAnalysis)

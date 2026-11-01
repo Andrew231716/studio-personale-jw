@@ -187,9 +187,15 @@ export function getSectionProgress(
               countBy(decisions, (d) => Boolean(d.lucidityAnalysis?.trim())),
             ),
           },
+          {
+            label: 'Con riassunto',
+            value: String(
+              countBy(decisions, (d) => Boolean(d.conclusionsSummary?.trim())),
+            ),
+          },
         ],
         hint: decisions.length
-          ? 'Scrivi la scelta e le motivazioni oneste, poi analizzale con jw.org.'
+          ? 'Usa il riepilogo e genera il riassunto conclusioni dopo la scelta.'
           : 'Crea la prima decisione a sinistra.',
       }
     case 'videoStudio':

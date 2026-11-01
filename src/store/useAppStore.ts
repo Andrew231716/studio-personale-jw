@@ -205,6 +205,9 @@ function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
     prayerNotes: normalizeJwItalian(decision.prayerNotes || ''),
     chosenDecision: normalizeJwItalian(decision.chosenDecision || ''),
     honestMotivations: normalizeJwItalian(decision.honestMotivations || ''),
+    conclusionsSummary: decision.conclusionsSummary
+      ? normalizeJwItalian(decision.conclusionsSummary)
+      : decision.conclusionsSummary,
     lucidityAnalysis: decision.lucidityAnalysis
       ? normalizeJwItalian(decision.lucidityAnalysis)
       : decision.lucidityAnalysis,
@@ -338,6 +341,7 @@ export const useAppStore = create<AppState>()(
           prayerNotes: '',
           chosenDecision: '',
           honestMotivations: '',
+          conclusionsSummary: '',
           lucidityAnalysis: '',
           status: 'aperta',
           createdAt: now,

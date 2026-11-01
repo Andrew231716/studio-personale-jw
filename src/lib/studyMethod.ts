@@ -135,3 +135,114 @@ export function buildDecisionConclusion(input: {
     .filter((line) => line !== '')
     .join('\n')
 }
+
+export type DecisionRecapInput = {
+  title: string
+  scale: 'piccola' | 'grande'
+  status: 'aperta' | 'in_valutazione' | 'decisa'
+  context?: string
+  chosenDecision?: string
+  honestMotivations?: string
+  conclusion?: string
+  lucidityAnalysis?: string
+  prayerNotes?: string
+  priorities: { label: string; weight: number }[]
+  pros: string[]
+  cons: string[]
+  linkedTopicsCount: number
+  materialsCount: number
+}
+
+export function decisionStatusLabel(status: DecisionRecapInput['status']): string {
+  if (status === 'decisa') return 'Decisa'
+  if (status === 'in_valutazione') return 'In valutazione'
+  return 'Aperta'
+}
+
+/** Snapshot leggibile di dove sei arrivato con la decisione. */
+export function buildDecisionRecap(input: DecisionRecapInput): {
+  lines: string[]
+  readyForConclusions: boolean
+} {
+  const pros = input.pros.filter((p) => p.trim())
+  const cons = input.cons.filter((c) => c.trim())
+  const topPriorities = [...input.priorities]
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 3)
+    .map((p) => p.label)
+    .filter(Boolean)
+
+  const lines = [
+    `Stato: ${decisionStatusLabel(input.status)} · ${input.scale === 'grande' ? 'grande' : 'piccola'}`,
+    input.chosenDecision?.trim()
+      ? `Decisione presa: ${input.chosenDecision.trim()}`
+      : 'Decisione presa: ancora da scrivere',
+    topPriorities.length
+      ? `Priorità principali: ${topPriorities.join(' · ')}`
+      : 'Priorità: da definire',
+    `Pro ${pros.length} · Contro ${cons.length} · Argomenti ${input.linkedTopicsCount} · Materiali ${input.materialsCount}`,
+    input.conclusion?.trim() ? 'Conclusione dai dati: presente' : 'Conclusione dai dati: da completare',
+    input.lucidityAnalysis?.trim()
+      ? 'Analisi di lucidità: fatta'
+      : 'Analisi di lucidità: non ancora fatta',
+  ]
+
+  const readyForConclusions = Boolean(
+    input.chosenDecision?.trim() || input.conclusion?.trim() || input.honestMotivations?.trim(),
+  )
+
+  return { lines, readyForConclusions }
+}
+
+/** Riassunto breve e pratico delle conclusioni sulla decisione presa. */
+export function buildConclusionsSummary(input: DecisionRecapInput): string {
+  const chosen = input.chosenDecision?.trim()
+  const motives = input.honestMotivations?.trim()
+  const conclusion = input.conclusion?.trim()
+  const prayer = input.prayerNotes?.trim()
+  const pros = input.pros.filter((p) => p.trim()).length
+  const cons = input.cons.filter((c) => c.trim()).length
+
+  if (!chosen && !conclusion && !motives) {
+    return 'Scrivi prima la decisione presa, le motivazioni o una conclusione: poi potrai generare il riassunto.'
+  }
+
+  const parts: string[] = []
+  parts.push(
+    chosen
+      ? `Ho deciso: ${chosen}`
+      : `Sto ancora valutando «${input.title}».`,
+  )
+
+  if (motives) {
+    const short =
+      motives.length > 280 ? `${motives.slice(0, 277).trim()}…` : motives
+    parts.push(`Perché (in sintesi): ${short}`)
+  }
+
+  if (conclusion) {
+    const short =
+      conclusion.length > 320 ? `${conclusion.slice(0, 317).trim()}…` : conclusion
+    parts.push(`Dai dati e dalle priorità: ${short}`)
+  } else if (pros || cons) {
+    parts.push(
+      `Ho considerato ${pros} pro e ${cons} contro. La sintesi resta da fissare con calma e preghiera.`,
+    )
+  }
+
+  if (input.lucidityAnalysis?.trim()) {
+    parts.push(
+      'Ho anche rivisto la scelta con un’analisi di lucidità basata su materiali di jw.org.',
+    )
+  }
+
+  if (prayer) {
+    parts.push('Continuo a portare la questione a Geova nella preghiera.')
+  } else {
+    parts.push(
+      'Prossimo passo: pregare, restare fedele ai principi biblici e, se serve, chiedere consiglio agli anziani.',
+    )
+  }
+
+  return parts.join('\n\n')
+}

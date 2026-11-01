@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, CheckCircle2, Link2, NotebookPen, Plus, Scale, Trash2 } from 'lucide-react'
+import {
+  BookOpen,
+  CheckCircle2,
+  ClipboardList,
+  Link2,
+  NotebookPen,
+  Plus,
+  Scale,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
@@ -9,7 +19,12 @@ import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
 import { analyzeDecisionLucidity } from '../lib/decisionLucidity'
 import { normalizeJwItalian } from '../lib/jwItalianTerms'
-import { DECISION_STEPS } from '../lib/studyMethod'
+import {
+  buildConclusionsSummary,
+  buildDecisionRecap,
+  DECISION_STEPS,
+  decisionStatusLabel,
+} from '../lib/studyMethod'
 import { uid } from '../lib/id'
 import { useAppStore } from '../store/useAppStore'
 import type { JwResult, StudyResource } from '../types'
@@ -72,6 +87,37 @@ export function DecisioniView() {
     if (materialFilter === 'video') return list.filter((r) => r.kind === 'video')
     return list.filter((r) => r.kind !== 'video' && r.kind !== 'bible' && !r.bible)
   }, [decision?.relatedResources, materialFilter])
+
+  const recapInput = useMemo(() => {
+    if (!decision) return null
+    return {
+      title: decision.title,
+      scale: decision.scale,
+      status: decision.status,
+      context: decision.context,
+      chosenDecision: decision.chosenDecision,
+      honestMotivations: decision.honestMotivations,
+      conclusion: decision.conclusion,
+      lucidityAnalysis: decision.lucidityAnalysis,
+      prayerNotes: decision.prayerNotes,
+      priorities: decision.priorities || [],
+      pros: decision.pros || [],
+      cons: decision.cons || [],
+      linkedTopicsCount: linkedTopics.length,
+      materialsCount: (decision.relatedResources || []).length,
+    }
+  }, [decision, linkedTopics.length])
+
+  const recap = useMemo(
+    () => (recapInput ? buildDecisionRecap(recapInput) : null),
+    [recapInput],
+  )
+
+  function refreshConclusionsSummary() {
+    if (!decision || !recapInput) return
+    const text = buildConclusionsSummary(recapInput)
+    updateDecision(decision.id, { conclusionsSummary: text })
+  }
 
   function linkTopic(topicId: string) {
     if (!decision) return
@@ -335,6 +381,41 @@ export function DecisioniView() {
                 </select>
               </div>
             </section>
+
+            {recap && (
+              <section className="panel" id="decision-recap">
+                <div className="section-head">
+                  <div>
+                    <p className="section-kicker">Riepilogo</p>
+                    <h3>
+                      <span className="row" style={{ gap: 8 }}>
+                        <ClipboardList size={18} /> A che punto sono
+                      </span>
+                    </h3>
+                    <p className="lede">
+                      Uno sguardo rapido su stato, scelta, priorità e quanto hai già messo nero
+                      su bianco.
+                    </p>
+                  </div>
+                  <span className="badge">{decisionStatusLabel(decision.status)}</span>
+                </div>
+                <ul className="recap-list">
+                  {recap.lines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+                {(decision.chosenDecision || '').trim() && (
+                  <div className="focus-strip" style={{ marginTop: '0.75rem' }}>
+                    <p className="section-kicker" style={{ margin: 0 }}>
+                      Decisione presa
+                    </p>
+                    <strong style={{ display: 'block', marginTop: '0.25rem' }}>
+                      {normalizeJwItalian(decision.chosenDecision || '')}
+                    </strong>
+                  </div>
+                )}
+              </section>
+            )}
 
             <section className="panel">
               <div className="section-head">
@@ -815,6 +896,42 @@ export function DecisioniView() {
                     ))}
                   </div>
                 </div>
+              )}
+            </section>
+
+            <section className="panel" id="decision-conclusions">
+              <div className="section-head">
+                <div>
+                  <p className="section-kicker">Riassunto conclusioni</p>
+                  <h3>Cosa concludo dalla decisione presa</h3>
+                  <p className="lede">
+                    Un testo breve da rileggere dopo: la scelta, il perché e la sintesi pratica.
+                    Puoi generarlo dai dati già scritti e poi ritoccarlo.
+                  </p>
+                </div>
+                <button
+                  className="btn accent"
+                  type="button"
+                  disabled={!recap?.readyForConclusions}
+                  onClick={refreshConclusionsSummary}
+                >
+                  <Sparkles size={16} /> Genera riassunto
+                </button>
+              </div>
+              <ExpandableField
+                label="Riassunto conclusioni"
+                value={decision.conclusionsSummary || ''}
+                onChange={(value) =>
+                  updateDecision(decision.id, { conclusionsSummary: value })
+                }
+                placeholder="Es. Ho deciso di… perché… Il prossimo passo è…"
+                rows={10}
+              />
+              {!recap?.readyForConclusions && (
+                <p className="muted" style={{ margin: '0.55rem 0 0' }}>
+                  Compila almeno la decisione presa, le motivazioni o la conclusione dai dati per
+                  generare il riassunto.
+                </p>
               )}
             </section>
           </>
