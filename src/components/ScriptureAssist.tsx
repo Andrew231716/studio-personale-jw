@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ScripturePopup } from './ScripturePopup'
 import {
   fetchScriptureVerse,
@@ -16,115 +23,169 @@ interface Props {
   onInsert?: (snippet: string) => void
   /** Compact: solo popup, senza lista. */
   compact?: boolean
+  /**
+   * Se true, apre automaticamente quando digiti un riferimento completo.
+   * Il riaprire resta sempre possibile dalla lista / testo collegato.
+   */
+  autoOpenOnType?: boolean
 }
 
-export function ScriptureAssist({ text, language = 'I', onInsert, compact }: Props) {
-  const [verse, setVerse] = useState<ScriptureVerseResult | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const lastKey = useRef('')
-  const preloadKey = useRef('')
-  const timer = useRef<number | null>(null)
+export type ScriptureAssistHandle = {
+  openRef: (
+    ref: ParsedScriptureRef,
+    anchor?: { x: number; y: number },
+  ) => void
+}
 
-  const refs = useMemo(() => findScriptureRefsInText(text || ''), [text])
+export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
+  function ScriptureAssist(
+    { text, language = 'I', onInsert, compact, autoOpenOnType = true },
+    ref,
+  ) {
+    const [verse, setVerse] = useState<ScriptureVerseResult | null>(null)
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+    const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
+    const lastKey = useRef('')
+    const preloadKey = useRef('')
+    const timer = useRef<number | null>(null)
 
-  useEffect(() => {
-    if (timer.current) window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => {
-      void runLookup(text)
-      void runPreload(text)
-    }, 320)
-    return () => {
+    const refs = useMemo(() => findScriptureRefsInText(text || ''), [text])
+
+    async function openRef(
+      parsed: ParsedScriptureRef,
+      nextAnchor?: { x: number; y: number },
+    ) {
+      const key = `${parsed.bible}:${parsed.verseEnd || parsed.verse}`
+      lastKey.current = key
+      if (nextAnchor) setAnchor(nextAnchor)
+      setLoading(true)
+      setError('')
+      try {
+        const result = await fetchScriptureVerse({
+          bookNum: parsed.bookNum,
+          bookName: parsed.bookName,
+          chapter: parsed.chapter,
+          verse: parsed.verse,
+          verseEnd: parsed.verseEnd,
+          language,
+          withContext: true,
+        })
+        setVerse(result)
+      } catch (e) {
+        setVerse(null)
+        setError(
+          !navigator.onLine
+            ? 'Offline: versetto non in cache. Scarica il pacchetto Bibbia in Discorso/Impostazioni oppure riconnettiti.'
+            : e instanceof Error
+              ? e.message
+              : 'Versetto non trovato',
+        )
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    useImperativeHandle(ref, () => ({
+      openRef: (parsed, nextAnchor) => {
+        void openRef(parsed, nextAnchor)
+      },
+    }))
+
+    useEffect(() => {
       if (timer.current) window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => {
+        void runPreload(text)
+        if (autoOpenOnType) void runLookup(text)
+      }, 380)
+      return () => {
+        if (timer.current) window.clearTimeout(timer.current)
+      }
+    }, [text, language, autoOpenOnType])
+
+    async function runPreload(value: string) {
+      const hint = latestChapterHint(value)
+      if (!hint) return
+      const key = `${language}:${hint.bookNum}:${hint.chapter}`
+      if (key === preloadKey.current) return
+      preloadKey.current = key
+      try {
+        await preloadChapter({
+          bookNum: hint.bookNum,
+          chapter: hint.chapter,
+          language,
+        })
+      } catch {
+        /* offline / rete */
+      }
     }
-  }, [text, language])
 
-  async function runPreload(value: string) {
-    const hint = latestChapterHint(value)
-    if (!hint) return
-    const key = `${language}:${hint.bookNum}:${hint.chapter}`
-    if (key === preloadKey.current) return
-    preloadKey.current = key
-    try {
-      await preloadChapter({ bookNum: hint.bookNum, chapter: hint.chapter, language })
-    } catch {
-      /* offline / rete */
+    async function runLookup(value: string) {
+      const parsed = latestScriptureNearEnd(value)
+      if (!parsed) return
+      const key = `${parsed.bible}:${parsed.verseEnd || parsed.verse}`
+      // Solo al primo riconoscimento: dopo chiusura si riapre cliccando la scrittura
+      if (key === lastKey.current) return
+      await openRef(parsed)
     }
-  }
 
-  async function openRef(ref: ParsedScriptureRef) {
-    const key = `${ref.bible}:${ref.verseEnd || ref.verse}`
-    lastKey.current = key
-    setLoading(true)
-    setError('')
-    try {
-      const result = await fetchScriptureVerse({
-        bookNum: ref.bookNum,
-        bookName: ref.bookName,
-        chapter: ref.chapter,
-        verse: ref.verse,
-        verseEnd: ref.verseEnd,
-        language,
-        withContext: true,
-      })
-      setVerse(result)
-    } catch (e) {
-      setVerse(null)
-      setError(
-        !navigator.onLine
-          ? 'Offline: versetto non in cache. Scarica il pacchetto Bibbia in Discorso/Impostazioni oppure riconnettiti.'
-          : e instanceof Error
-            ? e.message
-            : 'Versetto non trovato',
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
+    return (
+      <div className="stack scripture-assist">
+        <ScripturePopup
+          verse={verse}
+          loading={loading}
+          error={error}
+          language={language}
+          anchor={anchor}
+          onClose={() => {
+            setVerse(null)
+            setError('')
+            setAnchor(null)
+          }}
+          onInsert={onInsert}
+        />
 
-  async function runLookup(value: string) {
-    const ref = latestScriptureNearEnd(value)
-    if (!ref) return
-    const key = `${ref.bible}:${ref.verseEnd || ref.verse}`
-    if (key === lastKey.current && verse) return
-    await openRef(ref)
-  }
+        {!compact && refs.length > 0 && (
+          <section className="panel">
+            <h3>Scritture nel testo ({refs.length})</h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Clicca per aprire o riaprire il popup (trascinabile dalla barra
+              «Brano biblico citato»).
+            </p>
+            <div className="list">
+              {refs.map((r) => (
+                <button
+                  key={`${r.index}-${r.label}`}
+                  type="button"
+                  className={`list-item scripture-ref-btn ${
+                    verse?.label === r.label ? 'active' : ''
+                  }`}
+                  onClick={(e) => {
+                    const rect = (e.target as HTMLElement).getBoundingClientRect()
+                    void openRef(r, { x: rect.left, y: rect.bottom + 8 })
+                  }}
+                >
+                  <strong
+                    className="wol-inline-ref"
+                    style={{ background: 'none', border: 'none', padding: 0 }}
+                  >
+                    {r.label}
+                  </strong>
+                  <span className="muted" style={{ display: 'block', marginTop: 2 }}>
+                    {r.matched}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    )
+  },
+)
 
-  return (
-    <div className="stack scripture-assist">
-      <ScripturePopup
-        verse={verse}
-        loading={loading}
-        error={error}
-        language={language}
-        onClose={() => {
-          setVerse(null)
-          setError('')
-          lastKey.current = ''
-        }}
-        onInsert={onInsert}
-      />
-
-      {!compact && refs.length > 0 && (
-        <section className="panel">
-          <h3>Scritture nel testo ({refs.length})</h3>
-          <div className="list">
-            {refs.map((r) => (
-              <button
-                key={`${r.index}-${r.label}`}
-                type="button"
-                className={`list-item scripture-ref-btn ${verse?.label === r.label ? 'active' : ''}`}
-                onClick={() => void openRef(r)}
-              >
-                <strong>{r.label}</strong>
-                <span className="muted" style={{ display: 'block', marginTop: 2 }}>
-                  {r.matched}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
-  )
-}
+/** Esporta helper per aprire un ref da fuori (testo collegato nel discorso). */
+export type ScriptureOpenHandler = (
+  ref: ParsedScriptureRef,
+  anchor?: { x: number; y: number },
+) => void

@@ -1831,43 +1831,206 @@ img {
   font-style: italic;
 }
 
-.scripture-popup {
-  position: sticky;
-  top: 0.75rem;
-  z-index: 5;
-  padding: 0.95rem 1rem;
-  border-radius: calc(var(--radius) + 4px);
-  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--line));
-  background:
-    linear-gradient(
-      155deg,
-      color-mix(in srgb, var(--primary) 10%, transparent),
-      color-mix(in srgb, var(--surface) 96%, white) 55%
-    );
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--text) 8%, transparent);
-}
-
-.scripture-popup-head {
+/* ——— Popup scritture stile WOL (Brano biblico citato) ——— */
+.wol-popup {
+  position: fixed;
+  z-index: 80;
+  width: min(22rem, calc(100vw - 1.5rem));
+  max-height: min(70vh, 28rem);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.28);
+  font-family: system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  color: #1a1a1a;
+  overflow: hidden;
 }
 
-.scripture-popup-text {
+.wol-popup-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  padding: 0.35rem 0.55rem 0.35rem 0.7rem;
+  background: #f0f0f0;
+  border-bottom: 1px solid #d8d8d8;
+  color: #555;
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.wol-popup-bar:active {
+  cursor: grabbing;
+}
+
+.wol-popup-close {
+  display: inline-grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+}
+
+.wol-popup-close:hover {
+  background: #e2e2e2;
+  color: #222;
+}
+
+.wol-popup-body {
+  overflow: auto;
+  background: #fff;
+}
+
+.wol-popup-muted {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.12rem;
+  padding: 0.85rem;
+  color: #666;
+  font-size: 0.92rem;
+}
+
+.wol-popup-source {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.75rem 0.6rem;
+  border-bottom: 1px solid #e6e6e6;
+  text-decoration: none;
+  color: #4a6da7;
+}
+
+.wol-popup-source:hover .wol-popup-ref {
+  text-decoration: underline;
+}
+
+.wol-popup-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: color-mix(in srgb, #4a6da7 12%, #fff);
+  color: #4a6da7;
+}
+
+.wol-popup-source-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.wol-popup-ref {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #4a6da7;
+  line-height: 1.2;
+}
+
+.wol-popup-pub {
+  font-size: 0.72rem;
+  color: #6b8ab8;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wol-popup-chevron {
+  flex-shrink: 0;
+  color: #9aa0a6;
+}
+
+.wol-popup-verse {
+  padding: 0.75rem 0.9rem 0.95rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.02rem;
   line-height: 1.45;
+  color: #1a1a1a;
+}
+
+.wol-popup-verse p {
+  margin: 0 0 0.55rem;
+}
+
+.wol-popup-verse p:last-child {
+  margin-bottom: 0;
+}
+
+.wol-popup-neighbor {
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.wol-vnum {
+  color: #4a6da7;
+  font-weight: 700;
+  margin-right: 0.2em;
+}
+
+.wol-popup-actions {
+  padding: 0 0.85rem 0.85rem;
+}
+
+.wol-popup-insert {
+  width: 100%;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #c5d0e0;
+  border-radius: 4px;
+  background: #f5f8fc;
+  color: #2f4f80;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wol-popup-insert:hover {
+  background: #eaf0f8;
+}
+
+.wol-inline-ref {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid rgba(74, 109, 167, 0.4);
+  background: none;
+  color: #4a6da7;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.wol-inline-ref:hover,
+.wol-inline-ref:focus-visible {
+  color: #2f4f80;
+  border-bottom-color: #2f4f80;
+}
+
+.scripture-linked-text {
+  font-size: 0.98rem;
+  line-height: 1.55;
   color: var(--text);
 }
 
-.scripture-popup-context {
-  margin: 0.35rem 0;
-  font-size: 0.92rem;
-  line-height: 1.4;
-  color: var(--muted);
+.discourse-scripture-preview {
+  margin-top: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: calc(var(--radius) - 4px);
+  border: 1px dashed color-mix(in srgb, #4a6da7 35%, var(--line));
+  background: color-mix(in srgb, #4a6da7 5%, var(--surface));
 }
 
 .scripture-ref-btn {
@@ -1881,7 +2044,7 @@ img {
 }
 
 .scripture-ref-btn.active {
-  outline: 2px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  outline: 2px solid color-mix(in srgb, #4a6da7 40%, transparent);
 }
 
 .pwa-hint,

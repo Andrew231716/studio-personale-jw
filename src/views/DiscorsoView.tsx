@@ -16,7 +16,11 @@ import {
   NotebookPen,
   Download,
 } from 'lucide-react'
-import { ScriptureAssist } from '../components/ScriptureAssist'
+import {
+  ScriptureAssist,
+  type ScriptureAssistHandle,
+} from '../components/ScriptureAssist'
+import { ScriptureLinkedText } from '../components/ScriptureLinkedText'
 import { SectionProgress } from '../components/SectionProgress'
 import {
   downloadOfflineBiblePack,
@@ -90,6 +94,7 @@ export function DiscorsoView() {
 
   const dictation = useRef(createDictation(language === 'E' ? 'en-US' : 'it-IT'))
   const editorRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
+  const scriptureAssistRef = useRef<ScriptureAssistHandle | null>(null)
   const polishTimer = useRef<number | null>(null)
   const skipNextPolish = useRef(false)
   const practiceStarted = useRef<number | null>(null)
@@ -352,7 +357,7 @@ export function DiscorsoView() {
     try {
       const snapshot = { ...note, sections, body: note.body || bodyJoined }
       if (kind === 'pdf') await exportDiscoursePdf(snapshot)
-      else if (kind === 'epub') await exportDiscourseEpub(snapshot)
+      else if (kind === 'epub') await exportDiscourseEpub(snapshot, { language })
       else downloadDiscourseText(snapshot)
     } catch (e) {
       setPolishHint(e instanceof Error ? e.message : 'Esportazione non riuscita')
@@ -553,6 +558,19 @@ export function DiscorsoView() {
                       patchSection(s.id, { body: e.target.value })
                     }}
                   />
+                  {/\d\s*:\s*\d/.test(s.body) && (
+                    <div className="discourse-scripture-preview">
+                      <p className="muted" style={{ margin: '0.45rem 0 0.25rem' }}>
+                        Anteprima — clicca una scrittura per aprire o riaprire il popup
+                      </p>
+                      <ScriptureLinkedText
+                        text={s.body}
+                        onOpenRef={(ref, anchor) => {
+                          scriptureAssistRef.current?.openRef(ref, anchor)
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -650,6 +668,7 @@ export function DiscorsoView() {
         <div className="stack">
           {note && (
             <ScriptureAssist
+              ref={scriptureAssistRef}
               text={bodyJoined}
               language={language}
               onInsert={(snippet) => {
