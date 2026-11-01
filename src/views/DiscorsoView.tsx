@@ -397,47 +397,29 @@ export function DiscorsoView() {
   }
 
   return (
-    <div className="stack">
+    <div className="stack discourse-page">
       <SectionProgress section="discorso" />
-      <section className="panel">
-        <div className="section-head">
-          <div>
-            <p className="section-kicker">Discorso</p>
-            <h2>Struttura, dettatura e scritture</h2>
-            <p className="lede">
-              Sezioni con minuti, microfono, correzione sintassi (con annulla), popup TNM e
-              prova a tempo.
-            </p>
+
+      <div className="discourse-layout">
+        <section className="panel discourse-editor-panel">
+          <div className="discourse-toolbar">
+            <div className="discourse-toolbar-copy">
+              <p className="section-kicker">Discorso</p>
+              <h2>Struttura, dettatura e scritture</h2>
+            </div>
+            <button className="btn accent" type="button" onClick={createNew}>
+              <Plus size={16} /> Nuovo
+            </button>
           </div>
-          <button className="btn accent" type="button" onClick={createNew}>
-            <Plus size={16} /> Nuovo
-          </button>
-        </div>
 
-        {!online && (
-          <p className="muted" style={{ margin: '0 0 0.75rem' }}>
-            <WifiOff size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-            Offline: bozza e sezioni ok. AI remota no; versetti solo da cache/pacchetto.
-          </p>
-        )}
-        {supportNote && !micOk && (
-          <p className="muted">{supportNote}</p>
-        )}
+          {!online && (
+            <p className="muted" style={{ margin: '0 0 0.75rem' }}>
+              <WifiOff size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              Offline: bozza e sezioni ok. AI remota no; versetti solo da cache/pacchetto.
+            </p>
+          )}
+          {supportNote && !micOk && <p className="muted">{supportNote}</p>}
 
-        <div className="row" style={{ flexWrap: 'wrap', gap: 12, marginBottom: '0.5rem' }}>
-          <label className="row" style={{ gap: 8, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={autoPolish}
-              onChange={(e) => setAutoPolish(e.target.checked)}
-            />
-            Auto-sintassi a fine frase / pausa
-          </label>
-        </div>
-      </section>
-
-      <div className="split">
-        <section className="panel">
           {!note ? (
             <div className="empty">
               Nessun discorso ancora.
@@ -448,7 +430,7 @@ export function DiscorsoView() {
               </div>
             </div>
           ) : (
-            <div className="stack">
+            <div className="stack discourse-editor-stack">
               <div className="field">
                 <label htmlFor="discorso-title">Titolo</label>
                 <input
@@ -462,11 +444,17 @@ export function DiscorsoView() {
                 />
               </div>
 
-              <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-                <strong>
-                  Durata stimata: {totalMinutes(sections)} min
-                </strong>
+              <div className="row discourse-meta-row">
+                <strong>Durata stimata: {totalMinutes(sections)} min</strong>
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  <label className="row discourse-auto-label">
+                    <input
+                      type="checkbox"
+                      checked={autoPolish}
+                      onChange={(e) => setAutoPolish(e.target.checked)}
+                    />
+                    Auto-sintassi
+                  </label>
                   <button className="btn secondary small" type="button" onClick={() => addSection('punto')}>
                     <Plus size={14} /> Punto
                   </button>
@@ -665,71 +653,7 @@ export function DiscorsoView() {
           )}
         </section>
 
-        <div className="stack">
-          {note && (
-            <ScriptureAssist
-              ref={scriptureAssistRef}
-              text={bodyJoined}
-              language={language}
-              onInsert={(snippet) => {
-                const sid = activeSectionId || sections[0]?.id
-                if (!sid) return
-                const cur = sections.find((s) => s.id === sid)?.body || ''
-                const next = cur.trim() ? `${cur.trim()}\n\n${snippet}\n` : `${snippet}\n`
-                skipNextPolish.current = true
-                patchSection(sid, { body: next })
-              }}
-            />
-          )}
-
-          <section className="panel">
-            <h3>Da Ministero</h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              Crea una bozza discorso da una scheda già preparata.
-            </p>
-            {ministryNotes.length === 0 ? (
-              <div className="empty">Nessuna scheda Ministero.</div>
-            ) : (
-              <div className="list">
-                {ministryNotes.slice(0, 8).map((m) => (
-                  <div className="list-item" key={m.id}>
-                    <strong>{m.title}</strong>
-                    <button
-                      className="btn secondary small"
-                      type="button"
-                      style={{ marginTop: 6 }}
-                      onClick={() => fromMinistry(m.id)}
-                    >
-                      Usa come discorso
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="panel">
-            <h3>Bibbia offline</h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              Cache: {getCachedChapterCount()} capitoli · {getCachedVerseCount()} versetti.
-              Scarica un pacchetto di libri frequenti per i popup senza rete.
-            </p>
-            <button
-              className="btn secondary"
-              type="button"
-              disabled={packBusy || !online}
-              onClick={() => void downloadPack()}
-            >
-              <Download size={16} /> {packBusy ? 'Scarico…' : 'Scarica pacchetto'}
-            </button>
-            {!online && (
-              <p className="network-need-hint" style={{ marginTop: '0.65rem' }}>
-                Questa azione richiede internet.
-              </p>
-            )}
-            {packMsg && <p className="muted">{packMsg}</p>}
-          </section>
-
+        <aside className="stack discourse-rail">
           <section className="panel">
             <h3>I tuoi discorsi ({notes.length})</h3>
             <div className="field">
@@ -764,7 +688,70 @@ export function DiscorsoView() {
               ))}
             </div>
           </section>
-        </div>
+
+          {note && (
+            <ScriptureAssist
+              ref={scriptureAssistRef}
+              text={bodyJoined}
+              language={language}
+              onInsert={(snippet) => {
+                const sid = activeSectionId || sections[0]?.id
+                if (!sid) return
+                const cur = sections.find((s) => s.id === sid)?.body || ''
+                const next = cur.trim() ? `${cur.trim()}\n\n${snippet}\n` : `${snippet}\n`
+                skipNextPolish.current = true
+                patchSection(sid, { body: next })
+              }}
+            />
+          )}
+
+          <section className="panel discourse-side-compact">
+            <h3>Da Ministero</h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Crea una bozza da una scheda già preparata.
+            </p>
+            {ministryNotes.length === 0 ? (
+              <div className="empty">Nessuna scheda Ministero.</div>
+            ) : (
+              <div className="list">
+                {ministryNotes.slice(0, 8).map((m) => (
+                  <div className="list-item" key={m.id}>
+                    <strong>{m.title}</strong>
+                    <button
+                      className="btn secondary small"
+                      type="button"
+                      style={{ marginTop: 6 }}
+                      onClick={() => fromMinistry(m.id)}
+                    >
+                      Usa come discorso
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="panel discourse-side-compact">
+            <h3>Bibbia offline</h3>
+            <p className="muted" style={{ marginTop: 0 }}>
+              Cache: {getCachedChapterCount()} cap. · {getCachedVerseCount()} versetti.
+            </p>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={packBusy || !online}
+              onClick={() => void downloadPack()}
+            >
+              <Download size={16} /> {packBusy ? 'Scarico…' : 'Scarica pacchetto'}
+            </button>
+            {!online && (
+              <p className="network-need-hint" style={{ marginTop: '0.65rem' }}>
+                Questa azione richiede internet.
+              </p>
+            )}
+            {packMsg && <p className="muted">{packMsg}</p>}
+          </section>
+        </aside>
       </div>
     </div>
   )

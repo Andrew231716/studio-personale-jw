@@ -129,8 +129,10 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
       await openRef(parsed)
     }
 
+    const showList = !compact && refs.length > 0
+
     return (
-      <div className="stack scripture-assist">
+      <>
         <ScripturePopup
           verse={verse}
           loading={loading}
@@ -145,8 +147,8 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
           onInsert={onInsert}
         />
 
-        {!compact && refs.length > 0 && (
-          <section className="panel">
+        {showList && (
+          <section className="panel scripture-assist">
             <h3>Scritture nel testo ({refs.length})</h3>
             <p className="muted" style={{ marginTop: 0 }}>
               Clicca per aprire o riaprire il popup (trascinabile dalla barra
@@ -179,7 +181,7 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
             </div>
           </section>
         )}
-      </div>
+      </>
     )
   },
 )
