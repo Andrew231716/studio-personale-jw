@@ -122,21 +122,33 @@ function applySnapshot(snapshot: ICloudSnapshot) {
 }
 
 async function pull(key: string): Promise<ICloudSnapshot | null> {
+  const { readApiJson } = await import('./apiJson')
   const res = await fetch(`/api/sync?key=${encodeURIComponent(key)}`)
   if (res.status === 404) return null
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  if (res.status === 501) {
+    throw new Error('Sync cloud non configurata in questo ambiente.')
+  }
+  const data = await readApiJson<{ error?: string; snapshot?: ICloudSnapshot }>(
+    res,
+    'Sync cloud non riuscita',
+  )
   return data.snapshot as ICloudSnapshot
 }
 
 async function push(key: string, snapshot: ICloudSnapshot): Promise<string> {
+  const { readApiJson } = await import('./apiJson')
   const res = await fetch('/api/sync', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, snapshot }),
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  if (res.status === 501) {
+    throw new Error('Sync cloud non configurata in questo ambiente.')
+  }
+  const data = await readApiJson<{ error?: string; updatedAt?: string }>(
+    res,
+    'Invio cloud non riuscito',
+  )
   return String(data.updatedAt || snapshot.updatedAt)
 }
 

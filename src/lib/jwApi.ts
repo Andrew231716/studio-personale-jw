@@ -373,8 +373,11 @@ export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem
   const res = await fetch(
     `/api/jw-media?language=${encodeURIComponent(language)}&category=LatestVideos`,
   )
-  if (!res.ok) throw new Error('Impossibile caricare i video recenti da jw.org')
-  const data = await res.json()
+  const { readApiJson } = await import('./apiJson')
+  const data = await readApiJson<{ category?: { media?: Record<string, unknown>[] } }>(
+    res,
+    'Impossibile caricare i video recenti da jw.org',
+  )
   const media = data?.category?.media || []
   return media.slice(0, 12).map((m: Record<string, unknown>) => mapLatestMediaItem(m, language))
 }
@@ -397,8 +400,11 @@ export async function fetchMediaCategory(
   const res = await fetch(
     `/api/jw-media?language=${encodeURIComponent(language)}&category=${encodeURIComponent(category)}&detailed=1`,
   )
-  if (!res.ok) throw new Error(`Impossibile caricare la categoria video (${category})`)
-  const data = await res.json()
+  const { readApiJson } = await import('./apiJson')
+  const data = await readApiJson<{ category?: { media?: Record<string, unknown>[] } }>(
+    res,
+    `Impossibile caricare la categoria video (${category})`,
+  )
   const media = data?.category?.media || []
   return media
     .slice(0, limit)

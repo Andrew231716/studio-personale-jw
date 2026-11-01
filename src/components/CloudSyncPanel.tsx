@@ -10,7 +10,7 @@ import {
 } from '../lib/cloudSync'
 import { useAppStore } from '../store/useAppStore'
 
-function statusLabel(status: string): string {
+function statusLabel(status: string, error?: string | null): string {
   switch (status) {
     case 'ready':
       return 'Sincronizzato'
@@ -19,6 +19,9 @@ function statusLabel(status: string): string {
     case 'offline':
       return 'Offline'
     case 'error':
+      if (error && /non configurata|API non disponibile|anteprima/i.test(error)) {
+        return 'Non disponibile qui'
+      }
       return 'Errore'
     default:
       return 'In attesa'
@@ -104,7 +107,7 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
             <strong>Sync cloud</strong>
             <p className="muted" style={{ margin: '0.15rem 0 0' }}>
               {hasSavedKey
-                ? `Chiave salvata · ${statusLabel(sync.status)}`
+                ? `Chiave salvata · ${statusLabel(sync.status, sync.lastError)}`
                 : 'Nessuna chiave salvata'}
             </p>
           </div>
@@ -134,7 +137,7 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
           <p className="section-kicker">Cloud</p>
           <h2>Sincronizzazione tra dispositivi</h2>
         </div>
-        <span className="badge">{statusLabel(sync.status)}</span>
+        <span className="badge">{statusLabel(sync.status, sync.lastError)}</span>
       </div>
       <p className="lede">
         Inserisci una volta la chiave di backup: resta salvata qui. Poi basta toccare

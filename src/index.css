@@ -366,8 +366,9 @@ img {
     flex: 0 0 auto;
     white-space: nowrap;
     min-height: 44px;
-    padding: 0.55rem 0.75rem;
-    font-size: 0.88rem;
+    padding: 0.55rem 0.65rem;
+    font-size: 0.82rem;
+    max-width: none;
   }
 
   .nav-more-panel {

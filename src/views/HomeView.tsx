@@ -268,7 +268,13 @@ export function HomeView() {
               <p className="lede">Materiale aggiornato da aprire sul sito o in JW Library</p>
             </div>
           </div>
-          {feedError && <p className="muted">{feedError}</p>}
+          {feedError && (
+            <p className="muted" style={{ marginTop: 0 }}>
+              {feedError.includes('API non disponibile')
+                ? 'Video non caricabili qui: manca il server API locale. Sul sito pubblicato funzionano normalmente.'
+                : feedError}
+            </p>
+          )}
           <div className="grid-3">
             {latest.map((item) => (
               <article key={item.guid} className="media-card list-item">
