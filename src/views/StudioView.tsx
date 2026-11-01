@@ -248,17 +248,32 @@ export function StudioView() {
           <h3>Obiettivi</h3>
           <div className="stack">
             {topic.objectives.map((obj, idx) => (
-              <ExpandableField
-                key={`obj-${idx}`}
-                label={`Obiettivo ${idx + 1}`}
-                value={obj}
-                placeholder="Scrivi l’obiettivo…"
-                onChange={(value) => {
-                  const objectives = [...topic.objectives]
-                  objectives[idx] = value
-                  updateTopic(topic.id, { objectives })
-                }}
-              />
+              <div key={`obj-${idx}`} className="stack">
+                <div className="row" style={{ justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn secondary small"
+                    type="button"
+                    aria-label={`Elimina obiettivo ${idx + 1}`}
+                    onClick={() =>
+                      updateTopic(topic.id, {
+                        objectives: topic.objectives.filter((_, i) => i !== idx),
+                      })
+                    }
+                  >
+                    Elimina obiettivo
+                  </button>
+                </div>
+                <ExpandableField
+                  label={`Obiettivo ${idx + 1}`}
+                  value={obj}
+                  placeholder="Scrivi l’obiettivo…"
+                  onChange={(value) => {
+                    const objectives = [...topic.objectives]
+                    objectives[idx] = value
+                    updateTopic(topic.id, { objectives })
+                  }}
+                />
+              </div>
             ))}
             <button
               className="btn secondary"
