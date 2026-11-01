@@ -208,6 +208,12 @@ function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
     conclusionsSummary: decision.conclusionsSummary
       ? normalizeJwItalian(decision.conclusionsSummary)
       : decision.conclusionsSummary,
+    nextStepsPlan: decision.nextStepsPlan
+      ? normalizeJwItalian(decision.nextStepsPlan)
+      : decision.nextStepsPlan,
+    aiElaboration: decision.aiElaboration
+      ? normalizeJwItalian(decision.aiElaboration)
+      : decision.aiElaboration,
     lucidityAnalysis: decision.lucidityAnalysis
       ? normalizeJwItalian(decision.lucidityAnalysis)
       : decision.lucidityAnalysis,
@@ -342,6 +348,8 @@ export const useAppStore = create<AppState>()(
           chosenDecision: '',
           honestMotivations: '',
           conclusionsSummary: '',
+          nextStepsPlan: '',
+          aiElaboration: '',
           lucidityAnalysis: '',
           status: 'aperta',
           createdAt: now,

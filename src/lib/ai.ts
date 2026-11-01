@@ -239,8 +239,20 @@ export function buildDecisionContext(
           decision.priorities.map((p) => `- ${p.label} peso ${p.weight}: ${p.note}`).join('\n'),
       )
     }
-    if (decision.pros.length) parts.push('Pro: ' + decision.pros.join('; '))
-    if (decision.cons.length) parts.push('Contro: ' + decision.cons.join('; '))
+    if (decision.pros.length) parts.push('Pro: ' + decision.pros.filter(Boolean).join('; '))
+    if (decision.cons.length) parts.push('Contro: ' + decision.cons.filter(Boolean).join('; '))
+    if (decision.conclusion?.trim()) {
+      parts.push(`Conclusione dai dati:\n${decision.conclusion.trim()}`)
+    }
+    if (decision.aiElaboration?.trim()) {
+      parts.push(`Elaborazione AI:\n${decision.aiElaboration.trim()}`)
+    }
+    if (decision.lucidityAnalysis?.trim()) {
+      parts.push(`Analisi di lucidità:\n${decision.lucidityAnalysis.trim()}`)
+    }
+    if (decision.prayerNotes?.trim()) {
+      parts.push(`Appunti di preghiera:\n${decision.prayerNotes.trim()}`)
+    }
     if (decision.relatedResources?.length) {
       parts.push(
         'Materiali jw.org già collegati alla decisione:\n' +

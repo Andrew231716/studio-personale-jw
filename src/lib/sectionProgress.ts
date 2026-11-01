@@ -188,14 +188,18 @@ export function getSectionProgress(
             ),
           },
           {
-            label: 'Con riassunto',
+            label: 'Con punto',
             value: String(
               countBy(decisions, (d) => Boolean(d.conclusionsSummary?.trim())),
             ),
           },
+          {
+            label: 'Con passi',
+            value: String(countBy(decisions, (d) => Boolean(d.nextStepsPlan?.trim()))),
+          },
         ],
         hint: decisions.length
-          ? 'Usa il riepilogo e genera il riassunto conclusioni dopo la scelta.'
+          ? 'Fai il punto della situazione, poi genera passi e conseguenze.'
           : 'Crea la prima decisione a sinistra.',
       }
     case 'videoStudio':

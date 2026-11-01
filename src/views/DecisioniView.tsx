@@ -3,6 +3,7 @@ import {
   BookOpen,
   CheckCircle2,
   ClipboardList,
+  Footprints,
   Link2,
   NotebookPen,
   Plus,
@@ -17,10 +18,14 @@ import { ProsConsEditor } from '../components/ProsConsEditor'
 import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
+import {
+  canGenerateFollowUp,
+  generateNextStepsAndConsequences,
+  generateSituationPoint,
+} from '../lib/decisionFollowUp'
 import { analyzeDecisionLucidity } from '../lib/decisionLucidity'
 import { normalizeJwItalian } from '../lib/jwItalianTerms'
 import {
-  buildConclusionsSummary,
   buildDecisionRecap,
   DECISION_STEPS,
   decisionStatusLabel,
@@ -52,6 +57,9 @@ export function DecisioniView() {
   const [lucidityError, setLucidityError] = useState('')
   const [luciditySources, setLuciditySources] = useState<JwResult[]>([])
   const [statusHint, setStatusHint] = useState('')
+  const [situationBusy, setSituationBusy] = useState(false)
+  const [nextStepsBusy, setNextStepsBusy] = useState(false)
+  const [followUpError, setFollowUpError] = useState('')
   const [newTopicTitle, setNewTopicTitle] = useState('')
   const [verseDraft, setVerseDraft] = useState('')
   const [materialFilter, setMaterialFilter] = useState<'tutti' | 'bible' | 'video' | 'article'>('tutti')
@@ -66,6 +74,7 @@ export function DecisioniView() {
     setLucidityError('')
     setAiText('')
     setStatusHint('')
+    setFollowUpError('')
   }, [decision?.id])
 
   const linkedIds = decision?.linkedTopicIds || []
@@ -113,10 +122,42 @@ export function DecisioniView() {
     [recapInput],
   )
 
-  function refreshConclusionsSummary() {
-    if (!decision || !recapInput) return
-    const text = buildConclusionsSummary(recapInput)
-    updateDecision(decision.id, { conclusionsSummary: text })
+  async function runSituationPoint() {
+    if (!decision) return
+    setSituationBusy(true)
+    setFollowUpError('')
+    try {
+      const text = await generateSituationPoint({ decision, linkedTopics })
+      updateDecision(decision.id, { conclusionsSummary: text })
+      requestAnimationFrame(() => {
+        document
+          .getElementById('decision-conclusions')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
+    } catch (e) {
+      setFollowUpError(e instanceof Error ? e.message : 'Punto della situazione non riuscito')
+    } finally {
+      setSituationBusy(false)
+    }
+  }
+
+  async function runNextStepsPlan() {
+    if (!decision) return
+    setNextStepsBusy(true)
+    setFollowUpError('')
+    try {
+      const text = await generateNextStepsAndConsequences({ decision, linkedTopics })
+      updateDecision(decision.id, { nextStepsPlan: text })
+      requestAnimationFrame(() => {
+        document
+          .getElementById('decision-next-steps')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
+    } catch (e) {
+      setFollowUpError(e instanceof Error ? e.message : 'Passi successivi non riusciti')
+    } finally {
+      setNextStepsBusy(false)
+    }
   }
 
   function linkTopic(topicId: string) {
@@ -196,6 +237,7 @@ export function DecisioniView() {
     try {
       const answer = await askAi({ prompt, context })
       setAiText(answer)
+      updateDecision(decision.id, { aiElaboration: answer })
       pushAiMessage(createMessage('user', prompt))
       pushAiMessage(createMessage('assistant', answer))
     } catch (e) {
@@ -734,9 +776,17 @@ export function DecisioniView() {
                 onChange={(value) => updateDecision(decision.id, { conclusion: value })}
                 rows={8}
               />
-              {aiText && (
-                <div className="analysis-box" role="region" aria-label="Elaborazione AI">
-                  {normalizeJwItalian(aiText)}
+              {(aiText || decision.aiElaboration) && (
+                <div
+                  className="analysis-box"
+                  role="region"
+                  aria-label="Elaborazione AI"
+                  style={{ marginTop: '0.85rem' }}
+                >
+                  <strong style={{ display: 'block', marginBottom: '0.45rem' }}>
+                    Elaborazione AI
+                  </strong>
+                  {normalizeJwItalian(aiText || decision.aiElaboration || '')}
                 </div>
               )}
             </section>
@@ -902,35 +952,70 @@ export function DecisioniView() {
             <section className="panel" id="decision-conclusions">
               <div className="section-head">
                 <div>
-                  <p className="section-kicker">Riassunto conclusioni</p>
-                  <h3>Cosa concludo dalla decisione presa</h3>
+                  <p className="section-kicker">Punto della situazione</p>
+                  <h3>Raccogli tutto e fai il punto</h3>
                   <p className="lede">
-                    Un testo breve da rileggere dopo: la scelta, il perché e la sintesi pratica.
-                    Puoi generarlo dai dati già scritti e poi ritoccarlo.
+                    Usa contesto, scelta, motivazioni, priorità, pro/contro, materiali, conclusione,
+                    elaborazione AI e analisi di lucidità. Poi puoi ritoccare il testo.
                   </p>
                 </div>
                 <button
                   className="btn accent"
                   type="button"
-                  disabled={!recap?.readyForConclusions}
-                  onClick={refreshConclusionsSummary}
+                  disabled={situationBusy || !canGenerateFollowUp(decision)}
+                  onClick={() => void runSituationPoint()}
                 >
-                  <Sparkles size={16} /> Genera riassunto
+                  <Sparkles size={16} />
+                  {situationBusy ? 'Raccolgo i dati…' : 'Fai il punto della situazione'}
                 </button>
               </div>
               <ExpandableField
-                label="Riassunto conclusioni"
+                label="Punto della situazione"
                 value={decision.conclusionsSummary || ''}
                 onChange={(value) =>
                   updateDecision(decision.id, { conclusionsSummary: value })
                 }
-                placeholder="Es. Ho deciso di… perché… Il prossimo passo è…"
-                rows={10}
+                placeholder="Qui comparirà il quadro completo della decisione…"
+                rows={14}
               />
-              {!recap?.readyForConclusions && (
+            </section>
+
+            <section className="panel" id="decision-next-steps">
+              <div className="section-head">
+                <div>
+                  <p className="section-kicker">Dopo la decisione</p>
+                  <h3>Obiettivi, passi e conseguenze</h3>
+                  <p className="lede">
+                    Possibili obiettivi e azioni concrete dopo la scelta, più conseguenze positive
+                    e rischi da gestire con calma.
+                  </p>
+                </div>
+                <button
+                  className="btn accent"
+                  type="button"
+                  disabled={nextStepsBusy || !canGenerateFollowUp(decision)}
+                  onClick={() => void runNextStepsPlan()}
+                >
+                  <Footprints size={16} />
+                  {nextStepsBusy ? 'Preparo i passi…' : 'Passi e conseguenze'}
+                </button>
+              </div>
+              <ExpandableField
+                label="Passi successivi e conseguenze"
+                value={decision.nextStepsPlan || ''}
+                onChange={(value) => updateDecision(decision.id, { nextStepsPlan: value })}
+                placeholder="Obiettivi, passi numerati e possibili conseguenze…"
+                rows={14}
+              />
+              {!canGenerateFollowUp(decision) && (
                 <p className="muted" style={{ margin: '0.55rem 0 0' }}>
-                  Compila almeno la decisione presa, le motivazioni o la conclusione dai dati per
-                  generare il riassunto.
+                  Aggiungi almeno scelta, motivazioni, pro/contro, conclusione o un’analisi AI per
+                  generare questi testi.
+                </p>
+              )}
+              {followUpError && (
+                <p className="error-text" style={{ marginTop: '0.65rem' }}>
+                  {followUpError}
                 </p>
               )}
             </section>
