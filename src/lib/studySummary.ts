@@ -279,7 +279,7 @@ export function buildSummaryBlocks(summary: StudySummary): SummaryBlock[] {
     pushField(fields, 'Contesto', d.context)
     pushField(fields, 'Scelta', d.chosenDecision)
     pushField(fields, 'Motivazioni', d.honestMotivations)
-    pushField(fields, 'Punto della situazione', d.conclusionsSummary)
+    pushField(fields, 'Riassunto della decisione presa', d.conclusionsSummary)
     pushField(fields, 'Passi e conseguenze', d.nextStepsPlan)
     pushField(fields, 'Conclusione', d.conclusion)
     pushField(fields, 'Elaborazione AI', d.aiElaboration)

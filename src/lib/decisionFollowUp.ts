@@ -41,93 +41,109 @@ function fullDecisionContext(
   return [base, ...extra].filter(Boolean).join('\n\n')
 }
 
-/** Fallback locale: raccoglie TUTTI i dati senza tagli inutili. */
+function clip(text: string, max: number): string {
+  const t = text.trim()
+  if (t.length <= max) return t
+  return `${t.slice(0, max - 1).trim()}…`
+}
+
+/**
+ * Riassunto della decisione presa (stile narrativo), usando tutti i dati
+ * senza diventare un inventario campo-per-campo.
+ */
 export function buildLocalSituationPoint(
   decision: DecisionItem,
   linkedTopics: StudyTopic[],
 ): string {
   const pros = (decision.pros || []).filter((p) => p.trim())
   const cons = (decision.cons || []).filter((c) => c.trim())
-  const priorities = [...(decision.priorities || [])].sort((a, b) => b.weight - a.weight)
-  const materials = decision.relatedResources || []
+  const priorities = [...(decision.priorities || [])]
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 3)
+  const materials = (decision.relatedResources || []).slice(0, 6)
+  const chosen = decision.chosenDecision?.trim()
+  const motives = decision.honestMotivations?.trim()
+  const conclusion = decision.conclusion?.trim()
+  const lucidity = decision.lucidityAnalysis?.trim()
+  const ai = decision.aiElaboration?.trim()
+  const prayer = decision.prayerNotes?.trim()
 
-  const sections: string[] = [
-    `PUNTO DELLA SITUAZIONE — ${decision.title}`,
-    `Stato: ${decisionStatusLabel(decision.status)} · Decisione ${decision.scale}`,
-    '',
-  ]
+  const parts: string[] = []
 
-  if (decision.context?.trim()) {
-    sections.push('Contesto', decision.context.trim(), '')
-  }
-  if (decision.chosenDecision?.trim()) {
-    sections.push('Decisione presa', decision.chosenDecision.trim(), '')
-  }
-  if (decision.honestMotivations?.trim()) {
-    sections.push('Motivazioni oneste', decision.honestMotivations.trim(), '')
-  }
-  if (priorities.length) {
-    sections.push('Priorità')
-    for (const p of priorities) {
-      sections.push(
-        `• ${p.label} (peso ${p.weight}/10)${p.note?.trim() ? `: ${p.note.trim()}` : ''}`,
-      )
-    }
-    sections.push('')
-  }
-  if (pros.length) {
-    sections.push('Pro')
-    pros.forEach((p) => sections.push(`• ${p}`))
-    sections.push('')
-  }
-  if (cons.length) {
-    sections.push('Contro')
-    cons.forEach((c) => sections.push(`• ${c}`))
-    sections.push('')
-  }
-  if (linkedTopics.length) {
-    sections.push('Argomenti di studio collegati')
-    linkedTopics.forEach((t) =>
-      sections.push(
-        `• ${t.title}${t.status ? ` (${t.status.replace('_', ' ')})` : ''}${
-          t.interest?.trim() ? ` — ${t.interest.trim().slice(0, 180)}` : ''
-        }`,
-      ),
-    )
-    sections.push('')
-  }
-  if (materials.length) {
-    sections.push('Materiali jw.org / scritture')
-    materials.forEach((r) =>
-      sections.push(`• ${r.title}${r.bible ? ` [${r.bible}]` : ''}`),
-    )
-    sections.push('')
-  }
-  if (decision.conclusion?.trim()) {
-    sections.push('Conclusione dai dati', decision.conclusion.trim(), '')
-  }
-  if (decision.aiElaboration?.trim()) {
-    sections.push('Elaborazione AI', decision.aiElaboration.trim(), '')
-  }
-  if (decision.lucidityAnalysis?.trim()) {
-    sections.push(
-      'Analisi di lucidità',
-      decision.lucidityAnalysis.trim(),
-      '',
-    )
-  }
-  if (decision.prayerNotes?.trim()) {
-    sections.push('Preghiera', decision.prayerNotes.trim(), '')
-  }
-
-  sections.push(
-    'Sintesi',
-    decision.chosenDecision?.trim()
-      ? `Al momento la scelta dichiarata è: «${decision.chosenDecision.trim()}». Vale la pena rivedere priorità, pro/contro e quanto emerso dalle analisi prima di fissare i passi successivi.`
-      : 'La decisione presa non è ancora scritta in modo chiaro: conviene fissarla con onestà, poi definire i passi pratici.',
+  parts.push(
+    chosen
+      ? `Ho deciso: ${chosen}`
+      : `Sto ancora valutando «${decision.title}» (${decisionStatusLabel(decision.status)}).`,
   )
 
-  return normalizeJwItalian(sections.filter((l) => l !== undefined).join('\n'))
+  if (decision.context?.trim()) {
+    parts.push(`Contesto: ${clip(decision.context, 320)}`)
+  }
+
+  if (motives) {
+    parts.push(`Perché (in sintesi): ${clip(motives, 420)}`)
+  }
+
+  if (priorities.length) {
+    parts.push(
+      `Priorità che pesano di più: ${priorities
+        .map((p) => `${p.label} (${p.weight}/10)`)
+        .join('; ')}.`,
+    )
+  }
+
+  if (pros.length || cons.length) {
+    parts.push(
+      `Ho considerato ${pros.length} pro e ${cons.length} contro` +
+        (pros[0] ? `, tra cui a favore «${clip(pros[0], 100)}»` : '') +
+        (cons[0] ? ` e come cautela «${clip(cons[0], 100)}»` : '') +
+        '.',
+    )
+  }
+
+  if (conclusion) {
+    parts.push(`Dalla conclusione sui dati: ${clip(conclusion, 380)}`)
+  }
+
+  if (ai) {
+    parts.push(`Dall’elaborazione AI: ${clip(ai, 380)}`)
+  }
+
+  if (lucidity) {
+    parts.push(
+      `Dopo l’analisi di lucidità: ${clip(lucidity, 380)}`,
+    )
+  }
+
+  if (linkedTopics.length || materials.length) {
+    const topicBit = linkedTopics.length
+      ? `argomenti (${linkedTopics
+          .map((t) => t.title)
+          .slice(0, 3)
+          .join(', ')})`
+      : ''
+    const matBit = materials.length
+      ? `materiali jw.org (${materials
+          .map((r) => r.title)
+          .slice(0, 3)
+          .join('; ')})`
+      : ''
+    parts.push(
+      `Mi sono appoggiato a ${[topicBit, matBit].filter(Boolean).join(' e ')}.`,
+    )
+  }
+
+  if (prayer) {
+    parts.push(`Nella preghiera: ${clip(prayer, 220)}`)
+  }
+
+  parts.push(
+    chosen
+      ? 'In sintesi: la decisione presa resta il punto fermo; i dati, le priorità e le analisi servono a tenerla lucida e allineata ai principi biblici, non solo alle emozioni.'
+      : 'In sintesi: ancora manca una decisione presa scritta con chiarezza; quando la fissi, questo riassunto potrà chiudere il quadro.',
+  )
+
+  return normalizeJwItalian(parts.join('\n\n'))
 }
 
 export function buildLocalNextSteps(
@@ -259,25 +275,26 @@ export async function generateSituationPoint(params: {
 }): Promise<string> {
   const { decision, linkedTopics } = params
   const context = fullDecisionContext(decision, linkedTopics)
-  const prompt = `Fai il PUNTO DELLA SITUAZIONE su questa decisione.
+  const prompt = `Scrivi un RIASSUNTO DELLA DECISIONE PRESA.
 
-Devi usare TUTTI i dati presenti nel contesto: titolo, stato, contesto, decisione presa, motivazioni oneste, priorità, pro, contro, argomenti collegati, materiali/scritture, conclusione dai dati, elaborazione AI, analisi di lucidità e appunti di preghiera.
-Non inventare fatti assenti. Non omettere sezioni importanti se i dati ci sono.
+Non è un inventario né un “punto della situazione” a capitoli lunghi.
+Deve sembrare un riassunto personale chiaro: cosa ho deciso, perché, e come i dati (priorità, pro/contro, conclusione, elaborazione AI, analisi di lucidità, materiali) sostengono o correggono quella scelta.
 
-Formato obbligatorio (titoli chiari, italiano JW tipico di jw.org):
-1. Situazione in sintesi (4-6 frasi)
-2. Cosa ho deciso (o cosa manca ancora)
-3. Perché / motivazioni (anche quelle scomode)
-4. Priorità e tensione tra pro e contro (elenco puntato, MAI tabelle markdown)
-5. Cosa dicono i materiali e le analisi già fatte (solo se presenti nel contesto)
-6. Lucidità e cautela (se c’è analisi di lucidità, usala; altrimenti indica cosa manca)
-7. Punto fermo attuale (1 breve paragrafo conclusivo, chiudi con una frase completa)
+Usa TUTTI i dati utili del contesto, ma FONDILO in un testo scorrevole. Non inventare fatti.
 
-Regole di scrittura:
-- Solo testo semplice. VIETATO usare tabelle markdown (| col |), HTML o codice.
-- Per le priorità usa righe tipo: «• Rapporto con Geova (peso 10): …»
-- Completa SEMPRE fino al punto 7; non interrompere a metà frase.
-- Niente «ministeriale»: usa «ministero».`
+Struttura preferita (titoli brevi, testo semplice, niente tabelle markdown):
+1. Ho deciso… (o: ancora sto decidendo…)
+2. Perché… (motivazioni oneste, anche scomode, in sintesi)
+3. Cosa pesa di più… (priorità + tensione pro/contro, in 3-6 frasi o elenco breve)
+4. Cosa confermano analisi e materiali… (solo se presenti: conclusione, AI, lucidità, jw.org)
+5. In sintesi… (1 breve paragrafo finale, frase completa)
+
+Regole:
+- Massimo circa 350-500 parole. Completo ma leggibile.
+- Prima persona (“Ho deciso…”, “Perché…”).
+- VIETATO tabelle markdown, HTML, elenchi interminabili campo-per-campo.
+- Niente «ministeriale»: usa «ministero».
+- Chiudi sempre con una frase completa.`
 
   try {
     const answer = await askAi({ prompt, context })

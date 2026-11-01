@@ -188,7 +188,7 @@ export function getSectionProgress(
             ),
           },
           {
-            label: 'Con punto',
+            label: 'Con riassunto',
             value: String(
               countBy(decisions, (d) => Boolean(d.conclusionsSummary?.trim())),
             ),
@@ -199,7 +199,7 @@ export function getSectionProgress(
           },
         ],
         hint: decisions.length
-          ? 'Fai il punto della situazione, poi genera passi e conseguenze.'
+          ? 'Riassumi la decisione presa, poi genera passi e conseguenze.'
           : 'Crea la prima decisione a sinistra.',
       }
     case 'videoStudio':

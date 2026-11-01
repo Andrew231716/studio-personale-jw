@@ -135,7 +135,7 @@ export function DecisioniView() {
           ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
       })
     } catch (e) {
-      setFollowUpError(e instanceof Error ? e.message : 'Punto della situazione non riuscito')
+      setFollowUpError(e instanceof Error ? e.message : 'Riassunto non riuscito')
     } finally {
       setSituationBusy(false)
     }
@@ -968,11 +968,12 @@ export function DecisioniView() {
             <section className="panel" id="decision-conclusions">
               <div className="section-head">
                 <div>
-                  <p className="section-kicker">Punto della situazione</p>
-                  <h3>Raccogli tutto e fai il punto</h3>
+                  <p className="section-kicker">Riassunto</p>
+                  <h3>Riassunto della decisione presa</h3>
                   <p className="lede">
-                    Usa contesto, scelta, motivazioni, priorità, pro/contro, materiali, conclusione,
-                    elaborazione AI e analisi di lucidità. Poi puoi ritoccare il testo.
+                    Un testo chiaro su cosa hai deciso e perché, che tiene conto anche di priorità,
+                    pro/contro, conclusione, elaborazione AI e analisi di lucidità. Poi puoi
+                    ritoccarlo.
                   </p>
                 </div>
                 <button
@@ -982,17 +983,17 @@ export function DecisioniView() {
                   onClick={() => void runSituationPoint()}
                 >
                   <Sparkles size={16} />
-                  {situationBusy ? 'Raccolgo i dati…' : 'Fai il punto della situazione'}
+                  {situationBusy ? 'Riassumo…' : 'Riassumi la decisione'}
                 </button>
               </div>
               <ExpandableField
-                label="Punto della situazione"
+                label="Riassunto della decisione presa"
                 value={decision.conclusionsSummary || ''}
                 onChange={(value) =>
                   updateDecision(decision.id, { conclusionsSummary: value })
                 }
-                placeholder="Qui comparirà il quadro completo della decisione…"
-                rows={14}
+                placeholder="Es. Ho deciso di… perché… Tenendo conto di…"
+                rows={12}
               />
             </section>
 
