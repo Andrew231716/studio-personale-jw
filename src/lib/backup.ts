@@ -1,4 +1,10 @@
-import { useAppStore } from '../store/useAppStore'
+import {
+  mergeAppSettings,
+  normalizeDecisionTerms,
+  normalizeTopicTerms,
+  useAppStore,
+} from '../store/useAppStore'
+import { isValidSyncKey } from './cloudSync'
 import type {
   AiMessage,
   AppSettings,
@@ -105,10 +111,11 @@ export function parseBackup(raw: string): StudioBackup {
 /** Sostituisce i dati locali con quelli del backup (dopo conferma utente). */
 export function applyBackup(backup: StudioBackup): void {
   const d = backup.data
+  const cur = useAppStore.getState()
   useAppStore.setState({
-    settings: d.settings ?? useAppStore.getState().settings,
-    topics: Array.isArray(d.topics) ? d.topics : [],
-    decisions: Array.isArray(d.decisions) ? d.decisions : [],
+    settings: mergeAppSettings(cur.settings, d.settings),
+    topics: (Array.isArray(d.topics) ? d.topics : []).map(normalizeTopicTerms),
+    decisions: (Array.isArray(d.decisions) ? d.decisions : []).map(normalizeDecisionTerms),
     activeTopicId: d.activeTopicId ?? null,
     activeDecisionId: d.activeDecisionId ?? null,
     aiMessages: Array.isArray(d.aiMessages) ? d.aiMessages : [],
@@ -150,26 +157,31 @@ function mergeById<
 export function mergeBackup(backup: StudioBackup): void {
   const d = backup.data
   const cur = useAppStore.getState()
-  const settings: AppSettings = {
-    ...cur.settings,
-    ...(d.settings || {}),
-    features: {
-      ...cur.settings.features,
-      ...(d.settings?.features || {}),
-    },
-    theme: {
-      ...cur.settings.theme,
-      ...(d.settings?.theme || {}),
-    },
-    cloudSync: d.settings?.cloudSync || cur.settings.cloudSync,
-    iCloud: d.settings?.iCloud || cur.settings.iCloud,
-  }
+  const baseCloud = cur.settings.cloudSync || { enabled: false, syncKey: '' }
+  const incomingCloud = d.settings?.cloudSync
+  const cloudSync =
+    incomingCloud && isValidSyncKey(incomingCloud.syncKey || '')
+      ? {
+          enabled: incomingCloud.enabled ?? baseCloud.enabled,
+          syncKey: incomingCloud.syncKey || baseCloud.syncKey,
+        }
+      : {
+          enabled: incomingCloud?.enabled ?? baseCloud.enabled,
+          syncKey: baseCloud.syncKey || incomingCloud?.syncKey || '',
+        }
 
-  const topics = mergeById(cur.topics, Array.isArray(d.topics) ? d.topics : [])
+  const settings: AppSettings = mergeAppSettings(cur.settings, {
+    ...(d.settings || {}),
+    cloudSync,
+  })
+
+  const topics = mergeById(cur.topics, Array.isArray(d.topics) ? d.topics : []).map(
+    normalizeTopicTerms,
+  )
   const decisions = mergeById(
     cur.decisions,
     Array.isArray(d.decisions) ? d.decisions : [],
-  )
+  ).map(normalizeDecisionTerms)
   const sessionLogs = mergeById(
     cur.sessionLogs,
     Array.isArray(d.sessionLogs) ? d.sessionLogs : [],

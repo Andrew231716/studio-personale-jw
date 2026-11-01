@@ -193,7 +193,7 @@ function resourceKey(r: { url: string; lank?: string; docid?: string }) {
 }
 
 /** Allinea testi salvati alla terminologia jw.org (es. Corinti, ministero). */
-function normalizeTopicTerms(topic: StudyTopic): StudyTopic {
+export function normalizeTopicTerms(topic: StudyTopic): StudyTopic {
   return {
     ...topic,
     title: normalizeJwItalian(topic.title || ''),
@@ -214,11 +214,12 @@ function normalizeTopicTerms(topic: StudyTopic): StudyTopic {
       action: normalizeJwItalian(p.action || ''),
       outcome: normalizeJwItalian(p.outcome || ''),
     })),
+    resources: Array.isArray(topic.resources) ? topic.resources : [],
     transcript: topic.transcript ? normalizeJwItalian(topic.transcript) : topic.transcript,
   }
 }
 
-function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
+export function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
   return {
     ...decision,
     title: normalizeJwItalian(decision.title || ''),
@@ -240,7 +241,7 @@ function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
           notes: g.notes ? normalizeJwItalian(g.notes) : g.notes,
           dueDate: g.dueDate || undefined,
         }))
-      : decision.goals || [],
+      : [],
     aiElaboration: decision.aiElaboration
       ? normalizeJwItalian(decision.aiElaboration)
       : decision.aiElaboration,
@@ -254,6 +255,38 @@ function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
       label: normalizeJwItalian(p.label || ''),
       note: normalizeJwItalian(p.note || ''),
     })),
+    relatedResources: Array.isArray(decision.relatedResources)
+      ? decision.relatedResources
+      : [],
+    linkedTopicIds: Array.isArray(decision.linkedTopicIds) ? decision.linkedTopicIds : [],
+  }
+}
+
+/** Impostazioni sempre raggiungibili + campi nuovi preservati. */
+export function mergeAppSettings(
+  base: AppSettings,
+  incoming?: Partial<AppSettings> | null,
+): AppSettings {
+  if (!incoming) return base
+  return {
+    ...base,
+    ...incoming,
+    features: {
+      ...base.features,
+      ...(incoming.features || {}),
+      impostazioni: true,
+    },
+    theme: {
+      ...base.theme,
+      ...(incoming.theme || {}),
+    },
+    cloudSync: incoming.cloudSync
+      ? { ...base.cloudSync, ...incoming.cloudSync }
+      : base.cloudSync,
+    iCloud: incoming.iCloud ? { ...base.iCloud, ...incoming.iCloud } : base.iCloud,
+    navOrder: Array.isArray(incoming.navOrder) && incoming.navOrder.length
+      ? incoming.navOrder
+      : base.navOrder,
   }
 }
 

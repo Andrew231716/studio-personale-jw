@@ -119,7 +119,8 @@ export default function App() {
         if (key === 'decisioni') return settings.features.decisioni
         if (key === 'obiettiviDecisioni') return settings.features.obiettiviDecisioni !== false
         if (key === 'assistente') return settings.features.assistente
-        if (key === 'impostazioni') return settings.features.impostazioni
+        // Sempre visibile: altrimenti si può restare chiusi fuori dalle Impostazioni
+        if (key === 'impostazioni') return true
         return true
       }),
     [settings.navOrder, settings.features],

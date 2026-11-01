@@ -268,7 +268,7 @@ export function MinisteroView() {
       </section>
 
       {tab === 'aiuto' && (
-        <div className="split">
+        <div className="split split-main-first">
           <section className="panel">
             {busy && <p className="muted">Sto preparando l’aiuto da jw.org…</p>}
             {!busy && active ? (

@@ -31,17 +31,22 @@ export function ScripturePopup({
   const panelRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
-    if (anchor) {
+    function place(nx: number, ny: number) {
       const w = typeof window !== 'undefined' ? window.innerWidth : 400
       const h = typeof window !== 'undefined' ? window.innerHeight : 600
-      setPos({
-        x: Math.min(Math.max(12, anchor.x), w - 340),
-        y: Math.min(Math.max(12, anchor.y), h - 220),
-      })
+      const panelW = Math.min(352, Math.max(200, w - 24))
+      const panelH = 200
+      return {
+        x: Math.min(Math.max(8, nx), Math.max(8, w - panelW - 8)),
+        y: Math.min(Math.max(8, ny), Math.max(8, h - Math.min(panelH, h - 16))),
+      }
+    }
+    if (anchor) {
+      setPos(place(anchor.x, anchor.y))
       return
     }
     if (verse || loading || error) {
-      setPos((p) => (p.x === 24 && p.y === 96 ? { x: 24, y: 96 } : p))
+      setPos((p) => (p.x === 24 && p.y === 96 ? place(24, 96) : place(p.x, p.y)))
     }
   }, [verse?.bible, verse?.verse, loading, error, anchor?.x, anchor?.y])
 
@@ -134,7 +139,7 @@ export function ScripturePopup({
             </a>
 
             <div className="wol-popup-verse">
-              {verse.before && (
+              {verse.before && verse.verse > 1 && (
                 <p className="wol-popup-neighbor">
                   <span className="wol-vnum">{verse.verse - 1}</span> {verse.before}
                 </p>

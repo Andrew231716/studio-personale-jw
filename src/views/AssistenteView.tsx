@@ -120,7 +120,7 @@ export function AssistenteView() {
   return (
     <div className="stack">
       <SectionProgress section="assistente" />
-      <div className="split">
+      <div className="split split-main-first">
       <section className="panel">
         <div className="section-head">
           <div>

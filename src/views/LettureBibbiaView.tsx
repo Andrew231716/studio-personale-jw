@@ -394,7 +394,7 @@ export function LettureBibbiaView() {
       )}
 
       {tab === 'piano' && (
-        <div className="split">
+        <div className="split split-main-first">
           <section className="panel">
             {active ? (
               <div className="stack">

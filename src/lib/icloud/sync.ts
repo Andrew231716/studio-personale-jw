@@ -1,5 +1,10 @@
 import type { AppSettings } from '../../types'
-import { useAppStore } from '../../store/useAppStore'
+import {
+  mergeAppSettings,
+  normalizeDecisionTerms,
+  normalizeTopicTerms,
+  useAppStore,
+} from '../../store/useAppStore'
 import {
   configureCloudKit,
   describeUser,
@@ -86,10 +91,11 @@ function snapshotFromStore(): ICloudSnapshot {
 function applySnapshot(snapshot: ICloudSnapshot) {
   applyingRemote = true
   try {
+    const cur = useAppStore.getState()
     useAppStore.setState({
-      settings: snapshot.settings,
-      topics: snapshot.topics,
-      decisions: snapshot.decisions,
+      settings: mergeAppSettings(cur.settings, snapshot.settings),
+      topics: (snapshot.topics || []).map(normalizeTopicTerms),
+      decisions: (snapshot.decisions || []).map(normalizeDecisionTerms),
       activeTopicId: snapshot.activeTopicId,
       activeDecisionId: snapshot.activeDecisionId,
       aiMessages: snapshot.aiMessages,

@@ -84,6 +84,7 @@ export function DiscorsoView() {
   const [polishHint, setPolishHint] = useState('')
   const [autoPolish, setAutoPolish] = useState(true)
   const [undoBody, setUndoBody] = useState<string | null>(null)
+  const [undoSectionId, setUndoSectionId] = useState<string | null>(null)
   const [online, setOnline] = useState(
     typeof navigator === 'undefined' ? true : navigator.onLine,
   )
@@ -99,6 +100,10 @@ export function DiscorsoView() {
   const polishTimer = useRef<number | null>(null)
   const skipNextPolish = useRef(false)
   const practiceStarted = useRef<number | null>(null)
+  const sectionsRef = useRef(sections)
+  const activeSectionIdRef = useRef(activeSectionId)
+  sectionsRef.current = sections
+  activeSectionIdRef.current = activeSectionId
 
   const micOk = speechDictationSupported()
   const supportNote = speechDictationSupportNote()
@@ -156,6 +161,7 @@ export function DiscorsoView() {
     setActiveSectionId(secs[0]?.id || null)
     skipNextPolish.current = true
     setUndoBody(null)
+    setUndoSectionId(null)
   }, [note?.id])
 
   useEffect(() => {
@@ -167,7 +173,9 @@ export function DiscorsoView() {
 
   useEffect(() => {
     if (!practiceOn) return
-    practiceStarted.current = Date.now() - elapsed * 1000
+    if (practiceStarted.current == null) {
+      practiceStarted.current = Date.now() - elapsed * 1000
+    }
     const id = window.setInterval(() => {
       if (practiceStarted.current == null) return
       setElapsed(Math.floor((Date.now() - practiceStarted.current) / 1000))
@@ -219,6 +227,7 @@ export function DiscorsoView() {
       const result = await polishDiscourseText(before, { forceLocal: !online })
       if (result.text && result.text !== before) {
         setUndoBody(before)
+        setUndoSectionId(focus.id)
         skipNextPolish.current = true
         const next = secs.map((s) =>
           s.id === focus.id ? { ...s, body: result.text } : s,
@@ -242,20 +251,26 @@ export function DiscorsoView() {
   }
 
   function undoPolish() {
-    if (!undoBody || !activeSectionId) return
+    if (!undoBody || !undoSectionId) return
     skipNextPolish.current = true
-    patchSection(activeSectionId, { body: undoBody })
+    const current = sectionsRef.current
+    const next = current.map((s) =>
+      s.id === undoSectionId ? { ...s, body: undoBody } : s,
+    )
+    persistSections(next)
     setUndoBody(null)
+    setUndoSectionId(null)
     setPolishHint('Correzione annullata.')
   }
 
   function appendDictation(chunk: string) {
-    const sid = activeSectionId || sections[0]?.id
+    const currentSections = sectionsRef.current
+    const sid = activeSectionIdRef.current || currentSections[0]?.id
     if (!sid) return
     const el = editorRefs.current[sid] || null
-    const current = sections.find((s) => s.id === sid)?.body || ''
+    const current = currentSections.find((s) => s.id === sid)?.body || ''
     const { next, cursor } = insertAtCursor(el, current, chunk)
-    const updated = sections.map((s) => (s.id === sid ? { ...s, body: next } : s))
+    const updated = currentSections.map((s) => (s.id === sid ? { ...s, body: next } : s))
     persistSections(updated)
     requestAnimationFrame(() => {
       const ta = editorRefs.current[sid]
@@ -477,8 +492,10 @@ export function DiscorsoView() {
                     onClick={() => {
                       if (practiceOn) {
                         setPracticeOn(false)
+                        practiceStarted.current = null
                       } else {
                         setElapsed(0)
+                        practiceStarted.current = Date.now()
                         setPracticeOn(true)
                       }
                     }}
@@ -496,7 +513,10 @@ export function DiscorsoView() {
                     <button
                       className="btn secondary small"
                       type="button"
-                      onClick={() => setElapsed(0)}
+                      onClick={() => {
+                        practiceStarted.current = Date.now()
+                        setElapsed(0)
+                      }}
                     >
                       <RotateCcw size={14} />
                     </button>
@@ -714,10 +734,11 @@ export function DiscorsoView() {
               ref={scriptureAssistRef}
               text={bodyJoined}
               language={language}
+              resetKey={note.id}
               onInsert={(snippet) => {
-                const sid = activeSectionId || sections[0]?.id
+                const sid = activeSectionIdRef.current || sectionsRef.current[0]?.id
                 if (!sid) return
-                const cur = sections.find((s) => s.id === sid)?.body || ''
+                const cur = sectionsRef.current.find((s) => s.id === sid)?.body || ''
                 const next = cur.trim() ? `${cur.trim()}\n\n${snippet}\n` : `${snippet}\n`
                 skipNextPolish.current = true
                 patchSection(sid, { body: next })
@@ -725,14 +746,12 @@ export function DiscorsoView() {
             />
           )}
 
-          <section className="panel discourse-side-compact">
-            <h3>Da Ministero</h3>
-            <p className="muted" style={{ marginTop: 0 }}>
-              Crea una bozza da una scheda già preparata.
-            </p>
-            {ministryNotes.length === 0 ? (
-              <div className="empty">Nessuna scheda Ministero.</div>
-            ) : (
+          {ministryNotes.length > 0 && (
+            <section className="panel discourse-side-compact">
+              <h3>Da Ministero</h3>
+              <p className="muted" style={{ marginTop: 0 }}>
+                Crea una bozza da una scheda già preparata.
+              </p>
               <div className="list">
                 {ministryNotes.slice(0, 8).map((m) => (
                   <div className="list-item" key={m.id}>
@@ -748,8 +767,8 @@ export function DiscorsoView() {
                   </div>
                 ))}
               </div>
-            )}
-          </section>
+            </section>
+          )}
 
           <section className="panel discourse-side-compact">
             <h3>Bibbia offline</h3>

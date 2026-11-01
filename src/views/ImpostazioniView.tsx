@@ -255,17 +255,26 @@ export function ImpostazioniView() {
         <h2>Funzionalità attive</h2>
         <div className="grid-2">
           {FEATURE_KEYS.map((key) => (
-            <label key={key} className="row list-item" style={{ cursor: 'pointer' }}>
+            <label
+              key={key}
+              className="row list-item"
+              style={{ cursor: key === 'impostazioni' ? 'default' : 'pointer' }}
+            >
               <input
                 type="checkbox"
-                checked={settings.features[key]}
-                onChange={(e) =>
+                checked={key === 'impostazioni' ? true : settings.features[key]}
+                disabled={key === 'impostazioni'}
+                onChange={(e) => {
+                  if (key === 'impostazioni') return
                   updateSettings({
                     features: { ...settings.features, [key]: e.target.checked },
                   })
-                }
+                }}
               />
-              <span>{featureLabel(key)}</span>
+              <span>
+                {featureLabel(key)}
+                {key === 'impostazioni' ? ' (sempre attiva)' : ''}
+              </span>
             </label>
           ))}
         </div>

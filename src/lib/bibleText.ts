@@ -304,7 +304,7 @@ export async function fetchScriptureVerse(params: {
       ? `${params.bookName} ${params.chapter}:${params.verse}-${params.verseEnd}`
       : `${params.bookName} ${params.chapter}:${params.verse}`
   const bible = bibleCode(params.bookNum, params.chapter, params.verse)
-  const cacheId = `${language}:${bible}:${params.verseEnd || params.verse}:ctx`
+  const cacheId = `${language}:${bible}:${params.verseEnd || params.verse}:${withContext ? 'ctx' : 'plain'}`
   const cache = loadVerseCache()
   if (cache[cacheId]?.text) {
     return {
@@ -317,8 +317,8 @@ export async function fetchScriptureVerse(params: {
       chapter: params.chapter,
       verse: params.verse,
       verseEnd: params.verseEnd,
-      before: cache[cacheId].before,
-      after: cache[cacheId].after,
+      before: withContext ? cache[cacheId].before : undefined,
+      after: withContext ? cache[cacheId].after : undefined,
       cached: true,
     }
   }

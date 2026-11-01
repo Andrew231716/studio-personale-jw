@@ -28,6 +28,8 @@ interface Props {
    * Dopo chiusura o cambio sezione non si riapre da solo.
    */
   autoOpenOnType?: boolean
+  /** Cambia (es. id bozza) per non auto-aprire refs già presenti nel nuovo testo. */
+  resetKey?: string
 }
 
 export type ScriptureAssistHandle = {
@@ -54,7 +56,7 @@ function rememberKeys(keys: Iterable<string>) {
 
 export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
   function ScriptureAssist(
-    { text, language = 'I', onInsert, compact, autoOpenOnType = true },
+    { text, language = 'I', onInsert, compact, autoOpenOnType = true, resetKey },
     ref,
   ) {
     const [verse, setVerse] = useState<ScriptureVerseResult | null>(null)
@@ -116,6 +118,12 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
     }))
 
     useEffect(() => {
+      // Cambio bozza/nota: non trattare i refs già presenti come “nuovi”.
+      prevKeys.current = null
+      lastKey.current = ''
+    }, [resetKey])
+
+    useEffect(() => {
       function syncKeysWithoutOpening(value: string) {
         const now = keysInText(value)
         rememberKeys(now)
@@ -146,7 +154,7 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
         const now = keysInText(value)
         const parsed = latestScriptureNearEnd(value)
 
-        // Primo snapshot dopo mount: registra le scritture già presenti, non aprire.
+        // Primo snapshot dopo mount / reset: registra, non aprire.
         if (prevKeys.current === null) {
           rememberKeys(now)
           prevKeys.current = now
@@ -182,7 +190,7 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
       return () => {
         if (timer.current) window.clearTimeout(timer.current)
       }
-    }, [text, language, autoOpenOnType])
+    }, [text, language, autoOpenOnType, resetKey])
 
     const showList = !compact && refs.length > 0
 
