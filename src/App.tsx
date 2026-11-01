@@ -9,6 +9,7 @@ import {
   FileUp,
   History,
   Home,
+  ListChecks,
   MessageSquareText,
   MessagesSquare,
   NotebookPen,
@@ -30,6 +31,7 @@ import { SalvatiView } from './views/SalvatiView'
 import { LettureBibbiaView } from './views/LettureBibbiaView'
 import { MinisteroView } from './views/MinisteroView'
 import { DecisioniView } from './views/DecisioniView'
+import { ObiettiviDecisioniView } from './views/ObiettiviDecisioniView'
 import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
 import { BrandLogo } from './components/BrandLogo'
@@ -46,6 +48,7 @@ const ICONS: Record<AppView, typeof Home> = {
   lettureBibbia: BookMarked,
   ministero: MessagesSquare,
   decisioni: Compass,
+  obiettiviDecisioni: ListChecks,
   assistente: MessageSquareText,
   impostazioni: Settings2,
 }
@@ -107,6 +110,7 @@ export default function App() {
         if (key === 'lettureBibbia') return settings.features.lettureBibbia !== false
         if (key === 'ministero') return settings.features.ministero !== false
         if (key === 'decisioni') return settings.features.decisioni
+        if (key === 'obiettiviDecisioni') return settings.features.obiettiviDecisioni !== false
         if (key === 'assistente') return settings.features.assistente
         if (key === 'impostazioni') return settings.features.impostazioni
         return true
@@ -215,6 +219,7 @@ export default function App() {
           {view === 'lettureBibbia' && <LettureBibbiaView />}
           {view === 'ministero' && <MinisteroView />}
           {view === 'decisioni' && <DecisioniView />}
+          {view === 'obiettiviDecisioni' && <ObiettiviDecisioniView />}
           {view === 'assistente' && <AssistenteView />}
           {view === 'impostazioni' && <ImpostazioniView />}
         </div>

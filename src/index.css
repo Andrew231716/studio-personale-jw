@@ -1604,6 +1604,58 @@ img {
   color: var(--secondary);
 }
 
+.decision-final-panel {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+  background:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--accent) 12%, var(--surface)),
+      var(--surface) 42%
+    );
+}
+
+.decision-fold > .decision-fold-summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 650;
+  padding: 0.15rem 0;
+}
+
+.decision-fold > .decision-fold-summary::-webkit-details-marker {
+  display: none;
+}
+
+.decision-fold > .decision-fold-summary::before {
+  content: '▸ ';
+  color: var(--secondary);
+}
+
+.decision-fold[open] > .decision-fold-summary::before {
+  content: '▾ ';
+}
+
+.decision-fold-body {
+  margin-top: 0.85rem;
+}
+
+.decision-fold-passthrough {
+  display: contents;
+}
+
+.decision-fold-passthrough > .contents-stack {
+  display: contents;
+}
+
+.goal-done-label {
+  color: var(--secondary);
+  font-weight: 650;
+}
+
 /* Focus topic strip */
 .focus-strip {
   display: grid;

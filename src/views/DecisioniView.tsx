@@ -18,11 +18,13 @@ import { ProsConsEditor } from '../components/ProsConsEditor'
 import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
+import { DecisionGoalsPanel } from '../components/DecisionGoalsPanel'
 import {
   canGenerateFollowUp,
   generateNextStepsAndConsequences,
   generateSituationPoint,
 } from '../lib/decisionFollowUp'
+import { extractGoalsFromPlan, goalsFromTitles, mergeGoals } from '../lib/decisionGoals'
 import { analyzeDecisionLucidity } from '../lib/decisionLucidity'
 import { normalizeJwItalian } from '../lib/jwItalianTerms'
 import {
@@ -147,7 +149,11 @@ export function DecisioniView() {
     setFollowUpError('')
     try {
       const text = await generateNextStepsAndConsequences({ decision, linkedTopics })
-      updateDecision(decision.id, { nextStepsPlan: text })
+      const imported = goalsFromTitles(extractGoalsFromPlan(text))
+      updateDecision(decision.id, {
+        nextStepsPlan: text,
+        goals: mergeGoals(decision.goals, imported),
+      })
       requestAnimationFrame(() => {
         document
           .getElementById('decision-next-steps')
@@ -159,6 +165,8 @@ export function DecisioniView() {
       setNextStepsBusy(false)
     }
   }
+
+  const isDecided = decision?.status === 'decisa'
 
   function linkTopic(topicId: string) {
     if (!decision) return
@@ -381,6 +389,139 @@ export function DecisioniView() {
           <div className="panel empty">Seleziona o crea una decisione.</div>
         ) : (
           <>
+            {isDecided && (
+              <>
+                <section className="panel decision-final-panel">
+                  <div className="section-head">
+                    <div>
+                      <p className="section-kicker">Decisione presa</p>
+                      <h2>{decision.title}</h2>
+                      <p className="lede">
+                        Puoi ancora modificare la scelta. I dettagli del percorso sono sotto, in un
+                        solo pannello.
+                      </p>
+                    </div>
+                    <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                      <span className="badge">
+                        <CheckCircle2 size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                        Decisa
+                      </span>
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        onClick={() => {
+                          updateDecision(decision.id, { status: 'in_valutazione' })
+                          setStatusHint('Rimessa in valutazione.')
+                        }}
+                      >
+                        Riapri
+                      </button>
+                      <button
+                        className="btn danger small"
+                        type="button"
+                        onClick={() => removeDecision(decision.id)}
+                      >
+                        Elimina
+                      </button>
+                    </div>
+                  </div>
+                  <ExpandableField
+                    label="Decisione presa (modificabile)"
+                    value={decision.chosenDecision || ''}
+                    onChange={(value) =>
+                      updateDecision(decision.id, {
+                        chosenDecision: value,
+                        status: value.trim() ? 'decisa' : 'in_valutazione',
+                      })
+                    }
+                    placeholder="Es. Ho deciso di…"
+                    rows={3}
+                  />
+                  <ExpandableField
+                    label="Motivazioni oneste"
+                    value={decision.honestMotivations || ''}
+                    onChange={(value) =>
+                      updateDecision(decision.id, { honestMotivations: value })
+                    }
+                    rows={5}
+                  />
+                </section>
+
+                <section className="panel decision-final-panel" id="decision-conclusions">
+                  <div className="section-head">
+                    <div>
+                      <p className="section-kicker">Conclusione</p>
+                      <h3>Riassunto della decisione presa</h3>
+                    </div>
+                    <button
+                      className="btn accent"
+                      type="button"
+                      disabled={situationBusy || !canGenerateFollowUp(decision)}
+                      onClick={() => void runSituationPoint()}
+                    >
+                      <Sparkles size={16} />
+                      {situationBusy ? 'Riassumo…' : 'Riassumi la decisione'}
+                    </button>
+                  </div>
+                  <ExpandableField
+                    label="Riassunto della decisione presa"
+                    value={decision.conclusionsSummary || ''}
+                    onChange={(value) =>
+                      updateDecision(decision.id, { conclusionsSummary: value })
+                    }
+                    rows={10}
+                  />
+                </section>
+
+                <section className="panel decision-final-panel" id="decision-next-steps">
+                  <div className="section-head">
+                    <div>
+                      <p className="section-kicker">Dopo la decisione</p>
+                      <h3>Passi e conseguenze</h3>
+                    </div>
+                    <button
+                      className="btn accent"
+                      type="button"
+                      disabled={nextStepsBusy || !canGenerateFollowUp(decision)}
+                      onClick={() => void runNextStepsPlan()}
+                    >
+                      <Footprints size={16} />
+                      {nextStepsBusy ? 'Preparo i passi…' : 'Passi e conseguenze'}
+                    </button>
+                  </div>
+                  <ExpandableField
+                    label="Passi successivi e conseguenze"
+                    value={decision.nextStepsPlan || ''}
+                    onChange={(value) => updateDecision(decision.id, { nextStepsPlan: value })}
+                    rows={10}
+                  />
+                  {followUpError && (
+                    <p className="error-text" style={{ marginTop: '0.65rem' }}>
+                      {followUpError}
+                    </p>
+                  )}
+                </section>
+
+                <DecisionGoalsPanel
+                  decision={decision}
+                  highlighted
+                  onChange={(goals) => updateDecision(decision.id, { goals })}
+                />
+              </>
+            )}
+
+            <details
+              className={isDecided ? 'panel decision-fold' : 'decision-fold-passthrough'}
+              open={!isDecided ? true : undefined}
+            >
+              {isDecided && (
+                <summary className="decision-fold-summary">
+                  Percorso e dettagli (priorità, materiali, lucidità…)
+                </summary>
+              )}
+              <div className={isDecided ? 'decision-fold-body stack' : 'contents-stack'}>
+
+            {!isDecided && (
             <section className="panel">
               <div className="section-head">
                 <h2>{decision.title}</h2>
@@ -439,6 +580,53 @@ export function DecisioniView() {
                 </div>
               </div>
             </section>
+            )}
+
+            {isDecided && (
+              <section className="panel">
+                <ExpandableField
+                  label="Contesto"
+                  value={decision.context}
+                  onChange={(value) => updateDecision(decision.id, { context: value })}
+                />
+                <ExpandableField
+                  label="Appunti di preghiera"
+                  value={decision.prayerNotes}
+                  onChange={(value) => updateDecision(decision.id, { prayerNotes: value })}
+                />
+                <div className="grid-2">
+                  <div className="field">
+                    <label>Importanza</label>
+                    <select
+                      value={decision.scale}
+                      onChange={(e) =>
+                        updateDecision(decision.id, {
+                          scale: e.target.value as typeof decision.scale,
+                        })
+                      }
+                    >
+                      <option value="piccola">Piccola — scelta di tutti i giorni</option>
+                      <option value="grande">Grande — conseguenze importanti</option>
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Stato</label>
+                    <select
+                      value={decision.status}
+                      onChange={(e) =>
+                        updateDecision(decision.id, {
+                          status: e.target.value as typeof decision.status,
+                        })
+                      }
+                    >
+                      <option value="aperta">Aperta</option>
+                      <option value="in_valutazione">In valutazione</option>
+                      <option value="decisa">Decisa</option>
+                    </select>
+                  </div>
+                </div>
+              </section>
+            )}
 
             {recap && (
               <section className="panel" id="decision-recap">
@@ -965,77 +1153,88 @@ export function DecisioniView() {
               )}
             </section>
 
-            <section className="panel" id="decision-conclusions">
-              <div className="section-head">
-                <div>
-                  <p className="section-kicker">Riassunto</p>
-                  <h3>Riassunto della decisione presa</h3>
-                  <p className="lede">
-                    Un testo chiaro su cosa hai deciso e perché, che tiene conto anche di priorità,
-                    pro/contro, conclusione, elaborazione AI e analisi di lucidità. Poi puoi
-                    ritoccarlo.
-                  </p>
-                </div>
-                <button
-                  className="btn accent"
-                  type="button"
-                  disabled={situationBusy || !canGenerateFollowUp(decision)}
-                  onClick={() => void runSituationPoint()}
-                >
-                  <Sparkles size={16} />
-                  {situationBusy ? 'Riassumo…' : 'Riassumi la decisione'}
-                </button>
               </div>
-              <ExpandableField
-                label="Riassunto della decisione presa"
-                value={decision.conclusionsSummary || ''}
-                onChange={(value) =>
-                  updateDecision(decision.id, { conclusionsSummary: value })
-                }
-                placeholder="Es. Ho deciso di… perché… Tenendo conto di…"
-                rows={12}
-              />
-            </section>
+            </details>
 
-            <section className="panel" id="decision-next-steps">
-              <div className="section-head">
-                <div>
-                  <p className="section-kicker">Dopo la decisione</p>
-                  <h3>Obiettivi, passi e conseguenze</h3>
-                  <p className="lede">
-                    Possibili obiettivi e azioni concrete dopo la scelta, più conseguenze positive
-                    e rischi da gestire con calma.
-                  </p>
-                </div>
-                <button
-                  className="btn accent"
-                  type="button"
-                  disabled={nextStepsBusy || !canGenerateFollowUp(decision)}
-                  onClick={() => void runNextStepsPlan()}
-                >
-                  <Footprints size={16} />
-                  {nextStepsBusy ? 'Preparo i passi…' : 'Passi e conseguenze'}
-                </button>
-              </div>
-              <ExpandableField
-                label="Passi successivi e conseguenze"
-                value={decision.nextStepsPlan || ''}
-                onChange={(value) => updateDecision(decision.id, { nextStepsPlan: value })}
-                placeholder="Obiettivi, passi numerati e possibili conseguenze…"
-                rows={14}
-              />
-              {!canGenerateFollowUp(decision) && (
-                <p className="muted" style={{ margin: '0.55rem 0 0' }}>
-                  Aggiungi almeno scelta, motivazioni, pro/contro, conclusione o un’analisi AI per
-                  generare questi testi.
-                </p>
-              )}
-              {followUpError && (
-                <p className="error-text" style={{ marginTop: '0.65rem' }}>
-                  {followUpError}
-                </p>
-              )}
-            </section>
+            {!isDecided && (
+              <>
+                <section className="panel" id="decision-conclusions">
+                  <div className="section-head">
+                    <div>
+                      <p className="section-kicker">Riassunto</p>
+                      <h3>Riassunto della decisione presa</h3>
+                      <p className="lede">
+                        Un testo chiaro su cosa hai deciso e perché, che tiene conto anche di
+                        priorità, pro/contro, conclusione, elaborazione AI e analisi di lucidità.
+                      </p>
+                    </div>
+                    <button
+                      className="btn accent"
+                      type="button"
+                      disabled={situationBusy || !canGenerateFollowUp(decision)}
+                      onClick={() => void runSituationPoint()}
+                    >
+                      <Sparkles size={16} />
+                      {situationBusy ? 'Riassumo…' : 'Riassumi la decisione'}
+                    </button>
+                  </div>
+                  <ExpandableField
+                    label="Riassunto della decisione presa"
+                    value={decision.conclusionsSummary || ''}
+                    onChange={(value) =>
+                      updateDecision(decision.id, { conclusionsSummary: value })
+                    }
+                    placeholder="Es. Ho deciso di… perché… Tenendo conto di…"
+                    rows={12}
+                  />
+                </section>
+
+                <section className="panel" id="decision-next-steps">
+                  <div className="section-head">
+                    <div>
+                      <p className="section-kicker">Dopo la decisione</p>
+                      <h3>Obiettivi, passi e conseguenze</h3>
+                      <p className="lede">
+                        Possibili obiettivi e azioni concrete dopo la scelta, più conseguenze
+                        positive e rischi da gestire con calma.
+                      </p>
+                    </div>
+                    <button
+                      className="btn accent"
+                      type="button"
+                      disabled={nextStepsBusy || !canGenerateFollowUp(decision)}
+                      onClick={() => void runNextStepsPlan()}
+                    >
+                      <Footprints size={16} />
+                      {nextStepsBusy ? 'Preparo i passi…' : 'Passi e conseguenze'}
+                    </button>
+                  </div>
+                  <ExpandableField
+                    label="Passi successivi e conseguenze"
+                    value={decision.nextStepsPlan || ''}
+                    onChange={(value) => updateDecision(decision.id, { nextStepsPlan: value })}
+                    placeholder="Obiettivi, passi numerati e possibili conseguenze…"
+                    rows={14}
+                  />
+                  {!canGenerateFollowUp(decision) && (
+                    <p className="muted" style={{ margin: '0.55rem 0 0' }}>
+                      Aggiungi almeno scelta, motivazioni, pro/contro, conclusione o un’analisi AI
+                      per generare questi testi.
+                    </p>
+                  )}
+                  {followUpError && (
+                    <p className="error-text" style={{ marginTop: '0.65rem' }}>
+                      {followUpError}
+                    </p>
+                  )}
+                </section>
+
+                <DecisionGoalsPanel
+                  decision={decision}
+                  onChange={(goals) => updateDecision(decision.id, { goals })}
+                />
+              </>
+            )}
           </>
         )}
       </div>

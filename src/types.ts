@@ -140,6 +140,15 @@ export interface StudySchedule {
 
 export type DecisionScale = 'piccola' | 'grande'
 
+/** Obiettivo pratico collegato a una decisione. */
+export interface DecisionGoal {
+  id: string
+  title: string
+  done: boolean
+  notes?: string
+  createdAt: string
+}
+
 export interface DecisionItem {
   id: string
   title: string
@@ -162,10 +171,12 @@ export interface DecisionItem {
   lucidityAnalyzedAt?: string
   /** Elaborazione AI (pro/contro / conclusione) salvata. */
   aiElaboration?: string
-  /** Punto della situazione: raccoglie tutti i dati e le analisi. */
+  /** Riassunto della decisione presa. */
   conclusionsSummary?: string
-  /** Obiettivi/passi dopo la decisione e possibili conseguenze. */
+  /** Obiettivi/passi dopo la decisione e possibili conseguenze (testo). */
   nextStepsPlan?: string
+  /** Obiettivi gestibili (fatti / da fare). */
+  goals?: DecisionGoal[]
   status: 'aperta' | 'in_valutazione' | 'decisa'
   createdAt: string
   updatedAt: string
@@ -197,6 +208,7 @@ export type AppView =
   | 'lettureBibbia'
   | 'ministero'
   | 'decisioni'
+  | 'obiettiviDecisioni'
   | 'assistente'
   | 'impostazioni'
 
@@ -259,6 +271,7 @@ export interface FeatureFlags {
   lettureBibbia: boolean
   ministero: boolean
   decisioni: boolean
+  obiettiviDecisioni: boolean
   assistente: boolean
   impostazioni: boolean
   recentJwFeed: boolean

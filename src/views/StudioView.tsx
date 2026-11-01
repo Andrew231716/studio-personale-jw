@@ -343,6 +343,20 @@ export function StudioView() {
         <div className="stack">
           {topic.reflections.map((r, idx) => (
             <div key={r.id} className="stack">
+              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                <button
+                  className="btn secondary small"
+                  type="button"
+                  aria-label={`Elimina riflessione ${idx + 1}`}
+                  onClick={() =>
+                    updateTopic(topic.id, {
+                      reflections: topic.reflections.filter((x) => x.id !== r.id),
+                    })
+                  }
+                >
+                  Elimina riflessione
+                </button>
+              </div>
               <ExpandableField
                 label={`Riflessione ${idx + 1} — domanda`}
                 value={r.prompt}
@@ -396,6 +410,20 @@ export function StudioView() {
         <div className="stack">
           {topic.questions.map((q, idx) => (
             <div key={q.id} className="stack">
+              <div className="row" style={{ justifyContent: 'flex-end' }}>
+                <button
+                  className="btn secondary small"
+                  type="button"
+                  aria-label={`Elimina domanda ${idx + 1}`}
+                  onClick={() =>
+                    updateTopic(topic.id, {
+                      questions: topic.questions.filter((x) => x.id !== q.id),
+                    })
+                  }
+                >
+                  Elimina domanda
+                </button>
+              </div>
               <ExpandableField
                 label={`Domanda ${idx + 1}`}
                 value={q.question}
@@ -449,20 +477,34 @@ export function StudioView() {
         <div className="stack">
           {topic.practices.map((p, idx) => (
             <div className="list-item" key={p.id}>
-              <label className="row">
-                <input
-                  type="checkbox"
-                  checked={p.tried}
-                  onChange={(e) =>
+              <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+                <label className="row">
+                  <input
+                    type="checkbox"
+                    checked={p.tried}
+                    onChange={(e) =>
+                      updateTopic(topic.id, {
+                        practices: topic.practices.map((x) =>
+                          x.id === p.id ? { ...x, tried: e.target.checked } : x,
+                        ),
+                      })
+                    }
+                  />
+                  <span className="muted">Provata</span>
+                </label>
+                <button
+                  className="btn secondary small"
+                  type="button"
+                  aria-label={`Elimina pratica ${idx + 1}`}
+                  onClick={() =>
                     updateTopic(topic.id, {
-                      practices: topic.practices.map((x) =>
-                        x.id === p.id ? { ...x, tried: e.target.checked } : x,
-                      ),
+                      practices: topic.practices.filter((x) => x.id !== p.id),
                     })
                   }
-                />
-                <span className="muted">Provata</span>
-              </label>
+                >
+                  Elimina
+                </button>
+              </div>
               <ExpandableField
                 label={`Pratica ${idx + 1}`}
                 value={p.action}

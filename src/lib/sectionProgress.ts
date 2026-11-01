@@ -202,6 +202,23 @@ export function getSectionProgress(
           ? 'Riassumi la decisione presa, poi genera passi e conseguenze.'
           : 'Crea la prima decisione a sinistra.',
       }
+    case 'obiettiviDecisioni': {
+      const goals = decisions.flatMap((d) => d.goals || [])
+      return {
+        title: 'Obiettivi dalle decisioni',
+        items: [
+          { label: 'Obiettivi', value: String(goals.length) },
+          { label: 'Fatti', value: String(countBy(goals, (g) => g.done)) },
+          {
+            label: 'Da fare',
+            value: String(countBy(goals, (g) => !g.done)),
+          },
+        ],
+        hint: goals.length
+          ? 'Spunta i fatti, modifica o elimina. Apri la decisione per aggiungerne altri.'
+          : 'Nascono da Decisioni → passi/obiettivi.',
+      }
+    }
     case 'videoStudio':
       return {
         title: 'Studi da video',

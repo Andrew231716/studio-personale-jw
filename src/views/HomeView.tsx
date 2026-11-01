@@ -116,6 +116,7 @@ export function HomeView() {
               ['lettureBibbia', 'Letture Bibbia'],
               ['ministero', 'Ministero'],
               ['decisioni', 'Decisioni'],
+              ['obiettiviDecisioni', 'Obiettivi'],
               ['videoStudio', 'Video → studio'],
               ['salvati', 'Da studiare'],
             ] as const

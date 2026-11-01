@@ -17,6 +17,7 @@ const FEATURE_KEYS: Array<keyof FeatureFlags> = [
   'lettureBibbia',
   'ministero',
   'decisioni',
+  'obiettiviDecisioni',
   'assistente',
   'impostazioni',
   'recentJwFeed',
@@ -326,6 +327,8 @@ function featureLabel(key: keyof FeatureFlags) {
       return 'Ministero'
     case 'decisioni':
       return 'Decisioni'
+    case 'obiettiviDecisioni':
+      return 'Obiettivi decisioni'
     case 'assistente':
       return 'Assistente AI'
     case 'impostazioni':

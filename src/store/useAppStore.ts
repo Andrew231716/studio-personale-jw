@@ -54,6 +54,7 @@ const defaultSettings: AppSettings = {
     lettureBibbia: true,
     ministero: true,
     decisioni: true,
+    obiettiviDecisioni: true,
     assistente: true,
     impostazioni: true,
     recentJwFeed: true,
@@ -71,6 +72,7 @@ const defaultSettings: AppSettings = {
     'lettureBibbia',
     'ministero',
     'decisioni',
+    'obiettiviDecisioni',
     'assistente',
     'impostazioni',
   ],
@@ -211,6 +213,13 @@ function normalizeDecisionTerms(decision: DecisionItem): DecisionItem {
     nextStepsPlan: decision.nextStepsPlan
       ? normalizeJwItalian(decision.nextStepsPlan)
       : decision.nextStepsPlan,
+    goals: Array.isArray(decision.goals)
+      ? decision.goals.map((g) => ({
+          ...g,
+          title: normalizeJwItalian(g.title || ''),
+          notes: g.notes ? normalizeJwItalian(g.notes) : g.notes,
+        }))
+      : decision.goals || [],
     aiElaboration: decision.aiElaboration
       ? normalizeJwItalian(decision.aiElaboration)
       : decision.aiElaboration,
@@ -349,6 +358,7 @@ export const useAppStore = create<AppState>()(
           honestMotivations: '',
           conclusionsSummary: '',
           nextStepsPlan: '',
+          goals: [],
           aiElaboration: '',
           lucidityAnalysis: '',
           status: 'aperta',
@@ -710,6 +720,11 @@ export const useAppStore = create<AppState>()(
                 if (lettureIdx >= 0) order.splice(lettureIdx + 1, 0, 'ministero')
                 else order.push('ministero')
               }
+              if (!order.includes('obiettiviDecisioni')) {
+                const decIdx = order.indexOf('decisioni')
+                if (decIdx >= 0) order.splice(decIdx + 1, 0, 'obiettiviDecisioni')
+                else order.push('obiettiviDecisioni')
+              }
               return order
             })(),
           },
@@ -760,6 +775,7 @@ export const VIEW_LABELS: Record<AppView, string> = {
   lettureBibbia: 'Letture Bibbia',
   ministero: 'Ministero',
   decisioni: 'Decisioni',
+  obiettiviDecisioni: 'Obiettivi',
   assistente: 'Assistente AI',
   impostazioni: 'Impostazioni',
 }
