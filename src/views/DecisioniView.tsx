@@ -303,11 +303,15 @@ export function DecisioniView() {
             />
           </div>
           <div className="field">
-            <label>Scala</label>
+            <label>Importanza</label>
             <select value={scale} onChange={(e) => setScale(e.target.value as typeof scale)}>
-              <option value="piccola">Piccola</option>
-              <option value="grande">Grande</option>
+              <option value="piccola">Piccola — scelta di tutti i giorni</option>
+              <option value="grande">Grande — conseguenze importanti</option>
             </select>
+            <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+              Piccola: cose pratiche di oggi/settimana. Grande: famiglia, congregazione, ministero,
+              salute o scelte che restano a lungo.
+            </p>
           </div>
           <button
             className="btn"
@@ -333,7 +337,7 @@ export function DecisioniView() {
                 <div className="row" style={{ justifyContent: 'space-between' }}>
                   <strong>{d.title}</strong>
                   <span className="badge">
-                    {d.scale === 'grande' ? 'Grande' : 'Piccola'} ·{' '}
+                    {d.scale === 'grande' ? 'Importanza grande' : 'Importanza piccola'} ·{' '}
                     {d.status === 'decisa'
                       ? 'Decisa'
                       : d.status === 'in_valutazione'
@@ -399,28 +403,40 @@ export function DecisioniView() {
                 value={decision.prayerNotes}
                 onChange={(value) => updateDecision(decision.id, { prayerNotes: value })}
               />
-              <div className="row">
-                <select
-                  value={decision.scale}
-                  onChange={(e) =>
-                    updateDecision(decision.id, { scale: e.target.value as typeof decision.scale })
-                  }
-                >
-                  <option value="piccola">Piccola</option>
-                  <option value="grande">Grande</option>
-                </select>
-                <select
-                  value={decision.status}
-                  onChange={(e) =>
-                    updateDecision(decision.id, {
-                      status: e.target.value as typeof decision.status,
-                    })
-                  }
-                >
-                  <option value="aperta">Aperta</option>
-                  <option value="in_valutazione">In valutazione</option>
-                  <option value="decisa">Decisa</option>
-                </select>
+              <div className="grid-2">
+                <div className="field">
+                  <label>Importanza della decisione</label>
+                  <select
+                    value={decision.scale}
+                    onChange={(e) =>
+                      updateDecision(decision.id, {
+                        scale: e.target.value as typeof decision.scale,
+                      })
+                    }
+                  >
+                    <option value="piccola">Piccola — scelta di tutti i giorni</option>
+                    <option value="grande">Grande — conseguenze importanti</option>
+                  </select>
+                  <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+                    Serve solo a ricordarti quanto pesa la scelta. Non cambia i calcoli: ti aiuta a
+                    dare il giusto tempo a preghiera, studio e consiglio.
+                  </p>
+                </div>
+                <div className="field">
+                  <label>Stato</label>
+                  <select
+                    value={decision.status}
+                    onChange={(e) =>
+                      updateDecision(decision.id, {
+                        status: e.target.value as typeof decision.status,
+                      })
+                    }
+                  >
+                    <option value="aperta">Aperta</option>
+                    <option value="in_valutazione">In valutazione</option>
+                    <option value="decisa">Decisa</option>
+                  </select>
+                </div>
               </div>
             </section>
 

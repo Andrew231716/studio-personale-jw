@@ -180,6 +180,79 @@ export function buildLocalNextSteps(
   return normalizeJwItalian(lines.join('\n'))
 }
 
+/** Converte tabelle markdown grezze in elenchi leggibili nel testo. */
+function markdownTablesToLists(text: string): string {
+  const lines = text.split('\n')
+  const out: string[] = []
+  let i = 0
+  const splitRow = (row: string) =>
+    row
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((c) => c.trim())
+
+  while (i < lines.length) {
+    const line = lines[i]
+    const next = lines[i + 1] || ''
+    const isTableHeader =
+      /^\s*\|.+\|\s*$/.test(line) && /^\s*\|?\s*[-:| ]+\|?\s*$/.test(next)
+    if (isTableHeader) {
+      const headers = splitRow(line)
+      i += 2
+      while (i < lines.length && /^\s*\|/.test(lines[i])) {
+        const cells = splitRow(lines[i])
+        const parts = headers
+          .map((h, idx) => {
+            const cell = (cells[idx] || '').trim()
+            if (!h && !cell) return ''
+            return `${h || 'Voce'}: ${cell || '—'}`
+          })
+          .filter(Boolean)
+        if (parts.length) out.push(`• ${parts.join(' · ')}`)
+        i += 1
+      }
+      continue
+    }
+    out.push(line)
+    i += 1
+  }
+  return out.join('\n')
+}
+
+function looksTruncated(text: string): boolean {
+  const t = text.trim()
+  if (!t) return true
+  if (/[.!?…»"')\]]\s*$/.test(t)) return false
+  if (/\|/.test(t) && /\|[^|\n]*\S\s*$/.test(t)) return true
+  if (/[,:;–—\-]\s*$/.test(t)) return true
+  const lastWord = (t.split(/\s+/).pop() || '').replace(/[^a-zA-ZÀ-ÿ']/g, '')
+  // Es. «Necessaria per serv» → parola finale troncata
+  if (lastWord.length > 0 && lastWord.length <= 5) return true
+  return false
+}
+
+/** Pulisce la risposta AI: niente tabelle grezze, avviso se il testo è tagliato. */
+export function polishAiDecisionText(raw: string): string {
+  let s = normalizeJwItalian(raw || '')
+  s = markdownTablesToLists(s)
+  s = s.replace(/\*{1,3}/g, '')
+  s = s.replace(/\n{3,}/g, '\n\n').trim()
+  if (looksTruncated(s)) {
+    // Togli l’ultima riga/parola incompleta se finisce a metà
+    const lines = s.split('\n')
+    const last = lines[lines.length - 1] || ''
+    if (/\|/.test(last) || !/[.!?…]$/.test(last.trim())) {
+      lines.pop()
+      s = lines.join('\n').trim()
+    }
+    s +=
+      '\n\n—\nNota: la risposta risultava incompleta (tagliata a metà). Tocca di nuovo il pulsante per rigenerare, oppure completa a mano le parti mancanti.'
+  }
+  return s.trim()
+}
+
 export async function generateSituationPoint(params: {
   decision: DecisionItem
   linkedTopics: StudyTopic[]
@@ -195,16 +268,28 @@ Formato obbligatorio (titoli chiari, italiano JW tipico di jw.org):
 1. Situazione in sintesi (4-6 frasi)
 2. Cosa ho deciso (o cosa manca ancora)
 3. Perché / motivazioni (anche quelle scomode)
-4. Priorità e tensione tra pro e contro
+4. Priorità e tensione tra pro e contro (elenco puntato, MAI tabelle markdown)
 5. Cosa dicono i materiali e le analisi già fatte (solo se presenti nel contesto)
 6. Lucidità e cautela (se c’è analisi di lucidità, usala; altrimenti indica cosa manca)
-7. Punto fermo attuale (1 breve paragrafo conclusivo)
+7. Punto fermo attuale (1 breve paragrafo conclusivo, chiudi con una frase completa)
 
-Tono rispettoso, pratico, senza moralismo. Niente «ministeriale»: usa «ministero».`
+Regole di scrittura:
+- Solo testo semplice. VIETATO usare tabelle markdown (| col |), HTML o codice.
+- Per le priorità usa righe tipo: «• Rapporto con Geova (peso 10): …»
+- Completa SEMPRE fino al punto 7; non interrompere a metà frase.
+- Niente «ministeriale»: usa «ministero».`
 
   try {
     const answer = await askAi({ prompt, context })
-    if (answer?.trim()) return normalizeJwItalian(answer.trim())
+    if (answer?.trim()) {
+      const polished = polishAiDecisionText(answer)
+      const core = polished.replace(/\n\n—\nNota:[\s\S]*$/, '').trim()
+      // Se l’AI taglia a metà, meglio un testo completo locale che un pezzo spezzato.
+      if (polished.includes('risultava incompleta') || looksTruncated(core)) {
+        return buildLocalSituationPoint(decision, linkedTopics)
+      }
+      return polished
+    }
   } catch {
     /* fallback locale */
   }
@@ -229,11 +314,21 @@ Formato obbligatorio:
 5. Come verificare tra 2-4 settimane (2-3 domande oneste)
 6. Una nota breve su preghiera e, se utile, consiglio agli anziani
 
-Tono pratico e prudente, stile jw.org (ministero, congregazione, anziani).`
+Regole:
+- Solo testo semplice, niente tabelle markdown.
+- Completa tutte le sezioni con frasi intere (non tagliare a metà).
+- Tono pratico e prudente, stile jw.org (ministero, congregazione, anziani).`
 
   try {
     const answer = await askAi({ prompt, context })
-    if (answer?.trim()) return normalizeJwItalian(answer.trim())
+    if (answer?.trim()) {
+      const polished = polishAiDecisionText(answer)
+      const core = polished.replace(/\n\n—\nNota:[\s\S]*$/, '').trim()
+      if (polished.includes('risultava incompleta') || looksTruncated(core)) {
+        return buildLocalNextSteps(decision, linkedTopics)
+      }
+      return polished
+    }
   } catch {
     /* fallback locale */
   }

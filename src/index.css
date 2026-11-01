@@ -771,7 +771,8 @@ img {
 .expandable-modal-input,
 .expandable-modal-body {
   width: 100%;
-  min-height: 40vh;
+  min-height: 45vh;
+  max-height: min(62vh, 520px);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 0.9rem 1rem;
@@ -780,9 +781,11 @@ img {
   font: inherit;
   line-height: 1.55;
   resize: vertical;
+  overflow: auto;
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: pre-wrap;
+  -webkit-overflow-scrolling: touch;
 }
 
 .expandable-modal-body.readonly {

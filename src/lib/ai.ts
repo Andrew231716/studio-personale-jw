@@ -72,6 +72,8 @@ async function askPollinations(
       model: 'openai',
       temperature: 0.25,
       seed: Date.now() % 100000,
+      // Evita risposte tagliate a metà (sintesi lunghe / analisi decisioni).
+      max_tokens: 3500,
     }),
   })
 
