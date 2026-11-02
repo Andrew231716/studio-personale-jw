@@ -387,6 +387,16 @@ export interface CloudSyncSettings {
   syncKey: string
 }
 
+export type NarrationVoicePref =
+  | 'isabella'
+  | 'elsa'
+  | 'diego'
+  | 'giuseppe'
+  | 'jenny'
+  | 'aria'
+
+export type NarrationEnginePref = 'neural' | 'device'
+
 export interface AppSettings {
   language: 'I' | 'E'
   theme: ThemeConfig
@@ -395,6 +405,10 @@ export interface AppSettings {
   brandName: string
   tagline: string
   studyMethodNotes: string
+  /** Voce narrativa neurale (cloud). Default: isabella. */
+  narrationVoice?: NarrationVoicePref
+  /** neural = voce narrativa cloud; device = solo offline/dispositivo. */
+  narrationEngine?: NarrationEnginePref
   /** Sync database privato iCloud (CloudKit) — opzionale avanzato. */
   iCloud?: ICloudSettings
   /** Sync cloud automatica tra dispositivi. */

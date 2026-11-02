@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Pause, Volume2, VolumeX } from 'lucide-react'
+import { Loader2, Pause, Volume2, VolumeX } from 'lucide-react'
 import {
   getNarrationController,
   getSpeakingText,
-  speechNarrationSupportNote,
   speechNarrationSupported,
   subscribeNarration,
   type NarrationState,
+  type NarrationVoiceId,
 } from '../lib/speechNarration'
+import { useAppStore } from '../store/useAppStore'
 
 interface Props {
   text: string
@@ -18,12 +19,14 @@ interface Props {
 }
 
 /**
- * Pulsante gratuito «Ascolta» basato su speechSynthesis del browser.
- * Se lo stesso testo è già in riproduzione, mostra Pausa / Stop.
+ * Pulsante «Ascolta» con voce narrativa neurale (cloud), non la voce di sistema.
  */
 export function NarrateButton({ text, label = 'Ascolta', className = '', compact = false }: Props) {
   const [state, setState] = useState<NarrationState>('idle')
   const [speakingText, setSpeakingText] = useState('')
+  const narrationVoice = useAppStore((s) => s.settings.narrationVoice || 'isabella')
+  const narrationEngine = useAppStore((s) => s.settings.narrationEngine || 'neural')
+  const language = useAppStore((s) => s.settings.language)
   const supported = speechNarrationSupported()
   const trimmed = text.replace(/\s+/g, ' ').trim()
   const isMine = Boolean(trimmed) && speakingText === trimmed && state !== 'idle'
@@ -39,20 +42,36 @@ export function NarrateButton({ text, label = 'Ascolta', className = '', compact
 
   const ctrl = getNarrationController()
   const btnClass = `btn secondary${compact ? ' small' : ''} narrate-btn${isMine ? ' is-active' : ''} ${className}`.trim()
+  const icon = compact ? 14 : 16
 
   if (!supported) {
     return (
-      <button
-        type="button"
-        className={btnClass}
-        title={speechNarrationSupportNote()}
-        disabled
-      >
+      <button type="button" className={btnClass} disabled title="Voce narrativa non disponibile">
         <span className="row" style={{ gap: 6 }}>
-          <VolumeX size={compact ? 14 : 16} />
+          <VolumeX size={icon} />
           {label}
         </span>
       </button>
+    )
+  }
+
+  if (isMine && state === 'loading') {
+    return (
+      <span className="row narrate-controls" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <button type="button" className={btnClass} disabled aria-label="Preparazione voce narrativa">
+          <span className="row" style={{ gap: 6 }}>
+            <Loader2 size={icon} className="spin" />
+            Preparo la voce…
+          </span>
+        </button>
+        <button
+          type="button"
+          className={`btn secondary${compact ? ' small' : ''}`}
+          onClick={() => ctrl.stop()}
+        >
+          Annulla
+        </button>
+      </span>
     )
   }
 
@@ -66,7 +85,7 @@ export function NarrateButton({ text, label = 'Ascolta', className = '', compact
           aria-label="Pausa voce narrativa"
         >
           <span className="row" style={{ gap: 6 }}>
-            <Pause size={compact ? 14 : 16} />
+            <Pause size={icon} />
             Pausa
           </span>
         </button>
@@ -92,7 +111,7 @@ export function NarrateButton({ text, label = 'Ascolta', className = '', compact
           aria-label="Riprendi voce narrativa"
         >
           <span className="row" style={{ gap: 6 }}>
-            <Volume2 size={compact ? 14 : 16} />
+            <Volume2 size={icon} />
             Riprendi
           </span>
         </button>
@@ -112,12 +131,18 @@ export function NarrateButton({ text, label = 'Ascolta', className = '', compact
     <button
       type="button"
       className={btnClass}
-      onClick={() => ctrl.speak(trimmed)}
+      onClick={() =>
+        ctrl.speak(trimmed, {
+          voice: narrationVoice as NarrationVoiceId,
+          language,
+          engine: narrationEngine,
+        })
+      }
       aria-label={`${label} con voce narrativa`}
-      title="Voce narrativa gratuita del browser"
+      title="Voce narrativa neurale (non quella di sistema)"
     >
       <span className="row" style={{ gap: 6 }}>
-        <Volume2 size={compact ? 14 : 16} />
+        <Volume2 size={icon} />
         {label}
       </span>
     </button>

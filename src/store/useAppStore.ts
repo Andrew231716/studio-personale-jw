@@ -80,6 +80,8 @@ const defaultSettings: AppSettings = {
     'assistente',
     'impostazioni',
   ],
+  narrationVoice: 'isabella',
+  narrationEngine: 'neural',
   brandName: 'JW Studio',
   tagline: 'Studia con cuore, un passo alla volta, con l’aiuto di jw.org',
   studyMethodNotes:
