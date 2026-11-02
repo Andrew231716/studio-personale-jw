@@ -28,6 +28,7 @@ export function StudioView() {
   const startSession = useAppStore((s) => s.startSession)
   const archiveTopic = useAppStore((s) => s.archiveTopic)
   const reopenTopic = useAppStore((s) => s.reopenTopic)
+  const removeTopic = useAppStore((s) => s.removeTopic)
   const sessionLogs = useAppStore((s) => s.sessionLogs)
   const schedules = useAppStore((s) => s.schedules)
   const [aiBusy, setAiBusy] = useState(false)
@@ -55,6 +56,25 @@ export function StudioView() {
     [sessionLogs, topic],
   )
   const hasUpcoming = topicHasUpcomingSchedule(topic?.id, schedules)
+
+  function deleteEntireTopic() {
+    if (!topic) return
+    if (
+      !window.confirm(
+        `Eliminare l’argomento «${topic.title}»? Il Quaderno e i collegamenti andranno persi. Le sessioni nel Diario restano.`,
+      )
+    ) {
+      return
+    }
+    const remaining = topics.filter((t) => t.id !== topic.id)
+    removeTopic(topic.id)
+    if (remaining.length === 0) {
+      setView('argomenti')
+      return
+    }
+    const next = remaining.find((t) => t.status !== 'completato') || remaining[0]
+    setActiveTopic(next.id)
+  }
 
   if (!topic) {
     return (
@@ -211,6 +231,14 @@ export function StudioView() {
                 >
                   Rinomina
                 </button>
+                <button
+                  className="btn danger small"
+                  type="button"
+                  aria-label={`Elimina argomento ${topic.title}`}
+                  onClick={deleteEntireTopic}
+                >
+                  <Trash2 size={14} /> Elimina tutto
+                </button>
               </div>
             )}
             <p className="lede">
@@ -303,6 +331,9 @@ export function StudioView() {
               <Archive size={16} /> Completa e archivia
             </button>
           )}
+          <button className="btn danger" type="button" onClick={deleteEntireTopic}>
+            <Trash2 size={16} /> Elimina tutto l’argomento
+          </button>
         </div>
         {hasUpcoming && topic.status !== 'completato' && (
           <p className="muted" style={{ margin: '0.45rem 0 0' }}>
