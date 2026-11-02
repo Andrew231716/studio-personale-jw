@@ -84,6 +84,24 @@ app.post('/api/ai', express.json({ limit: '1mb' }), async (req, res) => {
   }
 })
 
+app.post('/api/tts', express.json({ limit: '32kb' }), async (req, res) => {
+  try {
+    const { default: handler } = await import('./api/tts.js')
+    await handler(req, res)
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
+})
+
+app.get('/api/tts', async (req, res) => {
+  try {
+    const { default: handler } = await import('./api/tts.js')
+    await handler(req, res)
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
+})
+
 app.options('/api/sync', (_req, res) => {
   res.set('Access-Control-Allow-Origin', '*')
   res.set('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS')

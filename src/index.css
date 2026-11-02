@@ -749,6 +749,16 @@ img {
   background: color-mix(in srgb, var(--secondary) 14%, white);
 }
 
+.spin {
+  animation: narrate-spin 0.9s linear infinite;
+}
+
+@keyframes narrate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .expandable-open {
   display: inline-flex;
   align-items: center;

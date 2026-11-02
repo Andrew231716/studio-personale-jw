@@ -111,6 +111,63 @@ async function localApiMiddleware(
       res.end(text)
       return
     }
+    if (url.pathname === '/api/tts' && (req.method === 'POST' || req.method === 'GET')) {
+      // @ts-expect-error API route is plain JS without declarations
+      const mod = (await import('./api/tts.js')) as {
+        default: (req: unknown, res: unknown) => Promise<void>
+      }
+      let body: unknown = undefined
+      if (req.method === 'POST') {
+        const raw = await readBody(req)
+        try {
+          body = JSON.parse(raw || '{}')
+        } catch {
+          body = {}
+        }
+      }
+      const fakeReq = {
+        method: req.method,
+        query: Object.fromEntries(url.searchParams.entries()),
+        body,
+      }
+      await new Promise<void>((resolve, reject) => {
+        const fakeRes = {
+          statusCode: 200,
+          headers: {} as Record<string, string>,
+          status(code: number) {
+            this.statusCode = code
+            return this
+          },
+          setHeader(name: string, value: string) {
+            this.headers[name.toLowerCase()] = value
+            return this
+          },
+          json(payload: unknown) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(payload))
+            resolve()
+          },
+          send(payload: unknown) {
+            res.statusCode = this.statusCode
+            for (const [k, v] of Object.entries(this.headers)) res.setHeader(k, v)
+            if (Buffer.isBuffer(payload)) {
+              res.end(payload as unknown as string)
+            } else {
+              res.end(String(payload ?? ''))
+            }
+            resolve()
+          },
+          end() {
+            res.statusCode = this.statusCode
+            res.end()
+            resolve()
+          },
+        }
+        void mod.default(fakeReq, fakeRes).catch(reject)
+      })
+      return
+    }
     if (url.pathname === '/api/sync') {
       res.statusCode = 501
       res.setHeader('Content-Type', 'application/json')

@@ -17,6 +17,9 @@ import {
   getCachedVerseCount,
   getOfflineBibleStats,
 } from '../lib/bibleText'
+import { NARRATION_VOICES } from '../lib/speechNarration'
+import type { NarrationEnginePref, NarrationVoicePref } from '../types'
+import { NarrateButton } from '../components/NarrateButton'
 import {
   notificationPermission,
   requestNotificationPermission,
@@ -189,6 +192,62 @@ export function ImpostazioniView() {
           <textarea
             value={settings.studyMethodNotes}
             onChange={(e) => updateSettings({ studyMethodNotes: e.target.value })}
+          />
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>Voce narrativa</h2>
+        <p className="lede">
+          Ascolta riassunti e analisi con una voce neurale narrativa (non la voce di sistema del
+          dispositivo). Richiede rete; offline usa la migliore voce disponibile sul browser.
+        </p>
+        <div className="grid-2">
+          <div className="field">
+            <label htmlFor="narration-engine">Motore</label>
+            <select
+              id="narration-engine"
+              value={settings.narrationEngine || 'neural'}
+              onChange={(e) =>
+                updateSettings({
+                  narrationEngine: e.target.value as NarrationEnginePref,
+                })
+              }
+            >
+              <option value="neural">Narrativa neurale (consigliata)</option>
+              <option value="device">Solo voce del dispositivo</option>
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="narration-voice">Voce</label>
+            <select
+              id="narration-voice"
+              value={settings.narrationVoice || 'isabella'}
+              onChange={(e) =>
+                updateSettings({
+                  narrationVoice: e.target.value as NarrationVoicePref,
+                })
+              }
+              disabled={(settings.narrationEngine || 'neural') === 'device'}
+            >
+              {NARRATION_VOICES.filter((v) =>
+                settings.language === 'E' ? v.language === 'E' : v.language === 'I',
+              ).map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
+          <NarrateButton
+            text={
+              settings.language === 'E'
+                ? 'This is a warm narrative voice for personal Bible study summaries and reflections.'
+                : 'Questa è una voce narrativa calda e chiara, pensata per ascoltare riassunti e riflessioni dello studio personale.'
+            }
+            label="Prova la voce"
           />
         </div>
       </section>
