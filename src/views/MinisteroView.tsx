@@ -297,6 +297,7 @@ export function MinisteroView() {
                   value={active.content}
                   onChange={(value) => updateNote(active.id, { content: value })}
                   rows={12}
+                  narrate
                 />
                 <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
                   <button className="btn" type="button" onClick={saveAsStudy}>

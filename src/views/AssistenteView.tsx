@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BookmarkPlus } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { NarrateButton } from '../components/NarrateButton'
 import { SectionProgress } from '../components/SectionProgress'
 import { askAi, buildDecisionContext, buildStudyContext, createMessage } from '../lib/ai'
 import { searchJwDeep } from '../lib/jwApi'
@@ -203,7 +204,19 @@ export function AssistenteView() {
           )}
           {messages.map((m) => (
             <div key={m.id} className={`bubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
-              {m.role === 'assistant' ? normalizeJwItalian(m.content) : m.content}
+              {m.role === 'assistant' ? (
+                <>
+                  <div
+                    className="row"
+                    style={{ justifyContent: 'flex-end', marginBottom: '0.45rem' }}
+                  >
+                    <NarrateButton text={normalizeJwItalian(m.content)} compact />
+                  </div>
+                  {normalizeJwItalian(m.content)}
+                </>
+              ) : (
+                m.content
+              )}
             </div>
           ))}
         </div>

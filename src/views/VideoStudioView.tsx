@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BookmarkPlus, Captions, NotebookPen, PlayCircle, Search } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { NarrateButton } from '../components/NarrateButton'
 import { SectionProgress } from '../components/SectionProgress'
+import { TranscriptKaraoke } from '../components/TranscriptKaraoke'
 import {
   fetchLatestVideos,
   fetchVideoTranscript,
@@ -43,10 +45,12 @@ export function VideoStudioView() {
   const [videoTitle, setVideoTitle] = useState('')
   const [lank, setLank] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
+  const [progressiveUrl, setProgressiveUrl] = useState('')
   const [allCues, setAllCues] = useState<VttCue[]>([])
   const [startMin, setStartMin] = useState('0')
   const [endMin, setEndMin] = useState('')
   const [showTimed, setShowTimed] = useState(false)
+  const [showKaraoke, setShowKaraoke] = useState(true)
   const [guide, setGuide] = useState<VideoStudyGuide | null>(null)
 
   const totalSec = useMemo(() => cuesDurationSeconds(allCues), [allCues])
@@ -128,9 +132,11 @@ export function VideoStudioView() {
       setVideoTitle(result.media.title || titleHint || 'Video JW')
       setLank(result.media.lank)
       setVideoUrl(result.media.url)
+      setProgressiveUrl(result.media.progressiveUrl || '')
       setAllCues(result.cues)
       setStartMin('0')
       setEndMin(duration ? String(Math.ceil(duration / 60)) : '')
+      setShowKaraoke(true)
       setPhase('transcript')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Trascrizione non disponibile')
@@ -395,8 +401,32 @@ export function VideoStudioView() {
           </p>
 
           <div className="chip-row">
-            <button className="chip" type="button" onClick={() => setShowTimed((v) => !v)}>
-              {showTimed ? 'Testo continuo' : 'Con tempi'}
+            <button
+              className={`chip${showKaraoke ? ' active' : ''}`}
+              type="button"
+              onClick={() => setShowKaraoke(true)}
+            >
+              Voce + parole
+            </button>
+            <button
+              className={`chip${!showKaraoke && !showTimed ? ' active' : ''}`}
+              type="button"
+              onClick={() => {
+                setShowKaraoke(false)
+                setShowTimed(false)
+              }}
+            >
+              Testo continuo
+            </button>
+            <button
+              className={`chip${!showKaraoke && showTimed ? ' active' : ''}`}
+              type="button"
+              onClick={() => {
+                setShowKaraoke(false)
+                setShowTimed(true)
+              }}
+            >
+              Con tempi
             </button>
             <button
               className="chip"
@@ -405,19 +435,30 @@ export function VideoStudioView() {
                 setPhase('pick')
                 setGuide(null)
                 setAllCues([])
+                setProgressiveUrl('')
               }}
             >
               Cambia video
             </button>
           </div>
 
-          <textarea
-            className="transcript-box"
-            readOnly
-            value={showTimed ? filtered.timedText : filtered.transcript}
-            rows={14}
-            placeholder="Nessun testo in questo intervallo…"
-          />
+          {showKaraoke ? (
+            <TranscriptKaraoke
+              cues={filtered.cues}
+              progressiveUrl={progressiveUrl || undefined}
+              startSec={range.startSec}
+              endSec={range.endSec || totalSec}
+              title={videoTitle}
+            />
+          ) : (
+            <textarea
+              className="transcript-box"
+              readOnly
+              value={showTimed ? filtered.timedText : filtered.transcript}
+              rows={14}
+              placeholder="Nessun testo in questo intervallo…"
+            />
+          )}
 
           <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
             <button
@@ -466,7 +507,10 @@ export function VideoStudioView() {
           </p>
 
           <div className="field">
-            <label htmlFor="guide-summary">Riassunto</label>
+            <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <label htmlFor="guide-summary">Riassunto</label>
+              <NarrateButton text={guide.summary} compact />
+            </div>
             <textarea
               id="guide-summary"
               rows={3}

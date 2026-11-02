@@ -416,6 +416,7 @@ export function LettureBibbiaView() {
                   value={active.plan}
                   onChange={(value) => updateBiblePlan(active.id, { plan: value })}
                   rows={12}
+                  narrate
                 />
 
                 <h4>Scritture da aprire</h4>
