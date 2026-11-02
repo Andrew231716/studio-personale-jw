@@ -57,6 +57,25 @@ export function StudioView() {
   )
   const hasUpcoming = topicHasUpcomingSchedule(topic?.id, schedules)
 
+  function deleteEntireTopic() {
+    if (!topic) return
+    if (
+      !window.confirm(
+        `Eliminare l’argomento «${topic.title}»? Il Quaderno e i collegamenti andranno persi. Le sessioni nel Diario restano.`,
+      )
+    ) {
+      return
+    }
+    const remaining = topics.filter((t) => t.id !== topic.id)
+    removeTopic(topic.id)
+    if (remaining.length === 0) {
+      setView('argomenti')
+      return
+    }
+    const next = remaining.find((t) => t.status !== 'completato') || remaining[0]
+    setActiveTopic(next.id)
+  }
+
   if (!topic) {
     return (
       <div className="stack">
@@ -212,6 +231,14 @@ export function StudioView() {
                 >
                   Rinomina
                 </button>
+                <button
+                  className="btn danger small"
+                  type="button"
+                  aria-label={`Elimina argomento ${topic.title}`}
+                  onClick={deleteEntireTopic}
+                >
+                  <Trash2 size={14} /> Elimina tutto
+                </button>
               </div>
             )}
             <p className="lede">
@@ -304,29 +331,8 @@ export function StudioView() {
               <Archive size={16} /> Completa e archivia
             </button>
           )}
-          <button
-            className="btn danger"
-            type="button"
-            onClick={() => {
-              if (
-                !window.confirm(
-                  `Eliminare l’argomento «${topic.title}»? Il Quaderno e i collegamenti andranno persi. Le sessioni nel Diario restano.`,
-                )
-              ) {
-                return
-              }
-              const remaining = topics.filter((t) => t.id !== topic.id)
-              removeTopic(topic.id)
-              if (remaining.length === 0) {
-                setView('argomenti')
-              } else {
-                const next =
-                  remaining.find((t) => t.status !== 'completato') || remaining[0]
-                setActiveTopic(next.id)
-              }
-            }}
-          >
-            <Trash2 size={16} /> Elimina argomento
+          <button className="btn danger" type="button" onClick={deleteEntireTopic}>
+            <Trash2 size={16} /> Elimina tutto l’argomento
           </button>
         </div>
         {hasUpcoming && topic.status !== 'completato' && (
