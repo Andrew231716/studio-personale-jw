@@ -28,6 +28,7 @@ export function StudioView() {
   const startSession = useAppStore((s) => s.startSession)
   const archiveTopic = useAppStore((s) => s.archiveTopic)
   const reopenTopic = useAppStore((s) => s.reopenTopic)
+  const removeTopic = useAppStore((s) => s.removeTopic)
   const sessionLogs = useAppStore((s) => s.sessionLogs)
   const schedules = useAppStore((s) => s.schedules)
   const [aiBusy, setAiBusy] = useState(false)
@@ -303,6 +304,30 @@ export function StudioView() {
               <Archive size={16} /> Completa e archivia
             </button>
           )}
+          <button
+            className="btn danger"
+            type="button"
+            onClick={() => {
+              if (
+                !window.confirm(
+                  `Eliminare l’argomento «${topic.title}»? Il Quaderno e i collegamenti andranno persi. Le sessioni nel Diario restano.`,
+                )
+              ) {
+                return
+              }
+              const remaining = topics.filter((t) => t.id !== topic.id)
+              removeTopic(topic.id)
+              if (remaining.length === 0) {
+                setView('argomenti')
+              } else {
+                const next =
+                  remaining.find((t) => t.status !== 'completato') || remaining[0]
+                setActiveTopic(next.id)
+              }
+            }}
+          >
+            <Trash2 size={16} /> Elimina argomento
+          </button>
         </div>
         {hasUpcoming && topic.status !== 'completato' && (
           <p className="muted" style={{ margin: '0.45rem 0 0' }}>
