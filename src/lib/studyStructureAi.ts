@@ -72,7 +72,8 @@ const CONTENT_RULES = `Regole di contenuto (obbligatorie):
 3. Ogni obiettivo, riflessione, domanda o pratica deve richiamare un tema, esempio, scrittura, personaggio o consiglio PRESENTI nel materiale.
 4. Se il materiale è scarso, estrai ciò che c’è (titolo + note) e resta concreto; non inventare articoli o citazioni letterali.
 5. ${JW_ITALIAN_TERM_HINT}
-6. Non inventare link né titoli di pubblicazioni non presenti nel contesto.`
+6. Non inventare link né titoli di pubblicazioni non presenti nel contesto.
+7. Niente ripetizioni: ogni punto deve dire qualcosa di diverso. Non ripetere la stessa idea con altre parole, né tra sezioni (es. stessa domanda sia in RIFLESSIONI sia in DOMANDE). Non rifare punti già presenti nel contesto.`
 
 /** Crea struttura completa da un materiale appena aggiunto al Quaderno. */
 export async function buildStudyStructureFromMaterial(params: {
@@ -144,11 +145,59 @@ Migliora e completa rispetto a ciò che c’è già; non ripetere bozze vuote o 
       topic.title,
       topic.interest + '\n' + (topic.transcript || ''),
     )
-    if (kind === 'obiettivi') return { objectives: parsed.objectives }
-    if (kind === 'riflessione') return { reflections: parsed.reflections }
-    if (kind === 'risposte') return { questions: parsed.questions }
-    if (kind === 'pratiche') return { practices: parsed.practices }
-    return parsed
+    const cleaned = dedupeStudyStructure({
+      title: parsed.title,
+      summary: parsed.summary,
+      objectives: parsed.objectives,
+      reflections: parsed.reflections,
+      questions: parsed.questions,
+      practices: parsed.practices,
+    })
+    if (kind === 'obiettivi') {
+      return {
+        objectives: dedupeLines(cleaned.objectives, topic.objectives),
+      }
+    }
+    if (kind === 'riflessione') {
+      return {
+        reflections: dedupeByField(
+          cleaned.reflections,
+          (r) => r.prompt,
+          [
+            ...topic.objectives,
+            ...topic.reflections.map((r) => r.prompt),
+            ...topic.questions.map((q) => q.question),
+          ],
+        ),
+      }
+    }
+    if (kind === 'risposte') {
+      return {
+        questions: dedupeByField(
+          cleaned.questions,
+          (q) => q.question,
+          [
+            ...topic.objectives,
+            ...topic.reflections.map((r) => r.prompt),
+            ...topic.questions.map((q) => q.question),
+          ],
+        ),
+      }
+    }
+    if (kind === 'pratiche') {
+      return {
+        practices: dedupeByField(
+          cleaned.practices,
+          (p) => p.action,
+          [
+            ...topic.objectives,
+            ...topic.practices.map((p) => p.action),
+            ...topic.questions.map((q) => q.question),
+          ],
+        ),
+      }
+    }
+    return cleaned
   } catch {
     return localElaborateFallback(topic, kind)
   }
@@ -166,7 +215,10 @@ export function mergeStudyStructureIntoTopic(
   if (structure.summary?.trim()) {
     const summary = structure.summary.trim()
     if (!topic.interest.trim()) patch.interest = summary
-    else if (!topic.interest.includes(summary.slice(0, 40))) {
+    else if (
+      !topic.interest.includes(summary.slice(0, 40)) &&
+      !areSimilarLines(topic.interest, summary)
+    ) {
       patch.interest = `${topic.interest.trim()}\n\n${summary}`
     }
   }
@@ -178,9 +230,7 @@ export function mergeStudyStructureIntoTopic(
       replaceEmpty &&
       current.length <= 1 &&
       current.every((o) => isGenericStudyLine(o) || /capire meglio|studio personale|questo tema/i.test(o))
-    patch.objectives = onlyDefault
-      ? incoming
-      : uniqueStrings([...current, ...incoming]).slice(0, 10)
+    patch.objectives = dedupeLines(onlyDefault ? incoming : [...current, ...incoming]).slice(0, 10)
   }
 
   if (structure.reflections?.length) {
@@ -188,23 +238,37 @@ export function mergeStudyStructureIntoTopic(
   }
 
   if (structure.questions?.length) {
-    patch.questions = mergeQuestions(topic.questions, structure.questions, replaceEmpty)
+    const reflectionsForBlock =
+      patch.reflections || topic.reflections
+    patch.questions = mergeQuestions(
+      topic.questions,
+      structure.questions,
+      replaceEmpty,
+      reflectionsForBlock.map((r) => r.prompt),
+    )
   }
 
   if (structure.practices?.length) {
-    const existingActions = new Set(
-      topic.practices.map((p) => p.action.trim().toLowerCase()).filter(Boolean),
-    )
-    const added = structure.practices.filter(
-      (p) => p.action.trim() && !existingActions.has(p.action.trim().toLowerCase()),
-    )
     const usableCurrent = topic.practices.filter((p) => p.action.trim())
     const onlyGeneric =
       replaceEmpty &&
       usableCurrent.length > 0 &&
       usableCurrent.every((p) => !p.outcome.trim() && isGenericStudyLine(p.action)) &&
       usableCurrent.length <= 3
-    patch.practices = (onlyGeneric ? added : [...usableCurrent, ...added]).slice(0, 12)
+    const objectivesBlock = patch.objectives || topic.objectives
+    const added = structure.practices.filter(
+      (p) =>
+        p.action.trim() &&
+        !listHasSimilar(
+          [
+            ...usableCurrent.map((x) => x.action),
+            ...objectivesBlock,
+          ],
+          p.action,
+        ),
+    )
+    const merged = onlyGeneric ? added : [...usableCurrent, ...added]
+    patch.practices = dedupeByField(merged, (p) => p.action).slice(0, 12)
   }
 
   return patch
@@ -214,24 +278,34 @@ export function parseStudyStructure(raw: string, fallbackTitle: string): StudySt
   const text = String(raw || '').replace(/\r/g, '')
   const title = normalizeJwItalian(sectionLine(text, 'TITOLO') || fallbackTitle)
   const summary = normalizeJwItalian(sectionBlock(text, 'RIASSUNTO') || '')
-  const objectives = normalizeJwItalianList(bullets(sectionBlock(text, 'OBIETTIVI'))).slice(0, 6)
-  const reflections = normalizeJwItalianList(bullets(sectionBlock(text, 'RIFLESSIONI')))
-    .slice(0, 8)
-    .map((prompt) => ({ id: uid('ref'), prompt, response: '' }))
-  const questions = normalizeJwItalianList(bullets(sectionBlock(text, 'DOMANDE')))
-    .slice(0, 8)
-    .map((question) => ({ id: uid('q'), question, answer: '' }))
-  const practices = normalizeJwItalianList(bullets(sectionBlock(text, 'PRATICHE')))
-    .slice(0, 6)
-    .map((action) => ({ id: uid('prac'), action, tried: false, outcome: '' }))
+  const objectives = dedupeLines(
+    normalizeJwItalianList(bullets(sectionBlock(text, 'OBIETTIVI'))),
+  ).slice(0, 6)
+  const reflectionLines = dedupeLines(
+    normalizeJwItalianList(bullets(sectionBlock(text, 'RIFLESSIONI'))),
+    objectives,
+  ).slice(0, 8)
+  const questionLines = dedupeLines(
+    normalizeJwItalianList(bullets(sectionBlock(text, 'DOMANDE'))),
+    [...objectives, ...reflectionLines],
+  ).slice(0, 8)
+  const practiceLines = dedupeLines(
+    normalizeJwItalianList(bullets(sectionBlock(text, 'PRATICHE'))),
+    [...objectives, ...reflectionLines, ...questionLines],
+  ).slice(0, 6)
 
   return {
     title,
     summary,
     objectives,
-    reflections,
-    questions,
-    practices,
+    reflections: reflectionLines.map((prompt) => ({ id: uid('ref'), prompt, response: '' })),
+    questions: questionLines.map((question) => ({ id: uid('q'), question, answer: '' })),
+    practices: practiceLines.map((action) => ({
+      id: uid('prac'),
+      action,
+      tried: false,
+      outcome: '',
+    })),
   }
 }
 
@@ -249,10 +323,22 @@ export function filterGenericStructure(
   title: string,
   sourceText: string,
 ): StudyStructure {
-  const objectives = parsed.objectives.filter((o) => !isGenericStudyLine(o))
-  const reflections = parsed.reflections.filter((r) => !isGenericStudyLine(r.prompt))
-  const questions = parsed.questions.filter((q) => !isGenericStudyLine(q.question))
-  const practices = parsed.practices.filter((p) => !isGenericStudyLine(p.action))
+  const objectives = dedupeLines(parsed.objectives.filter((o) => !isGenericStudyLine(o)))
+  const reflections = dedupeByField(
+    parsed.reflections.filter((r) => !isGenericStudyLine(r.prompt)),
+    (r) => r.prompt,
+    objectives,
+  )
+  const questions = dedupeByField(
+    parsed.questions.filter((q) => !isGenericStudyLine(q.question)),
+    (q) => q.question,
+    [...objectives, ...reflections.map((r) => r.prompt)],
+  )
+  const practices = dedupeByField(
+    parsed.practices.filter((p) => !isGenericStudyLine(p.action)),
+    (p) => p.action,
+    [...objectives, ...reflections.map((r) => r.prompt), ...questions.map((q) => q.question)],
+  )
 
   if (
     objectives.length >= 2 &&
@@ -264,14 +350,30 @@ export function filterGenericStructure(
   }
 
   const local = localStructureFromSource(title, sourceText)
-  return {
+  return dedupeStudyStructure({
     title: parsed.title || local.title,
     summary: parsed.summary || local.summary,
     objectives: objectives.length >= 2 ? objectives : local.objectives,
     reflections: reflections.length >= 2 ? reflections : local.reflections,
     questions: questions.length >= 2 ? questions : local.questions,
     practices: practices.length >= 1 ? practices : local.practices,
-  }
+  })
+}
+
+/** Rimuove ripetizioni dentro e tra sezioni. */
+export function dedupeStudyStructure(structure: StudyStructure): StudyStructure {
+  const objectives = dedupeLines(structure.objectives)
+  const reflections = dedupeByField(structure.reflections, (r) => r.prompt, objectives)
+  const questions = dedupeByField(structure.questions, (q) => q.question, [
+    ...objectives,
+    ...reflections.map((r) => r.prompt),
+  ])
+  const practices = dedupeByField(structure.practices, (p) => p.action, [
+    ...objectives,
+    ...reflections.map((r) => r.prompt),
+    ...questions.map((q) => q.question),
+  ])
+  return { ...structure, objectives, reflections, questions, practices }
 }
 
 function hasUsefulStructure(s: StudyStructure): boolean {
@@ -384,7 +486,7 @@ export function localStructureFromSource(title: string, sourceText: string): Stu
     `Condividere con qualcuno un pensiero su «${clip(hook2, 80)}»`,
   ].map((action) => ({ id: uid('prac'), action, tried: false, outcome: '' }))
 
-  return {
+  return dedupeStudyStructure({
     title,
     summary:
       hooks.slice(0, 2).join(' ') ||
@@ -393,7 +495,7 @@ export function localStructureFromSource(title: string, sourceText: string): Stu
     reflections,
     questions,
     practices,
-  }
+  })
 }
 
 function localElaborateFallback(
@@ -428,20 +530,23 @@ function mergeReflections(
     usableCurrent.every((r) => isGenericStudyLine(r.prompt) || usableCurrent.length <= 4)
 
   if (looksDefault || usableCurrent.length === 0) {
-    return incoming.length ? incoming : usableCurrent
+    return dedupeByField(incoming.length ? incoming : usableCurrent, (r) => r.prompt).slice(0, 12)
   }
 
-  const existingPrompts = new Set(usableCurrent.map((r) => r.prompt.trim().toLowerCase()))
   const added = incoming.filter(
-    (r) => r.prompt.trim() && !existingPrompts.has(r.prompt.trim().toLowerCase()),
+    (r) => r.prompt.trim() && !listHasSimilar(
+      usableCurrent.map((x) => x.prompt),
+      r.prompt,
+    ),
   )
-  return [...usableCurrent, ...added].slice(0, 12)
+  return dedupeByField([...usableCurrent, ...added], (r) => r.prompt).slice(0, 12)
 }
 
 function mergeQuestions(
   current: StudyQuestion[],
   incoming: StudyQuestion[],
   replaceEmptyDefaults: boolean,
+  alsoAvoid: string[] = [],
 ): StudyQuestion[] {
   const usableCurrent = current.filter((q) => q.question.trim() || q.answer.trim())
   const looksSparse =
@@ -450,7 +555,11 @@ function mergeQuestions(
     (usableCurrent.length <= 2 || usableCurrent.every((q) => isGenericStudyLine(q.question)))
 
   if (looksSparse || usableCurrent.length === 0) {
-    return incoming.length ? incoming : usableCurrent
+    return dedupeByField(
+      incoming.length ? incoming : usableCurrent,
+      (q) => q.question,
+      alsoAvoid,
+    ).slice(0, 12)
   }
 
   const next = usableCurrent.map((q) => ({ ...q }))
@@ -458,30 +567,212 @@ function mergeQuestions(
     const match = next.find(
       (q) =>
         !q.answer.trim() &&
-        q.question.trim().toLowerCase() === inc.question.trim().toLowerCase(),
+        (areSimilarLines(q.question, inc.question) ||
+          q.question.trim().toLowerCase() === inc.question.trim().toLowerCase()),
     )
     if (match && inc.answer.trim()) {
       match.answer = inc.answer
       continue
     }
-    const exists = next.some(
-      (q) => q.question.trim().toLowerCase() === inc.question.trim().toLowerCase(),
+    const exists = listHasSimilar(
+      [...next.map((q) => q.question), ...alsoAvoid],
+      inc.question,
     )
     if (!exists && inc.question.trim()) next.push(inc)
   }
-  return next.slice(0, 12)
+  return dedupeByField(next, (q) => q.question, alsoAvoid).slice(0, 12)
 }
 
-function uniqueStrings(items: string[]): string[] {
-  const seen = new Set<string>()
+const STOP_WORDS = new Set([
+  'a',
+  'ad',
+  'al',
+  'alla',
+  'alle',
+  'allo',
+  'ai',
+  'che',
+  'chi',
+  'come',
+  'con',
+  'cosa',
+  'da',
+  'dal',
+  'dalla',
+  'di',
+  'e',
+  'è',
+  'ed',
+  'il',
+  'in',
+  'io',
+  'la',
+  'le',
+  'lo',
+  'mi',
+  'ne',
+  'nel',
+  'nella',
+  'non',
+  'o',
+  'per',
+  'più',
+  'posso',
+  'quale',
+  'quali',
+  'questo',
+  'questa',
+  'questi',
+  'queste',
+  'se',
+  'si',
+  'su',
+  'sul',
+  'sulla',
+  'un',
+  'una',
+  'uno',
+  'anche',
+  'degli',
+  'dei',
+  'delle',
+  'del',
+  'dello',
+])
+
+/** Normalizza per confronto anti-ripetizione. */
+export function normalizeForCompare(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Riduce forme vicine (umilmente → umil) per cogliere ripetizioni parafrasate. */
+function lightStem(token: string): string {
+  let t = token
+  if (t.length <= 4) return t
+  const suffixes = [
+    'mente',
+    'zione',
+    'zioni',
+    'amento',
+    'amenti',
+    'atrice',
+    'atori',
+    'atore',
+    'abili',
+    'abile',
+    'ibili',
+    'ibile',
+    'issimi',
+    'issime',
+    'issima',
+    'issimo',
+    'iamo',
+    'ate',
+    'ete',
+    'ite',
+    'ano',
+    'ono',
+    'are',
+    'ere',
+    'ire',
+    'ita',
+    'ito',
+    'ita',
+    'ose',
+    'osi',
+    'osa',
+    'oso',
+  ]
+  for (const s of suffixes) {
+    if (t.endsWith(s) && t.length - s.length >= 4) {
+      t = t.slice(0, -s.length)
+      break
+    }
+  }
+  // plurale/femminile / -tà leggero
+  if (t.endsWith('i') && t.length > 4) t = t.slice(0, -1)
+  else if (t.endsWith('e') && t.length > 4) t = t.slice(0, -1)
+  else if (t.endsWith('a') && t.length > 4) t = t.slice(0, -1)
+  // radice condivisa (umilmente / umiltà / umile → umil)
+  if (t.length > 4) t = t.slice(0, 4)
+  return t
+}
+
+function significantTokens(text: string): Set<string> {
+  const tokens = normalizeForCompare(text)
+    .split(' ')
+    .filter((t) => t.length > 2 && !STOP_WORDS.has(t))
+    .map(lightStem)
+    .filter((t) => t.length > 2)
+  return new Set(tokens)
+}
+
+/** True se due frasi sono uguali o molto simili (stessa idea). */
+export function areSimilarLines(a: string, b: string, threshold = 0.72): boolean {
+  const na = normalizeForCompare(a)
+  const nb = normalizeForCompare(b)
+  if (!na || !nb) return false
+  if (na === nb) return true
+  if (na.includes(nb) || nb.includes(na)) {
+    const shorter = Math.min(na.length, nb.length)
+    const longer = Math.max(na.length, nb.length)
+    if (shorter >= 24 && shorter / longer >= 0.7) return true
+  }
+  const ta = significantTokens(a)
+  const tb = significantTokens(b)
+  if (ta.size === 0 || tb.size === 0) return false
+  let inter = 0
+  for (const t of ta) if (tb.has(t)) inter += 1
+  const union = ta.size + tb.size - inter
+  const jaccard = union === 0 ? 0 : inter / union
+  if (jaccard >= threshold) return true
+  // Molti token in comune rispetto al più corto
+  const overlap = inter / Math.min(ta.size, tb.size)
+  return overlap >= 0.85 && inter >= 3
+}
+
+export function listHasSimilar(existing: string[], candidate: string): boolean {
+  return existing.some((e) => areSimilarLines(e, candidate))
+}
+
+/** Deduplica elenchi di stringhe (esatte e quasi-duplicate). */
+export function dedupeLines(items: string[], alsoAvoid: string[] = []): string[] {
   const out: string[] = []
+  const blocked = [...alsoAvoid]
   for (const item of items) {
-    const key = item.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
+    const t = item.trim()
+    if (!t) continue
+    if (listHasSimilar(blocked, t) || listHasSimilar(out, t)) continue
+    out.push(t)
+  }
+  return out
+}
+
+export function dedupeByField<T>(
+  items: T[],
+  field: (item: T) => string,
+  alsoAvoid: string[] = [],
+): T[] {
+  const out: T[] = []
+  const seenTexts = [...alsoAvoid]
+  for (const item of items) {
+    const text = field(item).trim()
+    if (!text) continue
+    if (listHasSimilar(seenTexts, text)) continue
+    seenTexts.push(text)
     out.push(item)
   }
   return out
+}
+
+function uniqueStrings(items: string[]): string[] {
+  return dedupeLines(items)
 }
 
 function clip(s: string, max: number): string {
