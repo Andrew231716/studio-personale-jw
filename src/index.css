@@ -2009,7 +2009,8 @@ img {
 /* ——— Popup scritture stile WOL (Brano biblico citato) ——— */
 .wol-popup {
   position: fixed;
-  z-index: 90;
+  /* Sopra i modal ExpandableField (z-index 100) così i versetti restano usabili */
+  z-index: 120;
   width: min(22rem, calc(100vw - 1.5rem));
   max-height: min(70vh, 28rem);
   display: flex;

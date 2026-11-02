@@ -66,9 +66,17 @@ export function SalvatiView() {
     const toAdd = items
       .filter((r) => !existingKeys.has(`${r.url}|${r.lank || ''}|${r.docid || ''}`))
       .map(({ savedAt: _s, sourceQuery: _q, ...rest }) => rest)
+    if (!toAdd.length) {
+      setHint(`Questi materiali sono già presenti in «${topic.title}».`)
+      return
+    }
     updateTopic(topicId, { resources: [...topic.resources, ...toAdd] })
     setActiveTopic(topicId)
-    setHint(`Aggiunti ${toAdd.length} materiali allo studio “${topic.title}”.`)
+    setHint(
+      toAdd.length === 1
+        ? `Aggiunto 1 materiale allo studio «${topic.title}».`
+        : `Aggiunti ${toAdd.length} materiali allo studio «${topic.title}».`,
+    )
     setSelected([])
   }
 

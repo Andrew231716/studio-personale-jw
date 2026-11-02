@@ -59,8 +59,8 @@ const ICONS: Record<AppView, typeof Home> = {
   impostazioni: Settings2,
 }
 
-/** Percorso principale su mobile (ordine fisso). Home sempre per prima. */
-const PRIMARY_MOBILE: AppView[] = ['home', 'argomenti', 'sessione', 'studio', 'diario']
+/** Quante voci principali mostrare nella barra mobile (il resto va in Altro). */
+const MOBILE_PRIMARY_COUNT = 5
 
 function applyTheme(theme: ReturnType<typeof useAppStore.getState>['settings']['theme']) {
   const root = document.documentElement
@@ -102,6 +102,35 @@ export default function App() {
     setMoreOpen(false)
   }, [view])
 
+  // Focus trap leggero sul pannello «Altro» (mobile)
+  useEffect(() => {
+    if (!moreOpen) return
+    const panel = document.getElementById('nav-more-panel')
+    if (!panel) return
+    const focusables = panel.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    )
+    const first = focusables[0]
+    const last = focusables[focusables.length - 1]
+    first?.focus()
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setMoreOpen(false)
+        return
+      }
+      if (e.key !== 'Tab' || focusables.length === 0) return
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last?.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [moreOpen])
+
   const navItems = useMemo(
     () =>
       settings.navOrder.filter((key) => {
@@ -126,14 +155,17 @@ export default function App() {
     [settings.navOrder, settings.features],
   )
 
-  const primaryMobile = useMemo(
-    () => PRIMARY_MOBILE.filter((k) => navItems.includes(k)),
-    [navItems],
-  )
+  // Mobile: rispetta navOrder; Home resta prima se abilitata; Impostazioni resta in Altro.
+  const primaryMobile = useMemo(() => {
+    const withoutSettings = navItems.filter((k) => k !== 'impostazioni')
+    const home = withoutSettings.includes('home') ? (['home'] as AppView[]) : []
+    const rest = withoutSettings.filter((k) => k !== 'home')
+    return [...home, ...rest].slice(0, MOBILE_PRIMARY_COUNT)
+  }, [navItems])
 
   const moreMobile = useMemo(
-    () => navItems.filter((k) => !PRIMARY_MOBILE.includes(k)),
-    [navItems],
+    () => navItems.filter((k) => !primaryMobile.includes(k)),
+    [navItems, primaryMobile],
   )
 
   const moreActive = moreMobile.includes(view)

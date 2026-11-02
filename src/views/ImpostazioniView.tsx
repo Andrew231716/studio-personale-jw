@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Bell, BookOpen, Download, Upload } from 'lucide-react'
 import { CloudSyncPanel } from '../components/CloudSyncPanel'
+import { ICloudSyncPanel } from '../components/ICloudSyncPanel'
 import {
   applyBackup,
   downloadBackup,
@@ -129,6 +130,7 @@ export function ImpostazioniView() {
   return (
     <div className="stack">
       <CloudSyncPanel />
+      <ICloudSyncPanel />
 
       <section className="panel">
         <h2>Identità dell’app</h2>
@@ -436,11 +438,20 @@ export function ImpostazioniView() {
               return
             }
             localStorage.removeItem('studio-personale-jw-v1')
+            localStorage.removeItem('jw-studio-bible-verse-cache-v2')
+            localStorage.removeItem('jw-studio-bible-chapter-cache-v1')
+            // Eventuali chiavi cache precedenti
+            for (const key of Object.keys(localStorage)) {
+              if (key.startsWith('jw-studio-bible-')) localStorage.removeItem(key)
+            }
             window.location.reload()
           }}
         >
           Cancella tutti i dati locali
         </button>
+        <p className="muted" style={{ margin: '0.55rem 0 0' }}>
+          Include anche le cache della Bibbia offline salvate sul dispositivo.
+        </p>
       </section>
     </div>
   )

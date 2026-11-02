@@ -649,6 +649,7 @@ export function DiscorsoView() {
                   className="btn secondary"
                   type="button"
                   disabled={!!exportBusy}
+                  title="I popup dei versetti funzionano meglio in lettori come Apple Books o Thorium; altri possono ignorare lo script."
                   onClick={() => void runExport('epub')}
                 >
                   <BookMarked size={16} /> EPUB
@@ -675,6 +676,10 @@ export function DiscorsoView() {
               </div>
 
               {micError && <p className="muted">{micError}</p>}
+              <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+                EPUB: i popup dei versetti funzionano meglio in Apple Books o Thorium; altri
+                lettori possono mostrare solo il testo senza interazione.
+              </p>
               {listening && supportNote && micOk && (
                 <p className="muted">{supportNote}</p>
               )}

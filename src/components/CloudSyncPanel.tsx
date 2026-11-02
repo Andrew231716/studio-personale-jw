@@ -19,7 +19,7 @@ function statusLabel(status: string, error?: string | null): string {
     case 'offline':
       return 'Offline'
     case 'error':
-      if (error && /non configurata|API non disponibile|anteprima/i.test(error)) {
+      if (error && /non configurata|API non disponibile|anteprima|501/i.test(error)) {
         return 'Non disponibile qui'
       }
       return 'Errore'

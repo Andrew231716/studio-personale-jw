@@ -72,9 +72,19 @@ export function VideoStudioView() {
     void (async () => {
       try {
         const items = await fetchLatestVideos(language)
-        if (!cancelled) setLatest(items.filter((v) => v.lank))
-      } catch {
-        if (!cancelled) setLatest([])
+        if (!cancelled) {
+          setLatest(items.filter((v) => v.lank))
+          setError('')
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setLatest([])
+          setError(
+            e instanceof Error
+              ? `Video recenti non disponibili: ${e.message}`
+              : 'Video recenti non disponibili (API o rete).',
+          )
+        }
       }
     })()
     return () => {
@@ -450,51 +460,94 @@ export function VideoStudioView() {
 
       {phase === 'guide' && guide && (
         <section className="panel">
-          <h3>Guida di studio</h3>
-          <p className="muted">
-            Basata sull’intervallo {rangeLabel}. {guide.summary}
+          <h3>{videoTitle.trim() || guide.title}</h3>
+          <p className="muted" style={{ margin: '0.35rem 0 0.85rem' }}>
+            Guida di studio · intervallo {rangeLabel}. Puoi modificare i campi prima di salvare.
           </p>
 
-          <div className="search-sections">
-            <div className="search-section">
-              <header className="search-section-head">
-                <h4>Obiettivi</h4>
-              </header>
-              <ul>
-                {guide.objectives.map((o) => (
-                  <li key={o}>{o}</li>
-                ))}
-              </ul>
+          <div className="field">
+            <label htmlFor="guide-summary">Riassunto</label>
+            <textarea
+              id="guide-summary"
+              rows={3}
+              value={guide.summary}
+              onChange={(e) => setGuide({ ...guide, summary: e.target.value })}
+            />
+          </div>
+
+          <div className="stack" style={{ gap: '0.85rem' }}>
+            <div className="field">
+              <label>Obiettivi</label>
+              {guide.objectives.map((o, idx) => (
+                <textarea
+                  key={`obj-${idx}`}
+                  rows={2}
+                  value={o}
+                  style={{ marginBottom: 6 }}
+                  onChange={(e) => {
+                    const objectives = [...guide.objectives]
+                    objectives[idx] = e.target.value
+                    setGuide({ ...guide, objectives })
+                  }}
+                />
+              ))}
             </div>
-            <div className="search-section">
-              <header className="search-section-head">
-                <h4>Riflessioni</h4>
-              </header>
-              <ul>
-                {guide.reflections.map((r) => (
-                  <li key={r.id}>{r.prompt}</li>
-                ))}
-              </ul>
+            <div className="field">
+              <label>Riflessioni</label>
+              {guide.reflections.map((r) => (
+                <textarea
+                  key={r.id}
+                  rows={2}
+                  value={r.prompt}
+                  style={{ marginBottom: 6 }}
+                  onChange={(e) =>
+                    setGuide({
+                      ...guide,
+                      reflections: guide.reflections.map((x) =>
+                        x.id === r.id ? { ...x, prompt: e.target.value } : x,
+                      ),
+                    })
+                  }
+                />
+              ))}
             </div>
-            <div className="search-section">
-              <header className="search-section-head">
-                <h4>Domande</h4>
-              </header>
-              <ul>
-                {guide.questions.map((q) => (
-                  <li key={q.id}>{q.question}</li>
-                ))}
-              </ul>
+            <div className="field">
+              <label>Domande</label>
+              {guide.questions.map((q) => (
+                <textarea
+                  key={q.id}
+                  rows={2}
+                  value={q.question}
+                  style={{ marginBottom: 6 }}
+                  onChange={(e) =>
+                    setGuide({
+                      ...guide,
+                      questions: guide.questions.map((x) =>
+                        x.id === q.id ? { ...x, question: e.target.value } : x,
+                      ),
+                    })
+                  }
+                />
+              ))}
             </div>
-            <div className="search-section">
-              <header className="search-section-head">
-                <h4>Pratiche</h4>
-              </header>
-              <ul>
-                {guide.practices.map((p) => (
-                  <li key={p.id}>{p.action}</li>
-                ))}
-              </ul>
+            <div className="field">
+              <label>Pratiche</label>
+              {guide.practices.map((p) => (
+                <textarea
+                  key={p.id}
+                  rows={2}
+                  value={p.action}
+                  style={{ marginBottom: 6 }}
+                  onChange={(e) =>
+                    setGuide({
+                      ...guide,
+                      practices: guide.practices.map((x) =>
+                        x.id === p.id ? { ...x, action: e.target.value } : x,
+                      ),
+                    })
+                  }
+                />
+              ))}
             </div>
           </div>
 
