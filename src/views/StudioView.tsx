@@ -532,6 +532,7 @@ export function StudioView() {
             value={topic.interest}
             placeholder="Studio personale — prova Proverbi 14:12 o Pr 14:12"
             onChange={(value) => updateTopic(topic.id, { interest: value })}
+            narrate
           />
         </div>
 
@@ -563,6 +564,7 @@ export function StudioView() {
               }
               value={topic.transcript}
               readOnly
+              narrate
             />
           </div>
         )}
@@ -671,6 +673,7 @@ export function StudioView() {
                     objectives[idx] = value
                     updateTopic(topic.id, { objectives })
                   }}
+                  narrate
                 />
               </div>
             ))}
@@ -784,6 +787,7 @@ export function StudioView() {
                     ),
                   })
                 }
+                narrate
               />
               <ExpandableField
                 label={`Riflessione ${idx + 1} — i tuoi pensieri`}
@@ -796,6 +800,7 @@ export function StudioView() {
                     ),
                   })
                 }
+                narrate
               />
             </div>
           ))}
@@ -856,6 +861,7 @@ export function StudioView() {
                     ),
                   })
                 }
+                narrate
               />
               <ExpandableField
                 label={`Risposta ${idx + 1}`}
@@ -868,6 +874,7 @@ export function StudioView() {
                     ),
                   })
                 }
+                narrate
               />
             </div>
           ))}
@@ -942,6 +949,7 @@ export function StudioView() {
                     ),
                   })
                 }
+                narrate
               />
               <ExpandableField
                 label={`Esito pratica ${idx + 1}`}
@@ -954,6 +962,7 @@ export function StudioView() {
                     ),
                   })
                 }
+                narrate
               />
             </div>
           ))}
