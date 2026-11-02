@@ -25,22 +25,30 @@ export function SessioneView() {
   const startSession = useAppStore((s) => s.startSession)
   const updateDraft = useAppStore((s) => s.updateSessionDraft)
   const completeSession = useAppStore((s) => s.completeSession)
+  const lastCompletedSessionId = useAppStore((s) => s.lastCompletedSessionId)
+  const clearLastCompletedSession = useAppStore((s) => s.clearLastCompletedSession)
   const abandonSession = useAppStore((s) => s.abandonSession)
   const archiveTopic = useAppStore((s) => s.archiveTopic)
   const reopenTopic = useAppStore((s) => s.reopenTopic)
   const setActiveTopic = useAppStore((s) => s.setActiveTopic)
   const setView = useAppStore((s) => s.setView)
-  const [doneLogId, setDoneLogId] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
   const [afterChoice, setAfterChoice] = useState('')
 
   const streak = useMemo(() => computeStreak(logs), [logs])
   const lastLog = logs[0]
-  const celebration = doneLogId ? logs.find((l) => l.id === doneLogId) : null
+  const celebration = lastCompletedSessionId
+    ? logs.find((l) => l.id === lastCompletedSessionId) || null
+    : null
   const celebrationTopic = celebration?.topicId
     ? topics.find((t) => t.id === celebration.topicId)
     : null
   const hasMoreDaysPlanned = topicHasUpcomingSchedule(celebration?.topicId, schedules)
+
+  function dismissCelebration() {
+    clearLastCompletedSession()
+    setAfterChoice('')
+  }
 
   useEffect(() => {
     if (!draft) return
@@ -132,7 +140,7 @@ export function SessioneView() {
                 type="button"
                 onClick={() => {
                   reopenTopic(celebration.topicId!, 'approfondire')
-                  setDoneLogId(null)
+                  dismissCelebration()
                   setActiveTopic(celebration.topicId)
                 }}
               >
@@ -142,7 +150,7 @@ export function SessioneView() {
                 className="btn secondary"
                 type="button"
                 onClick={() => {
-                  setDoneLogId(null)
+                  dismissCelebration()
                   setView('diario')
                 }}
               >
@@ -177,7 +185,7 @@ export function SessioneView() {
         </section>
 
         <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <button className="btn secondary" type="button" onClick={() => setDoneLogId(null)}>
+          <button className="btn secondary" type="button" onClick={dismissCelebration}>
             Torna alle sessioni
           </button>
           <button
@@ -185,7 +193,7 @@ export function SessioneView() {
             type="button"
             style={{ color: 'inherit' }}
             onClick={() => {
-              setDoneLogId(null)
+              dismissCelebration()
               startSession(celebration.topicId)
             }}
           >
@@ -301,8 +309,7 @@ export function SessioneView() {
   function next() {
     if (draft!.step >= SESSION_STEPS.length - 1) {
       updateDraft({ minutesSpent: elapsedMin })
-      const log = completeSession()
-      if (log) setDoneLogId(log.id)
+      completeSession()
       return
     }
     updateDraft({ step: draft!.step + 1, minutesSpent: elapsedMin })

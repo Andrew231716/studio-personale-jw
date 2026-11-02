@@ -19,7 +19,7 @@ import { JwOpenButtons } from '../components/JwOpenButtons'
 import { ProsConsEditor } from '../components/ProsConsEditor'
 import { ScriptureAssist } from '../components/ScriptureAssist'
 import { SectionProgress } from '../components/SectionProgress'
-import { askAi, buildDecisionContext, createMessage } from '../lib/ai'
+import { askAi, buildDecisionContext } from '../lib/ai'
 import { bibleOpenUrl, parseScriptureLabel } from '../lib/bibleRefs'
 import { DecisionGoalsPanel } from '../components/DecisionGoalsPanel'
 import {
@@ -54,8 +54,6 @@ export function DecisioniView() {
   const setActiveTopic = useAppStore((s) => s.setActiveTopic)
   const setView = useAppStore((s) => s.setView)
   const language = useAppStore((s) => s.settings.language)
-  const pushAiMessage = useAppStore((s) => s.pushAiMessage)
-
   const [title, setTitle] = useState('')
   const [scale, setScale] = useState<'piccola' | 'grande'>('piccola')
   const [aiText, setAiText] = useState('')
@@ -268,11 +266,13 @@ export function DecisioniView() {
       })),
     )
     try {
-      const answer = await askAi({ prompt, context })
+      const allowedUrls = [
+        ...(decision.relatedResources || []).map((r) => r.url).filter(Boolean),
+        ...linkedTopics.flatMap((t) => t.resources.map((r) => r.url).filter(Boolean)),
+      ]
+      const answer = await askAi({ prompt, context, allowedUrls })
       setAiText(answer)
       updateDecision(decision.id, { aiElaboration: answer })
-      pushAiMessage(createMessage('user', prompt))
-      pushAiMessage(createMessage('assistant', answer))
     } catch (e) {
       setAiText(e instanceof Error ? e.message : 'Errore AI')
     } finally {
@@ -298,13 +298,6 @@ export function DecisioniView() {
         status: decision.status === 'decisa' ? 'decisa' : 'in_valutazione',
       })
       setStatusHint('')
-      pushAiMessage(
-        createMessage(
-          'user',
-          `Analizza la lucidità della mia decisione «${decision.title}» con materiali di jw.org.`,
-        ),
-      )
-      pushAiMessage(createMessage('assistant', analysis))
       requestAnimationFrame(() => {
         document
           .getElementById('decision-lucidity-result')
@@ -576,7 +569,7 @@ export function DecisioniView() {
               <div className={isDecided ? 'decision-fold-body stack' : 'contents-stack'}>
 
             {!isDecided && (
-            <section className="panel">
+            <section className="panel" id="dec-contesto">
               <div className="section-head">
                 <h2 style={{ margin: 0 }}>Dettaglio decisione</h2>
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
@@ -612,6 +605,32 @@ export function DecisioniView() {
                     Elimina
                   </button>
                 </div>
+              </div>
+              <div className="chip-row" style={{ marginBottom: '0.75rem' }}>
+                {(
+                  [
+                    ['dec-contesto', 'Contesto'],
+                    ['dec-argomenti', 'Argomenti'],
+                    ['dec-priorita', 'Priorità'],
+                    ['dec-materiale', 'Materiale'],
+                    ['dec-conclusione', 'Conclusione'],
+                    ['dec-ai', 'AI'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className="chip"
+                    onClick={() =>
+                      document.getElementById(id)?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                      })
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
               <ExpandableField
                 label="Titolo"
@@ -760,7 +779,7 @@ export function DecisioniView() {
               </section>
             )}
 
-            <section className="panel">
+            <section className="panel" id="dec-argomenti">
               <div className="section-head">
                 <div>
                   <h3>
@@ -857,7 +876,7 @@ export function DecisioniView() {
               </div>
             </section>
 
-            <section className="panel">
+            <section className="panel" id="dec-priorita">
               <h3>Priorità</h3>
               <div className="stack">
                 {decision.priorities.map((p, idx) => (
@@ -951,7 +970,7 @@ export function DecisioniView() {
               />
             </div>
 
-            <section className="panel">
+            <section className="panel" id="dec-materiale">
               <div className="section-head">
                 <div>
                   <h3>Materiali per soppesare</h3>
@@ -1068,7 +1087,7 @@ export function DecisioniView() {
               </div>
             </section>
 
-            <section className="panel">
+            <section className="panel" id="dec-conclusione">
               <div className="section-head">
                 <h3>Conclusione dai dati</h3>
                 <div className="row">
@@ -1106,7 +1125,7 @@ export function DecisioniView() {
               )}
             </section>
 
-            <section className="panel">
+            <section className="panel" id="dec-ai">
               <div className="section-head">
                 <div>
                   <p className="section-kicker">Onestà e lucidità</p>

@@ -39,7 +39,10 @@ export function StudioView() {
   const removeTopic = useAppStore((s) => s.removeTopic)
   const sessionLogs = useAppStore((s) => s.sessionLogs)
   const schedules = useAppStore((s) => s.schedules)
-  const [aiBusy, setAiBusy] = useState(false)
+  const [aiBusyKind, setAiBusyKind] = useState<
+    'obiettivi' | 'riflessione' | 'risposte' | 'pratiche' | 'tutto' | 'materiale' | null
+  >(null)
+  const aiBusy = aiBusyKind !== null
   const [archiveMsg, setArchiveMsg] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
@@ -103,7 +106,7 @@ export function StudioView() {
     kind: 'obiettivi' | 'riflessione' | 'risposte' | 'pratiche' | 'tutto',
   ) {
     if (!topic) return
-    setAiBusy(true)
+    setAiBusyKind(kind)
     setArchiveMsg('')
     try {
       const structure = await elaborateTopicStructure(topic, kind)
@@ -123,7 +126,7 @@ export function StudioView() {
     } catch (e) {
       setArchiveMsg(e instanceof Error ? e.message : 'Assistente non disponibile')
     } finally {
-      setAiBusy(false)
+      setAiBusyKind(null)
     }
   }
 
@@ -138,7 +141,7 @@ export function StudioView() {
       resources: [...topic.resources, res],
       status: 'in_corso',
     })
-    setAiBusy(true)
+    setAiBusyKind('materiale')
     setArchiveMsg('Materiale aggiunto. Creo obiettivi e domande sul contenuto…')
     try {
       const structure = await buildStudyStructureFromMaterial({
@@ -161,7 +164,7 @@ export function StudioView() {
           : 'Materiale aggiunto; struttura AI non disponibile.',
       )
     } finally {
-      setAiBusy(false)
+      setAiBusyKind(null)
     }
   }
 
@@ -475,7 +478,7 @@ export function StudioView() {
             disabled={aiBusy}
             onClick={() => void helpElaborate('tutto')}
           >
-            {aiBusy ? 'Elaboro…' : 'AI: struttura sul contenuto'}
+            {aiBusyKind === 'tutto' ? 'Elaboro…' : 'AI: struttura sul contenuto'}
           </button>
           <button className="btn secondary" type="button" onClick={() => setView('diario')}>
             <BookMarked size={16} /> Diario
@@ -509,9 +512,6 @@ export function StudioView() {
             onClick={completeAndArchive}
           >
             <Archive size={16} /> Completa e archivia
-          </button>
-          <button className="btn danger" type="button" onClick={deleteEntireTopic}>
-            <Trash2 size={16} /> Elimina tutto l’argomento
           </button>
         </div>
         {hasUpcoming && (
@@ -573,14 +573,41 @@ export function StudioView() {
               <label>Giorni previsti</label>
               <input
                 value={topic.schedule.days.join(', ')}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const ALLOWED = new Set([
+                    'lun',
+                    'mar',
+                    'mer',
+                    'gio',
+                    'ven',
+                    'sab',
+                    'dom',
+                    'lunedì',
+                    'martedì',
+                    'mercoledì',
+                    'giovedì',
+                    'venerdì',
+                    'sabato',
+                    'domenica',
+                  ])
+                  const raw = e.target.value.split(',').map((d) => d.trim()).filter(Boolean)
+                  const normalized = raw.map((d) => d.toLowerCase())
+                  const valid = normalized.filter((d) => ALLOWED.has(d))
+                  const invalid = normalized.filter((d) => !ALLOWED.has(d))
                   updateTopic(topic.id, {
                     schedule: {
                       ...topic.schedule!,
-                      days: e.target.value.split(',').map((d) => d.trim()).filter(Boolean),
+                      days: valid.length ? valid : raw,
                     },
                   })
-                }
+                  if (invalid.length) {
+                    setArchiveMsg(
+                      `Giorni non riconosciuti: ${invalid.join(', ')}. Usa lun, mar, mer, gio, ven, sab, dom.`,
+                    )
+                  } else if (archiveMsg.startsWith('Giorni non riconosciuti')) {
+                    setArchiveMsg('')
+                  }
+                }}
                 placeholder="lun, mer, ven"
               />
             </div>
@@ -615,7 +642,7 @@ export function StudioView() {
               disabled={aiBusy}
               onClick={() => void helpElaborate('obiettivi')}
             >
-              {aiBusy ? 'Elaboro…' : 'AI: obiettivi'}
+              {aiBusyKind === 'obiettivi' ? 'Elaboro…' : 'AI: obiettivi'}
             </button>
           </div>
           <div className="stack">
@@ -726,7 +753,7 @@ export function StudioView() {
             disabled={aiBusy}
             onClick={() => void helpElaborate('riflessione')}
           >
-            {aiBusy ? 'Elaboro…' : 'AI: riflessioni'}
+            {aiBusyKind === 'riflessione' ? 'Elaboro…' : 'AI: riflessioni'}
           </button>
         </div>
         <div className="stack">
@@ -798,7 +825,7 @@ export function StudioView() {
             disabled={aiBusy}
             onClick={() => void helpElaborate('risposte')}
           >
-            {aiBusy ? 'Elaboro…' : 'AI: domande'}
+            {aiBusyKind === 'risposte' ? 'Elaboro…' : 'AI: domande'}
           </button>
         </div>
         <div className="stack">
@@ -870,7 +897,7 @@ export function StudioView() {
             disabled={aiBusy}
             onClick={() => void helpElaborate('pratiche')}
           >
-            {aiBusy ? 'Elaboro…' : 'AI: pratiche'}
+            {aiBusyKind === 'pratiche' ? 'Elaboro…' : 'AI: pratiche'}
           </button>
         </div>
         <div className="stack">

@@ -114,24 +114,30 @@ export function HomeView() {
         <div className="chip-row" style={{ marginTop: '0.35rem' }}>
           {(
             [
-              ['lettureBibbia', 'Letture Bibbia'],
-              ['ministero', 'Ministero'],
-              ['discorso', 'Discorso'],
-              ['decisioni', 'Decisioni'],
-              ['obiettiviDecisioni', 'Obiettivi'],
-              ['videoStudio', 'Video → studio'],
-              ['salvati', 'Da studiare'],
+              ['lettureBibbia', 'Letture Bibbia', settings.features.lettureBibbia !== false],
+              ['ministero', 'Ministero', settings.features.ministero !== false],
+              ['discorso', 'Discorso', settings.features.discorso !== false],
+              ['decisioni', 'Decisioni', settings.features.decisioni],
+              [
+                'obiettiviDecisioni',
+                'Obiettivi',
+                settings.features.obiettiviDecisioni !== false,
+              ],
+              ['videoStudio', 'Video → studio', settings.features.videoStudio !== false],
+              ['salvati', 'Da studiare', settings.features.salvati !== false],
             ] as const
-          ).map(([view, label]) => (
-            <button
-              key={view}
-              type="button"
-              className="chip"
-              onClick={() => setView(view)}
-            >
-              {label}
-            </button>
-          ))}
+          )
+            .filter(([, , on]) => on)
+            .map(([view, label]) => (
+              <button
+                key={view}
+                type="button"
+                className="chip"
+                onClick={() => setView(view)}
+              >
+                {label}
+              </button>
+            ))}
         </div>
       </section>
 

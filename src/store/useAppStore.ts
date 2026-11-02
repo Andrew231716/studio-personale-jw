@@ -136,7 +136,10 @@ interface AppState {
   ministryNotes: MinistryAssistNote[]
   discourseNotes: DiscourseNote[]
   activeDiscourseId: string | null
+  /** Ultima sessione completata: mostra «E adesso?» anche dopo un cambio sezione. */
+  lastCompletedSessionId: string | null
   setView: (view: AppView) => void
+  clearLastCompletedSession: () => void
   updateSettings: (patch: Partial<AppSettings>) => void
   updateTheme: (patch: Partial<ThemeConfig>) => void
   resetTheme: () => void
@@ -351,7 +354,9 @@ export const useAppStore = create<AppState>()(
       ministryNotes: [],
       discourseNotes: [],
       activeDiscourseId: null,
+      lastCompletedSessionId: null,
       setView: (view) => set({ view }),
+      clearLastCompletedSession: () => set({ lastCompletedSessionId: null }),
       updateSettings: (patch) =>
         set((s) => ({ settings: { ...s.settings, ...patch } })),
       updateTheme: (patch) =>
@@ -485,6 +490,7 @@ export const useAppStore = create<AppState>()(
           sessionDraft: draft,
           activeTopicId: id,
           view: 'sessione',
+          lastCompletedSessionId: null,
         })
       },
       updateSessionDraft: (patch) =>
@@ -616,10 +622,11 @@ export const useAppStore = create<AppState>()(
           sessionLogs: [log, ...s.sessionLogs].slice(0, 100),
           sessionDraft: null,
           view: 'sessione',
+          lastCompletedSessionId: log.id,
         }))
         return log
       },
-      abandonSession: () => set({ sessionDraft: null }),
+      abandonSession: () => set({ sessionDraft: null, lastCompletedSessionId: null }),
       updateSessionLog: (id, patch) =>
         set((s) => ({
           sessionLogs: s.sessionLogs.map((log) =>
@@ -894,6 +901,8 @@ export const useAppStore = create<AppState>()(
           ministryNotes: p.ministryNotes || [],
           discourseNotes: p.discourseNotes || [],
           activeDiscourseId: p.activeDiscourseId ?? null,
+          lastCompletedSessionId: p.lastCompletedSessionId ?? null,
+          view: (p.view as AppView | undefined) || current.view || 'home',
           topics: (p.topics || current.topics || []).map(normalizeTopicTerms),
           decisions: (p.decisions || current.decisions || []).map(normalizeDecisionTerms),
           aiMessages: (p.aiMessages || current.aiMessages || []).map((m) =>
@@ -904,6 +913,7 @@ export const useAppStore = create<AppState>()(
         }
       },
       partialize: (s) => ({
+        view: s.view,
         settings: s.settings,
         topics: s.topics,
         decisions: s.decisions,
@@ -919,6 +929,7 @@ export const useAppStore = create<AppState>()(
         ministryNotes: s.ministryNotes,
         discourseNotes: s.discourseNotes,
         activeDiscourseId: s.activeDiscourseId,
+        lastCompletedSessionId: s.lastCompletedSessionId,
       }),
     },
   ),

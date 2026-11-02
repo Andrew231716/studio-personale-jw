@@ -126,7 +126,9 @@ async function pull(key: string): Promise<ICloudSnapshot | null> {
   const res = await fetch(`/api/sync?key=${encodeURIComponent(key)}`)
   if (res.status === 404) return null
   if (res.status === 501) {
-    throw new Error('Sync cloud non configurata in questo ambiente.')
+    throw new Error(
+      'Sync cloud non disponibile in locale (vite/preview). Usa il deploy Vercel o configura /api/sync.',
+    )
   }
   const data = await readApiJson<{ error?: string; snapshot?: ICloudSnapshot }>(
     res,
@@ -143,7 +145,9 @@ async function push(key: string, snapshot: ICloudSnapshot): Promise<string> {
     body: JSON.stringify({ key, snapshot }),
   })
   if (res.status === 501) {
-    throw new Error('Sync cloud non configurata in questo ambiente.')
+    throw new Error(
+      'Sync cloud non disponibile in locale (vite/preview). Usa il deploy Vercel o configura /api/sync.',
+    )
   }
   const data = await readApiJson<{ error?: string; updatedAt?: string }>(
     res,

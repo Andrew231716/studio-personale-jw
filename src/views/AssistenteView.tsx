@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BookmarkPlus } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { SectionProgress } from '../components/SectionProgress'
@@ -37,6 +37,15 @@ export function AssistenteView() {
   const [saveHint, setSaveHint] = useState('')
   const [ctxTopicId, setCtxTopicId] = useState<string>(activeTopicId || '')
   const [ctxDecisionId, setCtxDecisionId] = useState<string>(activeDecisionId || '')
+  const [searchError, setSearchError] = useState('')
+
+  useEffect(() => {
+    setCtxTopicId(activeTopicId || '')
+  }, [activeTopicId])
+
+  useEffect(() => {
+    setCtxDecisionId(activeDecisionId || '')
+  }, [activeDecisionId])
 
   const topic = ctxTopicId
     ? topics.find((t) => t.id === ctxTopicId) || null
@@ -52,6 +61,7 @@ export function AssistenteView() {
     if (!prompt || busy) return
     setBusy(true)
     setInput('')
+    setSearchError('')
     pushAiMessage(createMessage('user', prompt))
 
     let flat: Awaited<ReturnType<typeof searchJwDeep>>['flat'] = []
@@ -64,11 +74,19 @@ export function AssistenteView() {
       used = deep.queriesUsed
       setSections(deepSections)
       setQueriesUsed(used)
-    } catch {
+      if (!flat.length) {
+        setSearchError('Nessun risultato jw.org per questa richiesta.')
+      }
+    } catch (e) {
       setSections([])
       setQueriesUsed([])
       flat = []
       deepSections = []
+      setSearchError(
+        e instanceof Error
+          ? `Ricerca jw.org non riuscita: ${e.message}`
+          : 'Ricerca jw.org non riuscita.',
+      )
     }
 
     const sectionBlock = deepSections.length
@@ -198,13 +216,19 @@ export function AssistenteView() {
           ))}
         </div>
 
+        {searchError && (
+          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+            {searchError}
+          </p>
+        )}
+
         <div className="field" style={{ marginTop: '0.9rem' }}>
           <label htmlFor="ai-input">Il tuo messaggio</label>
           <textarea
             id="ai-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Es. Aiutami a elaborare cosa sto imparando sulla pazienza…"
+            placeholder="Es. Aiutami a elaborare cosa sto imparando sulla pazienza… (Invio invia · Maiusc+Invio va a capo)"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
