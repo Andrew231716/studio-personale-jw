@@ -127,4 +127,5 @@ Ministero e congregazione (stile jw.org):
 - «Geova», «Gesù Cristo», «Regno», «verità biblica».
 
 Evita linguaggio da altre confessioni: parrocchia, evangelizzazione (usa predicazione), clero, pastorale, vocazione sacerdotale, ecc.
+Preferisci anche: «fratello/sorella», «pubblicatore», «pioniere», «anziano», «corpo degli anziani», «circoscrizione», «Betel», «organizzazione di Geova».
 Se un termine non compare tipicamente su jw.org, riformulalo con parole semplici tipiche delle pubblicazioni JW.`

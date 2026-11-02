@@ -6,7 +6,7 @@ import { JwOpenButtons } from '../components/JwOpenButtons'
 import { ScriptureAssist } from '../components/ScriptureAssist'
 import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
-import { askAi, buildStudyContext, createMessage } from '../lib/ai'
+import { createMessage } from '../lib/ai'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
 import { uid } from '../lib/id'
 import {
@@ -15,9 +15,15 @@ import {
   statusLabel,
   topicHasUpcomingSchedule,
 } from '../lib/studyFlow'
+import {
+  buildStudyStructureFromMaterial,
+  elaborateTopicStructure,
+  mergeStudyStructureIntoTopic,
+  resourceFingerprint,
+} from '../lib/studyStructureAi'
 import { buildTopicOnlySummary } from '../lib/studySummary'
 import { useAppStore } from '../store/useAppStore'
-import type { StudyTopic } from '../types'
+import type { StudyResource, StudyTopic } from '../types'
 
 export function StudioView() {
   const topics = useAppStore((s) => s.topics)
@@ -34,10 +40,6 @@ export function StudioView() {
   const sessionLogs = useAppStore((s) => s.sessionLogs)
   const schedules = useAppStore((s) => s.schedules)
   const [aiBusy, setAiBusy] = useState(false)
-  const [aiHint, setAiHint] = useState('')
-  const [aiHintKind, setAiHintKind] = useState<'riflessione' | 'risposte' | 'pratiche' | null>(
-    null,
-  )
   const [archiveMsg, setArchiveMsg] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
@@ -97,26 +99,67 @@ export function StudioView() {
     setEditingTitle(false)
   }
 
-  async function helpElaborate(kind: 'riflessione' | 'risposte' | 'pratiche') {
+  async function helpElaborate(
+    kind: 'obiettivi' | 'riflessione' | 'risposte' | 'pratiche' | 'tutto',
+  ) {
     if (!topic) return
     setAiBusy(true)
-    setAiHint('')
-    setAiHintKind(kind)
-    const prompt =
-      kind === 'riflessione'
-        ? 'Aiutami a elaborare i miei punti di riflessione in modo più profondo e pratico, restando fedele ai materiali di jw.org.'
-        : kind === 'risposte'
-          ? 'Aiutami a elaborare le mie risposte alle domande di studio con chiarezza e applicazione personale.'
-          : 'Suggerisci azioni pratiche concrete da provare questa settimana, basate sul metodo di studio di jw.org.'
-    const context = buildStudyContext(topic)
+    setArchiveMsg('')
     try {
-      const answer = await askAi({ prompt, context })
-      setAiHint(answer)
-      pushAiMessage(createMessage('user', prompt))
-      pushAiMessage(createMessage('assistant', answer))
+      const structure = await elaborateTopicStructure(topic, kind)
+      const patch = mergeStudyStructureIntoTopic(topic, structure)
+      updateTopic(topic.id, { ...patch, status: 'in_corso' })
+      pushAiMessage(
+        createMessage(
+          'assistant',
+          `Ho aggiornato «${topic.title}» con punti ancorati al tuo materiale (${kind}), usando terminologia jw.org.`,
+        ),
+      )
+      setArchiveMsg(
+        kind === 'tutto'
+          ? 'Struttura AI inserita: obiettivi, riflessioni, domande e pratiche basati sul tuo contenuto.'
+          : 'Elaborazione AI inserita nel Quaderno, basata sul materiale e sulle note.',
+      )
     } catch (e) {
-      setAiHint(e instanceof Error ? e.message : 'Assistente non disponibile')
-      setAiHintKind(null)
+      setArchiveMsg(e instanceof Error ? e.message : 'Assistente non disponibile')
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
+  async function addResourceAndStructure(res: StudyResource) {
+    if (!topic) return
+    const key = resourceFingerprint(res)
+    if (topic.resources.some((r) => resourceFingerprint(r) === key)) {
+      setArchiveMsg('Questo materiale è già nel Quaderno.')
+      return
+    }
+    updateTopic(topic.id, {
+      resources: [...topic.resources, res],
+      status: 'in_corso',
+    })
+    setAiBusy(true)
+    setArchiveMsg('Materiale aggiunto. Creo obiettivi e domande sul contenuto…')
+    try {
+      const structure = await buildStudyStructureFromMaterial({
+        title: res.title,
+        notes: [res.notes, topic.interest, topic.transcript?.slice(0, 1500)]
+          .filter(Boolean)
+          .join('\n\n'),
+        kind: res.kind,
+        extraContext: topic.transcript?.slice(0, 4000),
+      })
+      const latest = useAppStore.getState().topics.find((t) => t.id === topic.id) || topic
+      updateTopic(topic.id, mergeStudyStructureIntoTopic(latest, structure))
+      setArchiveMsg(
+        `«${res.title}»: struttura AI creata sul contenuto del materiale (non generica).`,
+      )
+    } catch (e) {
+      setArchiveMsg(
+        e instanceof Error
+          ? `Materiale aggiunto; struttura AI incompleta: ${e.message}`
+          : 'Materiale aggiunto; struttura AI non disponibile.',
+      )
     } finally {
       setAiBusy(false)
     }
@@ -136,55 +179,6 @@ export function StudioView() {
     } finally {
       setExportBusy(null)
     }
-  }
-
-  function applyAiHint() {
-    if (!topic || !aiHint.trim() || !aiHintKind) return
-    const text = aiHint.trim()
-    if (aiHintKind === 'riflessione') {
-      updateTopic(topic.id, {
-        reflections: [
-          {
-            id: uid('ref'),
-            prompt: 'Elaborazione AI',
-            response: text,
-          },
-          ...topic.reflections,
-        ],
-      })
-    } else if (aiHintKind === 'risposte') {
-      updateTopic(topic.id, {
-        questions: [
-          {
-            id: uid('q'),
-            question: 'Elaborazione AI',
-            answer: text,
-          },
-          ...topic.questions,
-        ],
-      })
-    } else {
-      const lines = text
-        .split(/\n+/)
-        .map((l) => l.replace(/^[-*•\d.)\s]+/, '').trim())
-        .filter((l) => l.length > 8)
-        .slice(0, 6)
-      const actions = lines.length ? lines : [text.slice(0, 280)]
-      updateTopic(topic.id, {
-        practices: [
-          ...actions.map((action) => ({
-            id: uid('prac'),
-            action,
-            tried: false,
-            outcome: '',
-          })),
-          ...topic.practices,
-        ],
-      })
-    }
-    setAiHint('')
-    setAiHintKind(null)
-    setArchiveMsg('Suggerimento inserito nel Quaderno.')
   }
 
   async function exportArchivedTopic(target: StudyTopic, kind: 'pdf' | 'epub') {
@@ -475,6 +469,14 @@ export function StudioView() {
           <button className="btn accent" type="button" onClick={() => startSession(topic.id)}>
             <PlayCircle size={16} /> Sessione guidata
           </button>
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={aiBusy}
+            onClick={() => void helpElaborate('tutto')}
+          >
+            {aiBusy ? 'Elaboro…' : 'AI: struttura sul contenuto'}
+          </button>
           <button className="btn secondary" type="button" onClick={() => setView('diario')}>
             <BookMarked size={16} /> Diario
             {topicSessions.length > 0 ? ` (${topicSessions.length})` : ''}
@@ -605,7 +607,17 @@ export function StudioView() {
 
       <div className="grid-2">
         <section className="panel">
-          <h3>Obiettivi</h3>
+          <div className="section-head">
+            <h3>Obiettivi</h3>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={aiBusy}
+              onClick={() => void helpElaborate('obiettivi')}
+            >
+              {aiBusy ? 'Elaboro…' : 'AI: obiettivi'}
+            </button>
+          </div>
           <div className="stack">
             {topic.objectives.map((obj, idx) => (
               <div key={`obj-${idx}`} className="stack">
@@ -698,18 +710,7 @@ export function StudioView() {
               compact
               language={settings.language}
               onAddResource={(res) => {
-                const key = `${res.url}|${res.lank || ''}|${res.docid || ''}`
-                const exists = topic.resources.some(
-                  (r) => `${r.url}|${r.lank || ''}|${r.docid || ''}` === key,
-                )
-                if (exists) {
-                  setArchiveMsg('Questo materiale è già nel Quaderno.')
-                  return
-                }
-                updateTopic(topic.id, {
-                  resources: [...topic.resources, res],
-                  status: 'in_corso',
-                })
+                void addResourceAndStructure(res)
               }}
             />
           </div>
@@ -719,8 +720,13 @@ export function StudioView() {
       <section className="panel">
         <div className="section-head">
           <h3>Punti di riflessione</h3>
-          <button className="btn secondary" type="button" disabled={aiBusy} onClick={() => helpElaborate('riflessione')}>
-            {aiBusy ? 'Elaboro…' : 'AI: elabora riflessioni'}
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={aiBusy}
+            onClick={() => void helpElaborate('riflessione')}
+          >
+            {aiBusy ? 'Elaboro…' : 'AI: riflessioni'}
           </button>
         </div>
         <div className="stack">
@@ -786,8 +792,13 @@ export function StudioView() {
       <section className="panel">
         <div className="section-head">
           <h3>Domande</h3>
-          <button className="btn secondary" type="button" disabled={aiBusy} onClick={() => helpElaborate('risposte')}>
-            {aiBusy ? 'Elaboro…' : 'AI: elabora risposte'}
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={aiBusy}
+            onClick={() => void helpElaborate('risposte')}
+          >
+            {aiBusy ? 'Elaboro…' : 'AI: domande'}
           </button>
         </div>
         <div className="stack">
@@ -853,8 +864,13 @@ export function StudioView() {
       <section className="panel">
         <div className="section-head">
           <h3>Cose pratiche da provare</h3>
-          <button className="btn secondary" type="button" disabled={aiBusy} onClick={() => helpElaborate('pratiche')}>
-            {aiBusy ? 'Elaboro…' : 'AI: suggerisci pratiche'}
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={aiBusy}
+            onClick={() => void helpElaborate('pratiche')}
+          >
+            {aiBusy ? 'Elaboro…' : 'AI: pratiche'}
           </button>
         </div>
         <div className="stack">
@@ -930,34 +946,6 @@ export function StudioView() {
           </button>
         </div>
       </section>
-
-      {aiHint && (
-        <section className="panel">
-          <div className="section-head">
-            <h3>Suggerimento dell’assistente</h3>
-            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-              {aiHintKind && (
-                <button className="btn accent small" type="button" onClick={applyAiHint}>
-                  Inserisci nel Quaderno
-                </button>
-              )}
-              <button
-                className="btn secondary small"
-                type="button"
-                onClick={() => {
-                  setAiHint('')
-                  setAiHintKind(null)
-                }}
-              >
-                Chiudi
-              </button>
-            </div>
-          </div>
-          <pre className="bubble assistant" style={{ maxWidth: '100%', whiteSpace: 'pre-wrap', margin: 0 }}>
-            {aiHint}
-          </pre>
-        </section>
-      )}
 
       {archivedSection}
     </div>
