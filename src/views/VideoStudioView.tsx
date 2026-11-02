@@ -143,9 +143,8 @@ export function VideoStudioView() {
     setBusy('guide')
     setError('')
     try {
-      const rangeLabel = `${formatClock(range.startSec)}–${formatClock(range.endSec)}`
       const built = await buildVideoStudyGuide({
-        videoTitle: `${videoTitle} (${rangeLabel})`,
+        videoTitle: videoTitle.trim() || 'Video JW',
         transcript: filtered.transcript,
       })
       setGuide(built)
@@ -160,18 +159,20 @@ export function VideoStudioView() {
   function saveToNotebook(openSession = false) {
     if (!guide) return
     const rangeLabel = `${formatClock(range.startSec)}–${formatClock(range.endSec)}`
+    const notebookTitle = videoTitle.trim() || guide.title.trim() || 'Video JW'
     const interest = [
       guide.summary,
       '',
-      `Fonte video JW: ${videoTitle}`,
+      `Fonte video JW: ${notebookTitle}`,
       `Intervallo trascrizione: ${rangeLabel}`,
       lank ? `lank: ${lank}` : '',
     ]
       .filter(Boolean)
       .join('\n')
 
-    const id = addTopic(guide.title || `Studio: ${videoTitle}`, interest)
+    const id = addTopic(notebookTitle, interest)
     updateTopic(id, {
+      title: notebookTitle,
       objectives: guide.objectives,
       reflections: guide.reflections,
       questions: guide.questions,
@@ -179,7 +180,7 @@ export function VideoStudioView() {
       transcript: filtered.transcript,
       transcriptMeta: {
         lank,
-        videoTitle,
+        videoTitle: notebookTitle,
         sourceUrl: videoUrl,
         createdAt: new Date().toISOString(),
         rangeStartSec: range.startSec,
@@ -188,7 +189,7 @@ export function VideoStudioView() {
       resources: [
         {
           id: uid('res'),
-          title: `${videoTitle} (${rangeLabel})`,
+          title: notebookTitle,
           url: videoUrl,
           kind: 'video',
           lank,
@@ -449,9 +450,9 @@ export function VideoStudioView() {
 
       {phase === 'guide' && guide && (
         <section className="panel">
-          <h3>Guida di studio</h3>
+          <h3>{videoTitle.trim() || guide.title}</h3>
           <p className="muted">
-            Basata sull’intervallo {rangeLabel}. {guide.summary}
+            Guida di studio · intervallo {rangeLabel}. {guide.summary}
           </p>
 
           <div className="search-sections">

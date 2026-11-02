@@ -3,6 +3,10 @@ import { BookmarkPlus, NotebookPen, Trash2 } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { JwSearch } from '../components/JwSearch'
 import { SectionProgress } from '../components/SectionProgress'
+import {
+  buildStudyStructureFromMaterial,
+  mergeStudyStructureIntoTopic,
+} from '../lib/studyStructureAi'
 import { useAppStore } from '../store/useAppStore'
 import type { ContentKind, SavedResource } from '../types'
 
@@ -85,7 +89,28 @@ export function SalvatiView() {
     })
     setSelected([])
     setNewTopicTitle('')
+    setHint('Argomento creato. Creo obiettivi, riflessioni, domande e pratiche…')
     setView('studio')
+    const primary = items[0]
+    void (async () => {
+      try {
+        const structure = await buildStudyStructureFromMaterial({
+          title: primary.title,
+          notes: items.map((i) => i.title).join(' · '),
+          kind: primary.kind,
+        })
+        const latest = useAppStore.getState().topics.find((t) => t.id === id)
+        if (!latest) return
+        updateTopic(id, mergeStudyStructureIntoTopic(latest, structure))
+        setHint(`«${title}»: struttura AI inserita nel Quaderno.`)
+      } catch (e) {
+        setHint(
+          e instanceof Error
+            ? `Argomento creato; struttura AI non completata: ${e.message}`
+            : 'Argomento creato; struttura AI non disponibile.',
+        )
+      }
+    })()
   }
 
   return (

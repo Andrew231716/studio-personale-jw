@@ -9,6 +9,10 @@ import {
   archivedTopics,
   statusLabel,
 } from '../lib/studyFlow'
+import {
+  buildStudyStructureFromMaterial,
+  mergeStudyStructureIntoTopic,
+} from '../lib/studyStructureAi'
 import { useAppStore } from '../store/useAppStore'
 
 export function ArgomentiView() {
@@ -26,6 +30,7 @@ export function ArgomentiView() {
   const [showArchived, setShowArchived] = useState(false)
   const [renameId, setRenameId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
+  const [structureMsg, setStructureMsg] = useState('')
 
   function confirmRemove(id: string, name: string) {
     if (
@@ -275,8 +280,36 @@ export function ArgomentiView() {
                 })
               }
               setActiveTopic(id)
+              setStructureMsg('Argomento creato. Creo obiettivi, riflessioni, domande e pratiche…')
+              void (async () => {
+                try {
+                  const structure = await buildStudyStructureFromMaterial({
+                    title: res.title,
+                    notes: res.notes,
+                    kind: res.kind,
+                  })
+                  const latest = useAppStore.getState().topics.find((t) => t.id === id)
+                  if (!latest) return
+                  const patch = mergeStudyStructureIntoTopic(latest, structure)
+                  updateTopic(id, patch)
+                  setStructureMsg(
+                    `«${res.title}»: struttura AI inserita nel Quaderno.`,
+                  )
+                } catch (e) {
+                  setStructureMsg(
+                    e instanceof Error
+                      ? `Argomento creato; struttura AI non completata: ${e.message}`
+                      : 'Argomento creato; struttura AI non disponibile.',
+                  )
+                }
+              })()
             }}
           />
+          {structureMsg && (
+            <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+              {structureMsg}
+            </p>
+          )}
         </section>
       </div>
     </div>
