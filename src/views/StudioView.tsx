@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Archive, BookMarked, FileText, PlayCircle, RotateCcw, Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
@@ -11,11 +11,13 @@ import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
 import { uid } from '../lib/id'
 import {
   activeTopics,
+  archivedTopics,
   statusLabel,
   topicHasUpcomingSchedule,
 } from '../lib/studyFlow'
 import { buildTopicOnlySummary } from '../lib/studySummary'
 import { useAppStore } from '../store/useAppStore'
+import type { StudyTopic } from '../types'
 
 export function StudioView() {
   const topics = useAppStore((s) => s.topics)
@@ -42,14 +44,20 @@ export function StudioView() {
   const [exportBusy, setExportBusy] = useState<'pdf' | 'epub' | null>(null)
 
   const openList = useMemo(() => activeTopics(topics), [topics])
+  const closedList = useMemo(() => archivedTopics(topics), [topics])
   const topic = useMemo(() => {
-    const preferred =
-      topics.find((t) => t.id === activeTopicId) ||
-      openList[0] ||
-      topics[0] ||
-      null
+    const preferred = openList.find((t) => t.id === activeTopicId) || openList[0] || null
     return preferred
-  }, [topics, activeTopicId, openList])
+  }, [activeTopicId, openList])
+
+  // Se l’attivo punta a un archiviato, passa al primo argomento aperto (o nessuno).
+  useEffect(() => {
+    if (!activeTopicId) return
+    const current = topics.find((t) => t.id === activeTopicId)
+    if (!current || current.status !== 'completato') return
+    if (openList[0]) setActiveTopic(openList[0].id)
+    else useAppStore.setState({ activeTopicId: null })
+  }, [activeTopicId, topics, openList, setActiveTopic])
 
   const topicSessions = useMemo(
     () => (topic ? sessionLogs.filter((s) => s.topicId === topic.id) : []),
@@ -57,43 +65,40 @@ export function StudioView() {
   )
   const hasUpcoming = topicHasUpcomingSchedule(topic?.id, schedules)
 
-  function deleteEntireTopic() {
-    if (!topic) return
+  function deleteTopicById(target: StudyTopic) {
     if (
       !window.confirm(
-        `Eliminare l’argomento «${topic.title}»? Il Quaderno e i collegamenti andranno persi. Le sessioni nel Diario restano.`,
+        `Eliminare l’argomento «${target.title}»? Il Quaderno e i collegamenti andranno persi. Le sessioni nel Diario restano.`,
       )
     ) {
       return
     }
-    const remaining = topics.filter((t) => t.id !== topic.id)
-    removeTopic(topic.id)
-    if (remaining.length === 0) {
-      setView('argomenti')
-      return
-    }
-    const next = remaining.find((t) => t.status !== 'completato') || remaining[0]
-    setActiveTopic(next.id)
+    const wasActive = topic?.id === target.id
+    removeTopic(target.id)
+    if (!wasActive) return
+    const remainingOpen = activeTopics(useAppStore.getState().topics)
+    if (remainingOpen[0]) setActiveTopic(remainingOpen[0].id)
+    else useAppStore.setState({ activeTopicId: null })
   }
 
-  if (!topic) {
-    return (
-      <div className="stack">
-        <StudyFlowGuide current="studio" />
-        <SectionProgress section="studio" />
-        <div className="panel empty">
-          Nessuno studio attivo. Aggiungi un argomento per iniziare.
-          <div style={{ marginTop: '0.8rem' }}>
-            <button className="btn" type="button" onClick={() => setView('argomenti')}>
-              Vai agli argomenti
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+  function deleteEntireTopic() {
+    if (!topic) return
+    deleteTopicById(topic)
+  }
+
+  function completeAndArchive() {
+    if (!topic) return
+    const id = topic.id
+    const next = openList.find((t) => t.id !== id) || null
+    archiveTopic(id)
+    if (next) setActiveTopic(next.id)
+    else useAppStore.setState({ activeTopicId: null })
+    setArchiveMsg('Argomento archiviato. Lo trovi sotto in Archiviati.')
+    setEditingTitle(false)
   }
 
   async function helpElaborate(kind: 'riflessione' | 'risposte' | 'pratiche') {
+    if (!topic) return
     setAiBusy(true)
     setAiHint('')
     setAiHintKind(kind)
@@ -182,6 +187,208 @@ export function StudioView() {
     setArchiveMsg('Suggerimento inserito nel Quaderno.')
   }
 
+  async function exportArchivedTopic(target: StudyTopic, kind: 'pdf' | 'epub') {
+    setExportBusy(kind)
+    setArchiveMsg('')
+    try {
+      const summary = buildTopicOnlySummary(target, sessionLogs)
+      if (kind === 'pdf') await exportSummaryPdf(summary)
+      else await exportSummaryEpub(summary)
+      setArchiveMsg(kind === 'pdf' ? 'PDF dell’argomento scaricato.' : 'EPUB dell’argomento scaricato.')
+    } catch (e) {
+      setArchiveMsg(e instanceof Error ? e.message : 'Esportazione non riuscita')
+    } finally {
+      setExportBusy(null)
+    }
+  }
+
+  const archivedSection =
+    closedList.length > 0 ? (
+      <section className="panel">
+        <div className="section-head">
+          <div>
+            <p className="section-kicker">Archiviati</p>
+            <h3 style={{ margin: 0 }}>Argomenti completati</h3>
+            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+              Non occupano il Quaderno attivo: aprili solo se vuoi rivederli o riaprirli.
+            </p>
+          </div>
+          <span className="badge">{closedList.length}</span>
+        </div>
+        <div className="stack" style={{ marginTop: '0.85rem', gap: '0.65rem' }}>
+          {closedList.map((t) => {
+            const sessions = sessionLogs.filter((s) => s.topicId === t.id).length
+            const objectives = t.objectives.filter((o) => o.trim())
+            const reflections = t.reflections.filter((r) => r.prompt.trim() || r.response.trim())
+            const questions = t.questions.filter((q) => q.question.trim() || q.answer.trim())
+            const practices = t.practices.filter((p) => p.action.trim())
+            return (
+              <details key={t.id} className="decision-fold archive-topic-fold">
+                <summary className="decision-fold-summary">
+                  <span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span>{t.title}</span>
+                    <span className="badge">Archiviato</span>
+                    {sessions > 0 && (
+                      <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 500 }}>
+                        {sessions} sessioni
+                      </span>
+                    )}
+                  </span>
+                </summary>
+                <div className="decision-fold-body archive-topic-body">
+                  <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: '0.75rem' }}>
+                    <button
+                      className="btn accent small"
+                      type="button"
+                      onClick={() => {
+                        reopenTopic(t.id)
+                        setActiveTopic(t.id)
+                        setArchiveMsg(`«${t.title}» riaperto nel Quaderno.`)
+                      }}
+                    >
+                      <RotateCcw size={14} /> Riapri nel Quaderno
+                    </button>
+                    <button
+                      className="btn secondary small"
+                      type="button"
+                      disabled={!!exportBusy}
+                      onClick={() => void exportArchivedTopic(t, 'pdf')}
+                    >
+                      <FileText size={14} /> PDF
+                    </button>
+                    <button
+                      className="btn secondary small"
+                      type="button"
+                      disabled={!!exportBusy}
+                      onClick={() => void exportArchivedTopic(t, 'epub')}
+                    >
+                      <BookMarked size={14} /> EPUB
+                    </button>
+                    <button
+                      className="btn danger small"
+                      type="button"
+                      onClick={() => deleteTopicById(t)}
+                    >
+                      <Trash2 size={14} /> Elimina
+                    </button>
+                  </div>
+                  {t.interest.trim() && (
+                    <div className="field">
+                      <label>Note</label>
+                      <p className="muted" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                        {t.interest}
+                      </p>
+                    </div>
+                  )}
+                  {objectives.length > 0 && (
+                    <div className="field">
+                      <label>Obiettivi</label>
+                      <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                        {objectives.map((o, i) => (
+                          <li key={`${t.id}-o-${i}`}>{o}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {reflections.length > 0 && (
+                    <div className="field">
+                      <label>Riflessioni</label>
+                      <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                        {reflections.map((r) => (
+                          <li key={r.id}>
+                            <strong>{r.prompt || 'Riflessione'}</strong>
+                            {r.response.trim() ? (
+                              <p className="muted" style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>
+                                {r.response}
+                              </p>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {questions.length > 0 && (
+                    <div className="field">
+                      <label>Domande</label>
+                      <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                        {questions.map((q) => (
+                          <li key={q.id}>
+                            <strong>{q.question || 'Domanda'}</strong>
+                            {q.answer.trim() ? (
+                              <p className="muted" style={{ margin: '0.25rem 0 0', whiteSpace: 'pre-wrap' }}>
+                                {q.answer}
+                              </p>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {practices.length > 0 && (
+                    <div className="field">
+                      <label>Pratiche</label>
+                      <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                        {practices.map((p) => (
+                          <li key={p.id}>
+                            {p.action}
+                            {p.tried ? ' · provata' : ''}
+                            {p.outcome.trim() ? ` — ${p.outcome}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {t.resources.length > 0 && (
+                    <div className="field">
+                      <label>Materiale</label>
+                      <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                        {t.resources.map((r) => (
+                          <li key={r.id}>{r.title}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {!t.interest.trim() &&
+                    objectives.length === 0 &&
+                    reflections.length === 0 &&
+                    questions.length === 0 &&
+                    practices.length === 0 &&
+                    t.resources.length === 0 && (
+                      <p className="muted" style={{ margin: 0 }}>
+                        Nessun contenuto salvato in questo Quaderno.
+                      </p>
+                    )}
+                </div>
+              </details>
+            )
+          })}
+        </div>
+      </section>
+    ) : null
+
+  if (!topic) {
+    return (
+      <div className="stack">
+        <StudyFlowGuide current="studio" />
+        <SectionProgress section="studio" />
+        <div className="panel empty">
+          Nessuno studio attivo nel Quaderno.
+          <div style={{ marginTop: '0.8rem' }}>
+            <button className="btn" type="button" onClick={() => setView('argomenti')}>
+              Vai agli argomenti
+            </button>
+          </div>
+        </div>
+        {archiveMsg && (
+          <p className="muted" style={{ margin: 0 }}>
+            {archiveMsg}
+          </p>
+        )}
+        {archivedSection}
+      </div>
+    )
+  }
+
   return (
     <div className="stack">
       <StudyFlowGuide current="studio" />
@@ -248,31 +455,19 @@ export function StudioView() {
           </div>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
             <span className="badge">{statusLabel(topic.status)}</span>
-            <select
-              value={topic.id}
-              onChange={(e) => setActiveTopic(e.target.value)}
-            >
-              {openList.length > 0 && (
-                <optgroup label="Attivi">
-                  {openList.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {topics.some((t) => t.status === 'completato') && (
-                <optgroup label="Archiviati">
-                  {topics
-                    .filter((t) => t.status === 'completato')
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title}
-                      </option>
-                    ))}
-                </optgroup>
-              )}
-            </select>
+            {openList.length > 1 && (
+              <select
+                value={topic.id}
+                onChange={(e) => setActiveTopic(e.target.value)}
+                aria-label="Argomento attivo"
+              >
+                {openList.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -300,42 +495,24 @@ export function StudioView() {
           >
             <BookMarked size={16} /> {exportBusy === 'epub' ? 'EPUB…' : 'Esporta EPUB'}
           </button>
-          {topic.status === 'completato' ? (
-            <button
-              className="btn secondary"
-              type="button"
-              onClick={() => {
-                reopenTopic(topic.id)
-                setArchiveMsg('Argomento riaperto: puoi continuare a studiarlo.')
-              }}
-            >
-              <RotateCcw size={16} /> Riapri argomento
-            </button>
-          ) : (
-            <button
-              className="btn secondary"
-              type="button"
-              disabled={hasUpcoming}
-              title={
-                hasUpcoming
-                  ? 'Hai altri giorni programmati: togli gli eventi o lascialo attivo'
-                  : undefined
-              }
-              onClick={() => {
-                archiveTopic(topic.id)
-                setArchiveMsg(
-                  'Argomento archiviato. Lo trovi in Argomenti → Archiviati. Puoi riaprirlo quando vuoi.',
-                )
-              }}
-            >
-              <Archive size={16} /> Completa e archivia
-            </button>
-          )}
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={hasUpcoming}
+            title={
+              hasUpcoming
+                ? 'Hai altri giorni programmati: togli gli eventi o lascialo attivo'
+                : undefined
+            }
+            onClick={completeAndArchive}
+          >
+            <Archive size={16} /> Completa e archivia
+          </button>
           <button className="btn danger" type="button" onClick={deleteEntireTopic}>
             <Trash2 size={16} /> Elimina tutto l’argomento
           </button>
         </div>
-        {hasUpcoming && topic.status !== 'completato' && (
+        {hasUpcoming && (
           <p className="muted" style={{ margin: '0.45rem 0 0' }}>
             Hai altri studi programmati per questo argomento: resta attivo finché non li
             concludi o li rimuovi.
@@ -781,6 +958,8 @@ export function StudioView() {
           </pre>
         </section>
       )}
+
+      {archivedSection}
     </div>
   )
 }

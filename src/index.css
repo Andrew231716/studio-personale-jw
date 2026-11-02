@@ -1723,6 +1723,22 @@ img {
   margin-top: 0.85rem;
 }
 
+.archive-topic-fold {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  background: color-mix(in srgb, var(--surface) 92%, var(--muted));
+}
+
+.archive-topic-fold > .decision-fold-summary {
+  display: block;
+}
+
+.archive-topic-body {
+  border-top: 1px solid var(--line);
+  padding-top: 0.75rem;
+}
+
 .decision-fold-passthrough {
   display: contents;
 }
