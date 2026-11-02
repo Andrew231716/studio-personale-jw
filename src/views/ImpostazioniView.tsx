@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { Bell, BookOpen, Download, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Bell, BookOpen, Download, Square, Upload } from 'lucide-react'
 import { CloudSyncPanel } from '../components/CloudSyncPanel'
 import { ICloudSyncPanel } from '../components/ICloudSyncPanel'
 import {
@@ -9,9 +9,13 @@ import {
   readBackupFile,
 } from '../lib/backup'
 import {
+  TOTAL_BIBLE_CHAPTERS,
+  clearOfflineBible,
+  downloadFullOfflineBible,
   downloadOfflineBiblePack,
   getCachedChapterCount,
   getCachedVerseCount,
+  getOfflineBibleStats,
 } from '../lib/bibleText'
 import {
   notificationPermission,
@@ -53,7 +57,27 @@ export function ImpostazioniView() {
   const [notifPerm, setNotifPerm] = useState(() => notificationPermission())
   const [packBusy, setPackBusy] = useState(false)
   const [packMsg, setPackMsg] = useState('')
+  const [fullBusy, setFullBusy] = useState(false)
+  const [fullMsg, setFullMsg] = useState('')
+  const [fullProgress, setFullProgress] = useState(0)
+  const [bibleStats, setBibleStats] = useState({
+    chaptersIndexed: 0,
+    chaptersLocal: 0,
+    versesCached: 0,
+    totalChapters: TOTAL_BIBLE_CHAPTERS,
+    complete: false,
+  })
+  const fullAbortRef = useRef<AbortController | null>(null)
   const language = settings.language
+
+  async function refreshBibleStats() {
+    const stats = await getOfflineBibleStats(language)
+    setBibleStats(stats)
+  }
+
+  useEffect(() => {
+    void refreshBibleStats()
+  }, [language])
 
   function moveNav(view: AppView, dir: -1 | 1) {
     const order = [...settings.navOrder]
@@ -329,41 +353,143 @@ export function ImpostazioniView() {
       <section className="panel">
         <h2>Bibbia offline</h2>
         <p className="lede">
-          I versetti aperti restano in cache. Puoi scaricare un pacchetto di libri frequenti
-          (Salmi, Proverbi, Vangeli…) per i popup anche senza rete.
+          Testo TNM (edizione studio) da wol.jw.org, per i popup dei versetti anche senza rete.
+          Puoi scaricare tutta la Bibbia (tutti i libri, capitoli e versetti) oppure un pacchetto
+          ridotto dei libri più usati.
         </p>
         <p className="muted">
-          Ora in cache: {getCachedChapterCount()} capitoli · {getCachedVerseCount()} versetti.
+          Salvati: {bibleStats.chaptersIndexed} / {bibleStats.totalChapters} capitoli
+          {bibleStats.complete ? ' · completa' : ''} · cache rapida {getCachedChapterCount()} cap. ·{' '}
+          {getCachedVerseCount()} versetti aperti di recente.
         </p>
-        <button
-          className="btn secondary"
-          type="button"
-          disabled={packBusy || !navigator.onLine}
-          onClick={() => {
-            void (async () => {
-              setPackBusy(true)
-              setPackMsg('Scarico…')
-              try {
-                const { chapters } = await downloadOfflineBiblePack({
-                  language,
-                  maxChaptersPerBook: 8,
-                  onProgress: (r, label) =>
-                    setPackMsg(`${Math.round(r * 100)}% · ${label}`),
-                })
-                setPackMsg(`Completato: ${chapters} capitoli salvati.`)
-              } catch (e) {
-                setPackMsg(e instanceof Error ? e.message : 'Download non riuscito')
-              } finally {
-                setPackBusy(false)
+        {fullBusy && (
+          <div className="bible-download-progress" aria-live="polite">
+            <div className="bible-download-bar">
+              <span style={{ width: `${Math.round(fullProgress * 100)}%` }} />
+            </div>
+            <p className="muted" style={{ margin: '0.45rem 0 0' }}>
+              {fullMsg || 'Scarico…'}
+            </p>
+          </div>
+        )}
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
+          <button
+            className="btn accent"
+            type="button"
+            disabled={fullBusy || packBusy || !navigator.onLine}
+            onClick={() => {
+              void (async () => {
+                const ctrl = new AbortController()
+                fullAbortRef.current = ctrl
+                setFullBusy(true)
+                setFullProgress(0)
+                setFullMsg('Collegamento a wol.jw.org…')
+                try {
+                  const result = await downloadFullOfflineBible({
+                    language,
+                    concurrency: 2,
+                    signal: ctrl.signal,
+                    onProgress: (info) => {
+                      setFullProgress(info.ratio)
+                      setFullMsg(
+                        `${Math.round(info.ratio * 100)}% · ${info.done}/${info.total} · ${info.label}`,
+                      )
+                    },
+                  })
+                  await refreshBibleStats()
+                  if (ctrl.signal.aborted) {
+                    setFullMsg(
+                      `Interrotto: ${result.chapters} nuovi, ${result.skipped} già presenti, ${result.failed} errori.`,
+                    )
+                  } else {
+                    setFullMsg(
+                      `Bibbia salvata: ${result.chapters} nuovi capitoli · ${result.skipped} già presenti · ${result.failed} errori · obiettivo ${TOTAL_BIBLE_CHAPTERS} capitoli.`,
+                    )
+                  }
+                } catch (e) {
+                  setFullMsg(e instanceof Error ? e.message : 'Download non riuscito')
+                } finally {
+                  fullAbortRef.current = null
+                  setFullBusy(false)
+                  void refreshBibleStats()
+                }
+              })()
+            }}
+          >
+            <Download size={16} />{' '}
+            {fullBusy
+              ? 'Scarico tutta la Bibbia…'
+              : bibleStats.complete
+                ? 'Aggiorna tutta la Bibbia'
+                : 'Scarica tutta la Bibbia'}
+          </button>
+          {fullBusy && (
+            <button
+              className="btn secondary"
+              type="button"
+              onClick={() => fullAbortRef.current?.abort()}
+            >
+              <Square size={16} /> Interrompi
+            </button>
+          )}
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={packBusy || fullBusy || !navigator.onLine}
+            onClick={() => {
+              void (async () => {
+                setPackBusy(true)
+                setPackMsg('Scarico…')
+                try {
+                  const { chapters } = await downloadOfflineBiblePack({
+                    language,
+                    maxChaptersPerBook: 8,
+                    onProgress: (r, label) =>
+                      setPackMsg(`${Math.round(r * 100)}% · ${label}`),
+                  })
+                  setPackMsg(`Pacchetto frequente: ${chapters} capitoli salvati.`)
+                  await refreshBibleStats()
+                } catch (e) {
+                  setPackMsg(e instanceof Error ? e.message : 'Download non riuscito')
+                } finally {
+                  setPackBusy(false)
+                }
+              })()
+            }}
+          >
+            <BookOpen size={16} /> {packBusy ? 'Scarico…' : 'Solo pacchetto frequente'}
+          </button>
+          <button
+            className="btn ghost"
+            type="button"
+            disabled={fullBusy || packBusy || bibleStats.chaptersIndexed === 0}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  'Eliminare la Bibbia offline salvata su questo dispositivo? I popup richiederanno di nuovo la rete.',
+                )
+              ) {
+                return
               }
-            })()
-          }}
-        >
-          <BookOpen size={16} /> {packBusy ? 'Scarico…' : 'Scarica pacchetto offline'}
-        </button>
+              void (async () => {
+                await clearOfflineBible(language)
+                setFullMsg('Bibbia offline eliminata.')
+                setPackMsg('')
+                await refreshBibleStats()
+              })()
+            }}
+          >
+            Elimina Bibbia offline
+          </button>
+        </div>
         {!navigator.onLine && (
           <p className="network-need-hint" style={{ marginTop: '0.65rem' }}>
-            Serve connessione per scaricare il pacchetto.
+            Serve connessione per scaricare da wol.jw.org / jw.org.
+          </p>
+        )}
+        {!fullBusy && fullMsg && (
+          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+            {fullMsg}
           </p>
         )}
         {packMsg && (
@@ -371,6 +497,10 @@ export function ImpostazioniView() {
             {packMsg}
           </p>
         )}
+        <p className="muted" style={{ margin: '0.75rem 0 0', fontSize: '0.85rem' }}>
+          Fonte: wol.jw.org (Traduzione del Nuovo Mondo, edizione per lo studio). Circa{' '}
+          {TOTAL_BIBLE_CHAPTERS} capitoli; il download completo può richiedere alcuni minuti.
+        </p>
       </section>
 
       <section className="panel">
@@ -437,20 +567,22 @@ export function ImpostazioniView() {
             ) {
               return
             }
-            localStorage.removeItem('studio-personale-jw-v1')
-            localStorage.removeItem('jw-studio-bible-verse-cache-v2')
-            localStorage.removeItem('jw-studio-bible-chapter-cache-v1')
-            // Eventuali chiavi cache precedenti
-            for (const key of Object.keys(localStorage)) {
-              if (key.startsWith('jw-studio-bible-')) localStorage.removeItem(key)
-            }
-            window.location.reload()
+            void (async () => {
+              await clearOfflineBible()
+              localStorage.removeItem('studio-personale-jw-v1')
+              localStorage.removeItem('jw-studio-bible-verse-cache-v2')
+              localStorage.removeItem('jw-studio-bible-chapter-cache-v1')
+              for (const key of Object.keys(localStorage)) {
+                if (key.startsWith('jw-studio-bible-')) localStorage.removeItem(key)
+              }
+              window.location.reload()
+            })()
           }}
         >
           Cancella tutti i dati locali
         </button>
         <p className="muted" style={{ margin: '0.55rem 0 0' }}>
-          Include anche le cache della Bibbia offline salvate sul dispositivo.
+          Include anche IndexedDB e cache della Bibbia offline salvate sul dispositivo.
         </p>
       </section>
     </div>

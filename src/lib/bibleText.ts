@@ -1,11 +1,27 @@
 import { OFFLINE_PACK_BOOKS, resolveBookToken } from './bibleAbbreviations'
 import {
+  BIBLE_CHAPTER_COUNTS,
+  TOTAL_BIBLE_CHAPTERS,
+  chaptersForBook,
+} from './bibleChapterCounts'
+import {
+  idbClearAll,
+  idbClearLanguage,
+  idbCountChapters,
+  idbGetChapter,
+  idbHasChapter,
+  idbListChapterKeys,
+  idbPutChapter,
+} from './bibleOfflineDb'
+import {
   BIBLE_BOOKS,
   bibleCode,
   bibleOpenUrl,
   findBookByName,
   parseScriptureLabel,
 } from './bibleRefs'
+
+export { TOTAL_BIBLE_CHAPTERS, chaptersForBook }
 
 export interface ParsedScriptureRef {
   label: string
@@ -259,13 +275,24 @@ async function fetchChapterHtml(
   bookNum: number,
   chapter: number,
   language: string,
+  opts?: { forceNetwork?: boolean; skipLocalPersist?: boolean },
 ): Promise<string> {
   const key = chapterKey(language, bookNum, chapter)
-  const cached = loadChapterCache()
-  if (cached[key]?.html) return cached[key].html
+
+  if (!opts?.forceNetwork) {
+    const fromIdb = await idbGetChapter(language, bookNum, chapter)
+    if (fromIdb) return fromIdb
+
+    const cached = loadChapterCache()
+    if (cached[key]?.html) {
+      // Promuove in IndexedDB (pacchetto completo / persistenza lunga)
+      void idbPutChapter({ language, book: bookNum, chapter, html: cached[key].html })
+      return cached[key].html
+    }
+  }
 
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
-    throw new Error('Offline: capitolo non in cache')
+    throw new Error('Offline: capitolo non in cache. Scarica tutta la Bibbia dalle Impostazioni.')
   }
 
   const url = `/api/jw-bible?language=${encodeURIComponent(language)}&book=${bookNum}&chapter=${chapter}`
@@ -274,8 +301,19 @@ async function fetchChapterHtml(
   const data = (await res.json()) as { content?: string; error?: string }
   if (!data.content) throw new Error(data.error || 'Capitolo non trovato')
 
-  cached[key] = { html: data.content, savedAt: new Date().toISOString() }
-  saveChapterCache(cached)
+  await idbPutChapter({
+    language,
+    book: bookNum,
+    chapter,
+    html: data.content,
+  })
+
+  if (!opts?.skipLocalPersist) {
+    const cached = loadChapterCache()
+    cached[key] = { html: data.content, savedAt: new Date().toISOString() }
+    saveChapterCache(cached)
+  }
+
   return data.content
 }
 
@@ -401,6 +439,46 @@ export function getCachedVerseCount(): number {
   return Object.keys(loadVerseCache()).length
 }
 
+export async function getOfflineBibleStats(language = 'I'): Promise<{
+  chaptersLocal: number
+  chaptersIndexed: number
+  versesCached: number
+  totalChapters: number
+  complete: boolean
+}> {
+  const chaptersIndexed = await idbCountChapters(language)
+  const chaptersLocal = getCachedChapterCount()
+  return {
+    chaptersLocal,
+    chaptersIndexed,
+    versesCached: getCachedVerseCount(),
+    totalChapters: TOTAL_BIBLE_CHAPTERS,
+    complete: chaptersIndexed >= TOTAL_BIBLE_CHAPTERS,
+  }
+}
+
+export async function clearOfflineBible(language?: string): Promise<void> {
+  if (language) await idbClearLanguage(language)
+  else await idbClearAll()
+  try {
+    localStorage.removeItem(CHAPTER_CACHE_KEY)
+    localStorage.removeItem(CACHE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+function buildAllChapterJobs(): Array<{ book: number; name: string; chapter: number }> {
+  const jobs: Array<{ book: number; name: string; chapter: number }> = []
+  for (const book of BIBLE_BOOKS) {
+    const n = chaptersForBook(book.num) || BIBLE_CHAPTER_COUNTS[book.num] || 0
+    for (let c = 1; c <= n; c++) {
+      jobs.push({ book: book.num, name: book.name, chapter: c })
+    }
+  }
+  return jobs
+}
+
 /**
  * Scarica un pacchetto offline di libri frequenti (capitoli in cache).
  * onProgress: 0–1
@@ -432,4 +510,104 @@ export async function downloadOfflineBiblePack(params: {
   }
   params.onProgress?.(1, 'Completato')
   return { chapters: done }
+}
+
+export interface FullBibleDownloadProgress {
+  ratio: number
+  label: string
+  done: number
+  total: number
+  failed: number
+  skipped: number
+}
+
+/**
+ * Scarica TUTTI i capitoli della Bibbia (TNM studio) da wol.jw.org via /api/jw-bible.
+ * Salva in IndexedDB per i popup versetti anche offline.
+ */
+export async function downloadFullOfflineBible(params: {
+  language?: string
+  /** Capitoli in parallelo (default 2, gentile con wol.jw.org). */
+  concurrency?: number
+  /** Se true, riscarica anche i capitoli già presenti. */
+  force?: boolean
+  onProgress?: (info: FullBibleDownloadProgress) => void
+  signal?: AbortSignal
+}): Promise<{ chapters: number; failed: number; skipped: number; total: number }> {
+  const language = params.language || 'I'
+  const concurrency = Math.max(1, Math.min(params.concurrency ?? 2, 4))
+  const jobs = buildAllChapterJobs()
+  const total = jobs.length
+  const already = params.force ? new Set<string>() : await idbListChapterKeys(language)
+
+  let done = 0
+  let failed = 0
+  let skipped = 0
+  let cursor = 0
+
+  const report = (label: string) => {
+    params.onProgress?.({
+      ratio: total ? done / total : 1,
+      label,
+      done,
+      total,
+      failed,
+      skipped,
+    })
+  }
+
+  report('Avvio…')
+
+  async function worker() {
+    while (cursor < jobs.length) {
+      if (params.signal?.aborted) return
+      const idx = cursor
+      cursor += 1
+      const job = jobs[idx]
+      const key = `${job.book}:${job.chapter}`
+      if (already.has(key)) {
+        skipped += 1
+        done += 1
+        report(`${job.name} ${job.chapter} (già presente)`)
+        continue
+      }
+      // Segna subito per evitare doppi download tra worker
+      already.add(key)
+      if (!params.force && (await idbHasChapter(language, job.book, job.chapter))) {
+        skipped += 1
+        done += 1
+        report(`${job.name} ${job.chapter} (già presente)`)
+        continue
+      }
+      try {
+        await fetchChapterHtml(job.book, job.chapter, language, {
+          forceNetwork: Boolean(params.force),
+          skipLocalPersist: true,
+        })
+      } catch {
+        failed += 1
+        already.delete(key)
+      }
+      done += 1
+      report(`${job.name} ${job.chapter}`)
+      // Piccola pausa per non saturare wol.jw.org
+      await new Promise((r) => setTimeout(r, 40))
+    }
+  }
+
+  const workers = Array.from({ length: concurrency }, () => worker())
+  await Promise.all(workers)
+
+  if (params.signal?.aborted) {
+    report('Interrotto')
+  } else {
+    report('Completato')
+  }
+
+  return {
+    chapters: done - failed - skipped,
+    failed,
+    skipped,
+    total,
+  }
 }

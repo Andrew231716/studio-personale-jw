@@ -23,9 +23,12 @@ import {
 import { ScriptureLinkedText } from '../components/ScriptureLinkedText'
 import { SectionProgress } from '../components/SectionProgress'
 import {
+  TOTAL_BIBLE_CHAPTERS,
+  downloadFullOfflineBible,
   downloadOfflineBiblePack,
   getCachedChapterCount,
   getCachedVerseCount,
+  getOfflineBibleStats,
 } from '../lib/bibleText'
 import { polishDiscourseText } from '../lib/discourseAi'
 import {
@@ -92,6 +95,9 @@ export function DiscorsoView() {
   const [elapsed, setElapsed] = useState(0)
   const [packBusy, setPackBusy] = useState(false)
   const [packMsg, setPackMsg] = useState('')
+  const [fullBusy, setFullBusy] = useState(false)
+  const [offlineChapters, setOfflineChapters] = useState(0)
+  const fullAbortRef = useRef<AbortController | null>(null)
   const [exportBusy, setExportBusy] = useState<string | null>(null)
 
   const dictation = useRef(createDictation(language === 'E' ? 'en-US' : 'it-IT'))
@@ -141,6 +147,10 @@ export function DiscorsoView() {
       window.removeEventListener('offline', off)
     }
   }, [])
+
+  useEffect(() => {
+    void getOfflineBibleStats(language).then((s) => setOfflineChapters(s.chaptersIndexed))
+  }, [language, packMsg])
 
   useEffect(() => {
     if (!activeId && notes[0]?.id) {
@@ -408,13 +418,49 @@ export function DiscorsoView() {
         onProgress: (r, label) =>
           setPackMsg(`${Math.round(r * 100)}% · ${label}`),
       })
+      const stats = await getOfflineBibleStats(language)
+      setOfflineChapters(stats.chaptersIndexed)
       setPackMsg(
-        `Pacchetto pronto: ${chapters} capitoli. Cache: ${getCachedChapterCount()} cap. · ${getCachedVerseCount()} versetti.`,
+        `Pacchetto pronto: ${chapters} capitoli. Offline: ${stats.chaptersIndexed}/${TOTAL_BIBLE_CHAPTERS} · cache ${getCachedChapterCount()} cap. · ${getCachedVerseCount()} versetti.`,
       )
     } catch (e) {
       setPackMsg(e instanceof Error ? e.message : 'Download non riuscito')
     } finally {
       setPackBusy(false)
+    }
+  }
+
+  async function downloadFullBible() {
+    if (!online) {
+      setPackMsg('Serve connessione per scaricare tutta la Bibbia da wol.jw.org.')
+      return
+    }
+    const ctrl = new AbortController()
+    fullAbortRef.current = ctrl
+    setFullBusy(true)
+    setPackMsg('Scarico tutta la Bibbia da wol.jw.org…')
+    try {
+      const result = await downloadFullOfflineBible({
+        language,
+        concurrency: 2,
+        signal: ctrl.signal,
+        onProgress: (info) =>
+          setPackMsg(
+            `${Math.round(info.ratio * 100)}% · ${info.done}/${info.total} · ${info.label}`,
+          ),
+      })
+      const stats = await getOfflineBibleStats(language)
+      setOfflineChapters(stats.chaptersIndexed)
+      setPackMsg(
+        ctrl.signal.aborted
+          ? `Interrotto · offline ${stats.chaptersIndexed}/${TOTAL_BIBLE_CHAPTERS}`
+          : `Bibbia salvata: ${result.chapters} nuovi · ${result.skipped} già presenti · ${stats.chaptersIndexed}/${TOTAL_BIBLE_CHAPTERS} capitoli.`,
+      )
+    } catch (e) {
+      setPackMsg(e instanceof Error ? e.message : 'Download non riuscito')
+    } finally {
+      fullAbortRef.current = null
+      setFullBusy(false)
     }
   }
 
@@ -778,19 +824,40 @@ export function DiscorsoView() {
           <section className="panel discourse-side-compact">
             <h3>Bibbia offline</h3>
             <p className="muted" style={{ marginTop: 0 }}>
-              Cache: {getCachedChapterCount()} cap. · {getCachedVerseCount()} versetti.
+              {offlineChapters}/{TOTAL_BIBLE_CHAPTERS} capitoli · cache{' '}
+              {getCachedChapterCount()} · {getCachedVerseCount()} versetti.
             </p>
-            <button
-              className="btn secondary"
-              type="button"
-              disabled={packBusy || !online}
-              onClick={() => void downloadPack()}
-            >
-              <Download size={16} /> {packBusy ? 'Scarico…' : 'Scarica pacchetto'}
-            </button>
+            <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <button
+                className="btn accent"
+                type="button"
+                disabled={packBusy || fullBusy || !online}
+                onClick={() => void downloadFullBible()}
+              >
+                <Download size={16} />{' '}
+                {fullBusy ? 'Scarico tutta…' : 'Scarica tutta la Bibbia'}
+              </button>
+              {fullBusy && (
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={() => fullAbortRef.current?.abort()}
+                >
+                  Interrompi
+                </button>
+              )}
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={packBusy || fullBusy || !online}
+                onClick={() => void downloadPack()}
+              >
+                <Download size={16} /> {packBusy ? 'Scarico…' : 'Solo pacchetto'}
+              </button>
+            </div>
             {!online && (
               <p className="network-need-hint" style={{ marginTop: '0.65rem' }}>
-                Questa azione richiede internet.
+                Questa azione richiede internet (wol.jw.org).
               </p>
             )}
             {packMsg && <p className="muted">{packMsg}</p>}

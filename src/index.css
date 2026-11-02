@@ -1396,6 +1396,29 @@ img {
   padding: 0 0.12em;
 }
 
+.bible-download-progress {
+  margin-top: 0.75rem;
+}
+
+.bible-download-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 55%, white);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.bible-download-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--secondary) 85%, white),
+    var(--primary)
+  );
+  transition: width 0.2s ease;
+}
+
 .transcript-details {
   border: 1px solid var(--line);
   border-radius: 14px;
