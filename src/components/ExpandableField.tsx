@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { Maximize2, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { NarrateButton } from './NarrateButton'
 
 interface Props {
   label: string
@@ -12,6 +13,8 @@ interface Props {
   rows?: number
   readOnly?: boolean
   className?: string
+  /** Mostra «Ascolta» con voce narrativa gratuita del browser. */
+  narrate?: boolean
 }
 
 /**
@@ -27,6 +30,7 @@ export function ExpandableField({
   rows = 3,
   readOnly = false,
   className = '',
+  narrate = false,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -61,15 +65,18 @@ export function ExpandableField({
     <div className={`field expandable-field ${className}`.trim()}>
       <div className="expandable-field-head">
         <label>{label}</label>
-        <button
-          type="button"
-          className="expandable-open"
-          onClick={() => setOpen(true)}
-          aria-label={`Apri ${label}`}
-        >
-          <Maximize2 size={15} />
-          <span>Apri</span>
-        </button>
+        <div className="expandable-field-actions">
+          {narrate && value.trim() ? <NarrateButton text={value} compact /> : null}
+          <button
+            type="button"
+            className="expandable-open"
+            onClick={() => setOpen(true)}
+            aria-label={`Apri ${label}`}
+          >
+            <Maximize2 size={15} />
+            <span>Apri</span>
+          </button>
+        </div>
       </div>
 
       <button

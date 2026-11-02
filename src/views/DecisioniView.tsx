@@ -16,6 +16,7 @@ import {
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { NarrateButton } from '../components/NarrateButton'
 import { ProsConsEditor } from '../components/ProsConsEditor'
 import { ScriptureAssist } from '../components/ScriptureAssist'
 import { SectionProgress } from '../components/SectionProgress'
@@ -517,6 +518,7 @@ export function DecisioniView() {
                       updateDecision(decision.id, { conclusionsSummary: value })
                     }
                     rows={10}
+                    narrate
                   />
                 </section>
 
@@ -541,6 +543,7 @@ export function DecisioniView() {
                     value={decision.nextStepsPlan || ''}
                     onChange={(value) => updateDecision(decision.id, { nextStepsPlan: value })}
                     rows={10}
+                    narrate
                   />
                   {followUpError && (
                     <p className="error-text" style={{ marginTop: '0.65rem' }}>
@@ -1117,9 +1120,21 @@ export function DecisioniView() {
                   aria-label="Elaborazione AI"
                   style={{ marginTop: '0.85rem' }}
                 >
-                  <strong style={{ display: 'block', marginBottom: '0.45rem' }}>
-                    Elaborazione AI
-                  </strong>
+                  <div
+                    className="row"
+                    style={{
+                      justifyContent: 'space-between',
+                      gap: 8,
+                      flexWrap: 'wrap',
+                      marginBottom: '0.45rem',
+                    }}
+                  >
+                    <strong>Elaborazione AI</strong>
+                    <NarrateButton
+                      text={normalizeJwItalian(aiText || decision.aiElaboration || '')}
+                      compact
+                    />
+                  </div>
                   {normalizeJwItalian(aiText || decision.aiElaboration || '')}
                 </div>
               )}
@@ -1236,11 +1251,17 @@ export function DecisioniView() {
                 >
                   <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                     <strong>Analisi di lucidità</strong>
-                    {decision.lucidityAnalyzedAt && (
-                      <span className="muted" style={{ fontSize: '0.85rem' }}>
-                        {new Date(decision.lucidityAnalyzedAt).toLocaleString('it-IT')}
-                      </span>
-                    )}
+                    <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {decision.lucidityAnalyzedAt && (
+                        <span className="muted" style={{ fontSize: '0.85rem' }}>
+                          {new Date(decision.lucidityAnalyzedAt).toLocaleString('it-IT')}
+                        </span>
+                      )}
+                      <NarrateButton
+                        text={normalizeJwItalian(decision.lucidityAnalysis)}
+                        compact
+                      />
+                    </div>
                   </div>
                   <div
                     className="analysis-box"
@@ -1316,6 +1337,7 @@ export function DecisioniView() {
                     }
                     placeholder="Es. Ho deciso di… perché… Tenendo conto di…"
                     rows={12}
+                    narrate
                   />
                 </section>
 
@@ -1345,6 +1367,7 @@ export function DecisioniView() {
                     onChange={(value) => updateDecision(decision.id, { nextStepsPlan: value })}
                     placeholder="Obiettivi, passi numerati e possibili conseguenze…"
                     rows={14}
+                    narrate
                   />
                   {!canGenerateFollowUp(decision) && (
                     <p className="muted" style={{ margin: '0.55rem 0 0' }}>
