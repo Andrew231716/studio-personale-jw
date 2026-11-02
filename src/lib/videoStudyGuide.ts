@@ -23,6 +23,7 @@ A partire dalla TRASCRIZIONE di un video ufficiale JW, crea una guida di studio 
 Regole:
 - Basa OGNI obiettivo, riflessione, domanda e pratica su punti CONCRETI della trascrizione (temi, esempi, consigli, scritture nominate).
 - Vietato il generico: niente «Capire il messaggio principale», «Applicare nella vita quotidiana», «Crescere spiritualmente» senza dettagli dal video.
+- Niente ripetizioni: ogni punto deve essere distinto; non ripetere la stessa idea tra obiettivi, riflessioni, domande e pratiche.
 - Usa solo ciò che emerge dalla trascrizione (non inventare citazioni letterali non presenti).
 - Tono rispettoso, pratico, tipico delle pubblicazioni JW.
 - ${JW_ITALIAN_TERM_HINT}
