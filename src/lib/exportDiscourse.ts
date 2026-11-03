@@ -8,6 +8,7 @@ import {
   type ScriptureVerseResult,
 } from './bibleText'
 import { SECTION_KIND_LABEL, ensureSections, totalMinutes } from './discourseStructure'
+import { pdfSafeText } from './pdfSafeText'
 import type { DiscourseNote } from '../types'
 
 function slug(title: string) {
@@ -44,38 +45,62 @@ export function downloadDiscourseText(note: DiscourseNote): void {
 
 export async function exportDiscoursePdf(note: DiscourseNote): Promise<void> {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const margin = 16
+  const margin = 22
   const width = 210 - margin * 2
-  let y = 20
+  const bottom = 297 - 14
+  let y = 22
   const sections = ensureSections(note)
 
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(16)
-  doc.text(note.title || 'Discorso', margin, y)
-  y += 8
+  const titleLines = doc.splitTextToSize(
+    pdfSafeText(note.title || 'Discorso'),
+    width,
+  ) as string[]
+  for (const line of titleLines) {
+    doc.text(line, margin, y)
+    y += 7
+  }
+  y += 2
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.setTextColor(80)
-  doc.text(`Durata stimata: ${totalMinutes(sections)} min · JW Studio`, margin, y)
+  doc.text(
+    pdfSafeText(`Durata stimata: ${totalMinutes(sections)} min · JW Studio`),
+    margin,
+    y,
+  )
   y += 10
   doc.setTextColor(20)
 
   for (const s of sections) {
-    if (y > 270) {
+    if (y > bottom - 20) {
       doc.addPage()
-      y = 20
+      y = 22
     }
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
-    doc.text(`${s.title || SECTION_KIND_LABEL[s.kind]} · ${s.minutes} min`, margin, y)
-    y += 7
+    const heading = pdfSafeText(
+      `${s.title || SECTION_KIND_LABEL[s.kind]} · ${s.minutes} min`,
+    )
+    const headLines = doc.splitTextToSize(heading, width) as string[]
+    for (const line of headLines) {
+      if (y > bottom - 10) {
+        doc.addPage()
+        y = 22
+      }
+      doc.text(line, margin, y)
+      y += 6
+    }
+    y += 1
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11)
-    const lines = doc.splitTextToSize(s.body.trim() || '(vuoto)', width) as string[]
+    const body = pdfSafeText(s.body.trim() || '(vuoto)')
+    const lines = doc.splitTextToSize(body, width) as string[]
     for (const line of lines) {
-      if (y > 280) {
+      if (y > bottom) {
         doc.addPage()
-        y = 20
+        y = 22
       }
       doc.text(line, margin, y)
       y += 5.5

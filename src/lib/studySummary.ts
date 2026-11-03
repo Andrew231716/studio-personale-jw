@@ -298,7 +298,7 @@ export function buildSummaryBlocks(summary: StudySummary): SummaryBlock[] {
       .map((r) => {
         const prompt = cleanExportText(r.prompt)
         const response = cleanExportText(r.response)
-        return prompt ? `${prompt}\n→ ${response}` : response
+        return prompt ? `${prompt}\n> ${response}` : response
       })
     if (reflections.length) lists.push({ title: 'Riflessioni', items: reflections })
 
@@ -307,7 +307,7 @@ export function buildSummaryBlocks(summary: StudySummary): SummaryBlock[] {
       .map((q) => {
         const question = cleanExportText(q.question) || 'Domanda'
         const answer = cleanExportText(q.answer)
-        return answer ? `${question}\n→ ${answer}` : question
+        return answer ? `${question}\n> ${answer}` : question
       })
     if (questions.length) lists.push({ title: 'Domande', items: questions })
 
@@ -317,7 +317,7 @@ export function buildSummaryBlocks(summary: StudySummary): SummaryBlock[] {
         const action = cleanExportText(p.action)
         const outcome = cleanExportText(p.outcome)
         const tried = p.tried ? ' (fatta)' : ''
-        return outcome ? `${action}${tried} → ${outcome}` : `${action}${tried}`
+        return outcome ? `${action}${tried} > ${outcome}` : `${action}${tried}`
       })
     if (practices.length) lists.push({ title: 'Pratiche', items: practices })
 
