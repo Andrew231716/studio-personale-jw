@@ -95,8 +95,10 @@ export function formatTranscriptWithTimestamps(cues: VttCue[], everySeconds = 45
 
 export function cueTimeToSeconds(t: string): number {
   const [h, m, rest] = t.split(':')
-  const [s] = (rest || '0').split('.')
-  return Number(h) * 3600 + Number(m) * 60 + Number(s)
+  const [s, frac = '0'] = (rest || '0').split('.')
+  // Include i millisecondi VTT (es. 00:01:02.450), altrimenti il karaoke corre avanti.
+  const ms = Number(`0.${frac}`) || 0
+  return Number(h) * 3600 + Number(m) * 60 + Number(s) + ms
 }
 
 /** Accetta minuti (`5`), decimali (`5.5`) oppure `m:ss` / `h:mm:ss`. */

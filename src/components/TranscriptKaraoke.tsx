@@ -24,6 +24,7 @@ export function TranscriptKaraoke({
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const activeRef = useRef<HTMLSpanElement | null>(null)
+  const rafRef = useRef(0)
   const [playing, setPlaying] = useState(false)
   const [current, setCurrent] = useState(startSec)
   const [error, setError] = useState('')
@@ -54,17 +55,40 @@ export function TranscriptKaraoke({
     }
   }, [activeIdx])
 
+  // Sync fluido: rAF mentre riproduce (timeupdate da solo è troppo grezzo).
+  useEffect(() => {
+    if (!playing) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
+      return
+    }
+    const tick = () => {
+      const el = videoRef.current
+      if (el) {
+        const t = el.currentTime
+        setCurrent(t)
+        if (t >= rangeEnd - 0.05) {
+          el.pause()
+          setPlaying(false)
+          el.currentTime = rangeEnd
+          setCurrent(rangeEnd)
+          rafRef.current = 0
+          return
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
+    }
+  }, [playing, rangeEnd])
+
   function onTimeUpdate() {
     const el = videoRef.current
-    if (!el) return
-    const t = el.currentTime
-    setCurrent(t)
-    if (t >= rangeEnd - 0.05) {
-      el.pause()
-      setPlaying(false)
-      el.currentTime = rangeEnd
-      setCurrent(rangeEnd)
-    }
+    if (!el || playing) return
+    setCurrent(el.currentTime)
   }
 
   async function togglePlay() {
