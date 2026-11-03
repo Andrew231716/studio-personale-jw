@@ -8,6 +8,7 @@ import {
   type ScriptureVerseResult,
 } from './bibleText'
 import { SECTION_KIND_LABEL, ensureSections, totalMinutes } from './discourseStructure'
+import { EPUB_PAGE_CSS } from './epubPageCss'
 import { pdfSafeText } from './pdfSafeText'
 import type { DiscourseNote } from '../types'
 
@@ -279,9 +280,11 @@ function linkifyBody(text: string, popupIdByKey: Map<string, string>): string {
 
 function epubWolCss(): string {
   return `
-body{font-family:Georgia,"Times New Roman",serif;line-height:1.55;margin:1.1em;color:#1a1a1a;background:#fff}
+${EPUB_PAGE_CSS}
+body{font-family:Georgia,"Times New Roman",serif;color:#1a1a1a;background:#fff}
 h1{font-size:1.45rem;margin:0 0 .4em}
 h2{font-size:1.12rem;margin-top:1.25em;margin-bottom:.35em}
+p{margin:.55em 0}
 small{color:#666;font-weight:normal}
 .meta{color:#666;font-size:.92rem}
 .wol-inline-ref{color:#4a6da7;font-weight:600;text-decoration:none;border-bottom:1px solid rgba(74,109,167,.35)}

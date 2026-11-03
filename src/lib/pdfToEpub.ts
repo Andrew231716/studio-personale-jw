@@ -3,6 +3,7 @@
  */
 import { saveAs } from 'file-saver'
 import JSZip from 'jszip'
+import { EPUB_PAGE_CSS } from './epubPageCss'
 import { extractTextFromPdf, type PdfExtractResult } from './pdfExtract'
 
 function escapeXml(s: string): string {
@@ -28,8 +29,10 @@ function pageToXhtml(title: string, body: string): string {
 <head>
   <title>${escapeXml(title)}</title>
   <style type="text/css">
-    body { font-family: Georgia, serif; line-height: 1.5; margin: 1.2em; }
-    h1 { font-size: 1.35em; letter-spacing: -0.02em; }
+    ${EPUB_PAGE_CSS}
+    body { font-family: Georgia, serif; color: #1a1a1a; background: #fff; }
+    h1 { font-size: 1.35em; letter-spacing: -0.02em; margin: 0 0 0.6em; }
+    p { margin: 0.55em 0; }
   </style>
 </head>
 <body>

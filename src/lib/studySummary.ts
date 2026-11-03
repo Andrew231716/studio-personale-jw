@@ -457,7 +457,8 @@ export function summaryToHtml(summary: StudySummary): string {
   return `<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"/><title>Riepilogo JW Studio</title>
 <style>
   :root { color-scheme: light; }
-  body{font-family:Georgia,"Times New Roman",serif;line-height:1.55;max-width:40rem;margin:0 auto;padding:1.5rem 1.1rem 2.5rem;color:#16302c;background:#f7fbf8}
+  body{font-family:Georgia,"Times New Roman",serif;line-height:1.55;max-width:40rem;margin:0 auto;padding:1.5rem 1.55rem 2.5rem;color:#16302c;background:#f7fbf8;overflow-wrap:break-word;word-wrap:break-word;text-align:left}
+  p,li{overflow-wrap:break-word;word-wrap:break-word}
   .brand{margin:0;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:#2f6f6a;font-weight:700}
   h1{font-size:1.85rem;line-height:1.15;margin:.35rem 0 .5rem;letter-spacing:-.02em}
   .period{margin:0;font-size:1.05rem;color:#2f6f6a}

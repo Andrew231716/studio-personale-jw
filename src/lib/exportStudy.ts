@@ -7,6 +7,7 @@ import {
   type StudySummary,
   type SummaryBlock,
 } from './studySummary'
+import { EPUB_PAGE_CSS } from './epubPageCss'
 import { pdfJoinLines, pdfSafeText } from './pdfSafeText'
 
 const PAGE_W = 210
@@ -236,7 +237,8 @@ export async function exportSummaryEpub(summary: StudySummary): Promise<void> {
     .replace(/^[\s\S]*<body>/i, '')
     .replace(/<\/body>[\s\S]*$/i, '')
 
-  const style = `body{font-family:Georgia,serif;line-height:1.55;margin:1em;color:#16302c}
+  const style = `${EPUB_PAGE_CSS}
+body{font-family:Georgia,serif;color:#16302c;background:#fff}
 .brand{margin:0;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:#2f6f6a;font-weight:700}
 h1{font-size:1.7rem;line-height:1.15;margin:.35rem 0 .5rem}
 .period{margin:0;color:#2f6f6a}
@@ -249,9 +251,7 @@ h2{margin:0 0 .75rem;font-size:1.3rem}
 h3{margin:0 0 .2rem;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:#2f6f6a}
 .field{margin:0 0 .8rem}
 .field p{margin:.15rem 0 0}
-ul{margin:.3rem 0 0;padding-left:1.1rem}
-li{margin:.3rem 0}
-footer{margin-top:1.5rem;color:#5b736c;font-size:.85rem}`
+footer{margin-top:1.5rem;color:#5b736c;font-size:.85rem}`.replace(/\n/g, '')
 
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
   zip.folder('META-INF')?.file(
