@@ -85,6 +85,7 @@ function snapshotFromStore(): ICloudSnapshot {
     ministryNotes: s.ministryNotes,
     discourseNotes: s.discourseNotes,
     activeDiscourseId: s.activeDiscourseId,
+    savedVideoTranscripts: s.savedVideoTranscripts,
   }
 }
 
@@ -108,6 +109,7 @@ function applySnapshot(snapshot: ICloudSnapshot) {
       ministryNotes: snapshot.ministryNotes || [],
       discourseNotes: snapshot.discourseNotes || [],
       activeDiscourseId: snapshot.activeDiscourseId ?? null,
+      savedVideoTranscripts: snapshot.savedVideoTranscripts || [],
     })
   } finally {
     queueMicrotask(() => {

@@ -7,6 +7,7 @@ import type {
   MinistryAssistNote,
   SavedResource,
   SavedSearch,
+  SavedVideoTranscript,
   ScheduledStudy,
   StudySessionDraft,
   StudySessionLog,
@@ -32,6 +33,7 @@ export interface ICloudSnapshot {
   ministryNotes?: MinistryAssistNote[]
   discourseNotes?: DiscourseNote[]
   activeDiscourseId?: string | null
+  savedVideoTranscripts?: SavedVideoTranscript[]
 }
 
 export interface ICloudConfig {

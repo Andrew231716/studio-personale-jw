@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookmarkPlus, Captions, NotebookPen, PlayCircle, Search } from 'lucide-react'
+import {
+  BookmarkPlus,
+  Captions,
+  FolderOpen,
+  NotebookPen,
+  PlayCircle,
+  Save,
+  Search,
+  Trash2,
+} from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { NarrateButton } from '../components/NarrateButton'
 import { SectionProgress } from '../components/SectionProgress'
@@ -21,6 +30,7 @@ import {
   type VttCue,
 } from '../lib/vtt'
 import { useAppStore } from '../store/useAppStore'
+import type { SavedVideoTranscript } from '../types'
 
 type Phase = 'pick' | 'transcript' | 'guide'
 
@@ -31,6 +41,9 @@ export function VideoStudioView() {
   const setView = useAppStore((s) => s.setView)
   const startSession = useAppStore((s) => s.startSession)
   const saveResource = useAppStore((s) => s.saveResource)
+  const savedTranscripts = useAppStore((s) => s.savedVideoTranscripts)
+  const saveVideoTranscript = useAppStore((s) => s.saveVideoTranscript)
+  const removeVideoTranscript = useAppStore((s) => s.removeVideoTranscript)
 
   const [query, setQuery] = useState('')
   const [paste, setPaste] = useState('')
@@ -40,6 +53,7 @@ export function VideoStudioView() {
   >([])
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const [hint, setHint] = useState('')
   const [phase, setPhase] = useState<Phase>('pick')
 
   const [videoTitle, setVideoTitle] = useState('')
@@ -52,6 +66,7 @@ export function VideoStudioView() {
   const [showTimed, setShowTimed] = useState(false)
   const [showKaraoke, setShowKaraoke] = useState(true)
   const [guide, setGuide] = useState<VideoStudyGuide | null>(null)
+  const [activeSavedId, setActiveSavedId] = useState<string | null>(null)
 
   const totalSec = useMemo(() => cuesDurationSeconds(allCues), [allCues])
 
@@ -125,7 +140,9 @@ export function VideoStudioView() {
   async function loadTranscript(from: string, titleHint = '') {
     setBusy('transcript')
     setError('')
+    setHint('')
     setGuide(null)
+    setActiveSavedId(null)
     try {
       const result = await fetchVideoTranscript(from, language)
       const duration = cuesDurationSeconds(result.cues)
@@ -143,6 +160,56 @@ export function VideoStudioView() {
     } finally {
       setBusy('')
     }
+  }
+
+  function openSavedTranscript(entry: SavedVideoTranscript) {
+    setError('')
+    setHint('')
+    setGuide(null)
+    setVideoTitle(entry.title)
+    setLank(entry.lank)
+    setVideoUrl(entry.sourceUrl)
+    setProgressiveUrl(entry.progressiveUrl || '')
+    setAllCues(entry.cues || [])
+    const start = entry.rangeStartSec || 0
+    const end = entry.rangeEndSec || cuesDurationSeconds(entry.cues || [])
+    const fmtInput = (sec: number) => {
+      const m = Math.floor(sec / 60)
+      const s = Math.floor(sec % 60)
+      return s ? `${m}:${String(s).padStart(2, '0')}` : String(m)
+    }
+    setStartMin(fmtInput(start))
+    setEndMin(fmtInput(end))
+    setShowKaraoke(true)
+    setActiveSavedId(entry.id)
+    setPhase('transcript')
+    setHint(`Trascrizione riaperta: ${entry.title}`)
+  }
+
+  function saveCurrentTranscript() {
+    if (!allCues.length || !filtered.transcript.trim()) {
+      setError('Nessuna trascrizione da salvare in questo intervallo.')
+      return
+    }
+    const built = buildTranscriptFromCues(allCues)
+    const saved = saveVideoTranscript({
+      id: activeSavedId || undefined,
+      title: videoTitle.trim() || 'Video JW',
+      lank,
+      sourceUrl: videoUrl,
+      progressiveUrl: progressiveUrl || undefined,
+      language,
+      cues: allCues,
+      transcript: built.transcript,
+      timedText: built.timedText,
+      rangeStartSec: range.startSec,
+      rangeEndSec: range.endSec || totalSec,
+    })
+    setActiveSavedId(saved.id)
+    setError('')
+    setHint(
+      `Trascrizione salvata in Video → studio · intervallo ${formatClock(saved.rangeStartSec)}–${formatClock(saved.rangeEndSec)}.`,
+    )
   }
 
   function resetFullRange() {
@@ -291,7 +358,90 @@ export function VideoStudioView() {
         </div>
 
         {error && <p className="muted">{error}</p>}
+        {hint && !error && (
+          <p className="muted" style={{ marginTop: '0.65rem' }}>
+            {hint}
+          </p>
+        )}
       </section>
+
+      {savedTranscripts.length > 0 && (
+        <section className="panel">
+          <div className="section-head">
+            <div>
+              <h3>Trascrizioni salvate</h3>
+              <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+                Restano in Video → studio anche dopo aver cambiato sezione. Riaprile quando vuoi.
+              </p>
+            </div>
+            <span className="badge">{savedTranscripts.length}</span>
+          </div>
+          <div className="list">
+            {savedTranscripts.map((t) => {
+              const rangeTxt = `${formatClock(t.rangeStartSec)}–${formatClock(t.rangeEndSec)}`
+              const when = t.updatedAt
+                ? new Date(t.updatedAt).toLocaleString('it-IT')
+                : ''
+              return (
+                <div
+                  className={`list-item${activeSavedId === t.id ? ' is-active-saved' : ''}`}
+                  key={t.id}
+                >
+                  <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
+                    <strong style={{ overflowWrap: 'anywhere' }}>{t.title}</strong>
+                    <span className="badge">{rangeTxt}</span>
+                  </div>
+                  <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+                    {(t.transcript || '').slice(0, 160)}
+                    {(t.transcript || '').length > 160 ? '…' : ''}
+                  </p>
+                  {when && (
+                    <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.8rem' }}>
+                      Salvata: {when}
+                    </p>
+                  )}
+                  <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    <button
+                      className="btn"
+                      type="button"
+                      onClick={() => openSavedTranscript(t)}
+                    >
+                      <span className="row" style={{ gap: 6 }}>
+                        <FolderOpen size={14} /> Riapri
+                      </span>
+                    </button>
+                    <JwOpenButtons
+                      url={t.sourceUrl}
+                      lank={t.lank}
+                      language={language}
+                      compact
+                    />
+                    <button
+                      className="btn secondary small"
+                      type="button"
+                      aria-label={`Elimina trascrizione ${t.title}`}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Eliminare la trascrizione salvata «${t.title}» (${rangeTxt})?`,
+                          )
+                        ) {
+                          return
+                        }
+                        removeVideoTranscript(t.id)
+                        if (activeSavedId === t.id) setActiveSavedId(null)
+                        setHint('Trascrizione eliminata da Video → studio.')
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {(searchHits.length > 0 || latest.length > 0) && phase === 'pick' && (
         <section className="panel">
@@ -462,6 +612,17 @@ export function VideoStudioView() {
 
           <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
             <button
+              className="btn accent"
+              type="button"
+              disabled={!filtered.transcript.trim()}
+              onClick={saveCurrentTranscript}
+            >
+              <span className="row" style={{ gap: 6 }}>
+                <Save size={16} />
+                {activeSavedId ? 'Aggiorna trascrizione salvata' : 'Salva trascrizione qui'}
+              </span>
+            </button>
+            <button
               className="btn"
               type="button"
               disabled={Boolean(busy) || !filtered.transcript.trim()}
@@ -484,7 +645,7 @@ export function VideoStudioView() {
                   lank,
                   notes: `Video JW · intervallo ${rangeLabel}`,
                 })
-                setError(
+                setHint(
                   saved
                     ? `Video salvato in Da studiare: ${videoTitle} (${rangeLabel})`
                     : 'Questo video era già in Da studiare',
@@ -496,6 +657,11 @@ export function VideoStudioView() {
               </span>
             </button>
           </div>
+          {hint && (
+            <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+              {hint}
+            </p>
+          )}
         </section>
       )}
 
