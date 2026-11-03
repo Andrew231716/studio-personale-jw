@@ -84,6 +84,15 @@ app.post('/api/ai', express.json({ limit: '1mb' }), async (req, res) => {
   }
 })
 
+app.post('/api/export-revise', express.json({ limit: '1mb' }), async (req, res) => {
+  try {
+    const { default: handler } = await import('./api/export-revise.js')
+    await handler(req, res)
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
+})
+
 app.post('/api/tts', express.json({ limit: '32kb' }), async (req, res) => {
   try {
     const { default: handler } = await import('./api/tts.js')
