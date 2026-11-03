@@ -7,12 +7,18 @@ import {
   type StudySummary,
   type SummaryBlock,
 } from './studySummary'
+import { EPUB_PAGE_CSS } from './epubPageCss'
+import { pdfJoinLines, pdfSafeText } from './pdfSafeText'
 
 const PAGE_W = 210
 const PAGE_H = 297
-const MARGIN = 16
+/** Margini ampi: evita testo attaccato al bordo (anche con preview mobile). */
+const MARGIN = 22
 const CONTENT_W = PAGE_W - MARGIN * 2
-const FOOTER_Y = PAGE_H - 12
+const FOOTER_Y = PAGE_H - 14
+const LIST_INDENT = 6
+/** Larghezza utile elenchi: un po' più stretta del corpo per aria a destra. */
+const LIST_W = CONTENT_W - LIST_INDENT - 2
 
 function slugPeriod(summary: StudySummary): string {
   if (summary.slug?.trim()) return summary.slug.trim()
@@ -48,7 +54,9 @@ function writeWrapped(
   maxWidth: number,
   lineHeight: number,
 ): number {
-  const lines = doc.splitTextToSize(text, maxWidth) as string[]
+  const safe = pdfSafeText(text)
+  if (!safe) return y
+  const lines = doc.splitTextToSize(safe, maxWidth) as string[]
   for (const line of lines) {
     y = ensureSpace(doc, y, lineHeight)
     doc.text(line, x, y)
@@ -68,12 +76,12 @@ function writeField(doc: PdfDoc, label: string, value: string, y: number): numbe
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(47, 111, 106)
-  doc.text(label.toUpperCase(), MARGIN, y)
+  doc.text(pdfSafeText(label).toUpperCase(), MARGIN, y)
   y += 5
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10.5)
   doc.setTextColor(22, 48, 44)
-  for (const para of value.split(/\n+/).filter(Boolean)) {
+  for (const para of pdfSafeText(value).split(/\n+/).filter(Boolean)) {
     y = writeWrapped(doc, para, MARGIN, y, CONTENT_W, 5.2)
     y += 1.5
   }
@@ -85,19 +93,20 @@ function writeList(doc: PdfDoc, title: string, items: string[], y: number): numb
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(47, 111, 106)
-  doc.text(title.toUpperCase(), MARGIN, y)
+  doc.text(pdfSafeText(title).toUpperCase(), MARGIN, y)
   y += 5.5
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10.5)
   doc.setTextColor(22, 48, 44)
   for (const item of items) {
-    const bulletIndent = 5
-    const lines = doc.splitTextToSize(item.replace(/\n/g, ' — '), CONTENT_W - bulletIndent) as string[]
+    const joined = pdfJoinLines(item, ' - ')
+    if (!joined) continue
+    const lines = doc.splitTextToSize(joined, LIST_W) as string[]
     y = ensureSpace(doc, y, 5.2)
-    doc.text('•', MARGIN, y)
+    doc.text('-', MARGIN, y)
     for (let i = 0; i < lines.length; i++) {
       if (i > 0) y = ensureSpace(doc, y, 5.2)
-      doc.text(lines[i], MARGIN + bulletIndent, y)
+      doc.text(lines[i], MARGIN + LIST_INDENT, y)
       y += 5.2
     }
     y += 1.8
@@ -111,7 +120,7 @@ function writeBlock(doc: PdfDoc, block: SummaryBlock, y: number): number {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
     doc.setTextColor(47, 111, 106)
-    doc.text(block.subtitle.toUpperCase(), MARGIN, y)
+    doc.text(pdfSafeText(block.subtitle).toUpperCase(), MARGIN, y)
     y += 5
   }
   doc.setFont('helvetica', 'bold')
@@ -137,15 +146,23 @@ export async function exportSummaryPdf(summary: StudySummary): Promise<void> {
   let y = MARGIN + 2
 
   // Copertina sintetica
-  doc.setFillColor(18, 74, 74)
-  doc.rect(0, 0, PAGE_W, 28, 'F')
-  doc.setTextColor(255, 255, 255)
+  const heading = pdfSafeText(summary.heading || 'Riepilogo di studio')
   doc.setFont('helvetica', 'bold')
+  doc.setFontSize(15)
+  const headingLines = doc.splitTextToSize(heading, CONTENT_W) as string[]
+  const bannerH = Math.max(28, 12 + headingLines.length * 6 + 8)
+  doc.setFillColor(18, 74, 74)
+  doc.rect(0, 0, PAGE_W, bannerH, 'F')
+  doc.setTextColor(255, 255, 255)
   doc.setFontSize(11)
-  doc.text('JW STUDIO', MARGIN, 12)
-  doc.setFontSize(16)
-  doc.text(summary.heading || 'Riepilogo di studio', MARGIN, 21)
-  y = 36
+  doc.text('JW STUDIO', MARGIN, 11)
+  doc.setFontSize(15)
+  y = 18
+  for (const line of headingLines) {
+    doc.text(line, MARGIN, y)
+    y += 6
+  }
+  y = bannerH + 8
 
   doc.setTextColor(47, 111, 106)
   doc.setFont('helvetica', 'normal')
@@ -220,7 +237,8 @@ export async function exportSummaryEpub(summary: StudySummary): Promise<void> {
     .replace(/^[\s\S]*<body>/i, '')
     .replace(/<\/body>[\s\S]*$/i, '')
 
-  const style = `body{font-family:Georgia,serif;line-height:1.55;margin:1em;color:#16302c}
+  const style = `${EPUB_PAGE_CSS}
+body{font-family:Georgia,serif;color:#16302c;background:#fff}
 .brand{margin:0;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:#2f6f6a;font-weight:700}
 h1{font-size:1.7rem;line-height:1.15;margin:.35rem 0 .5rem}
 .period{margin:0;color:#2f6f6a}
@@ -233,9 +251,7 @@ h2{margin:0 0 .75rem;font-size:1.3rem}
 h3{margin:0 0 .2rem;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:#2f6f6a}
 .field{margin:0 0 .8rem}
 .field p{margin:.15rem 0 0}
-ul{margin:.3rem 0 0;padding-left:1.1rem}
-li{margin:.3rem 0}
-footer{margin-top:1.5rem;color:#5b736c;font-size:.85rem}`
+footer{margin-top:1.5rem;color:#5b736c;font-size:.85rem}`.replace(/\n/g, '')
 
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
   zip.folder('META-INF')?.file(
