@@ -8,6 +8,7 @@ import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { createMessage } from '../lib/ai'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
+import { reviseSummaryForExport } from '../lib/exportRevise'
 import { uid } from '../lib/id'
 import {
   activeTopics,
@@ -171,12 +172,29 @@ export function StudioView() {
   async function exportTopic(kind: 'pdf' | 'epub') {
     if (!topic) return
     setExportBusy(kind)
-    setArchiveMsg('')
+    setArchiveMsg('Revisiono il documento prima dell’export…')
     try {
-      const summary = buildTopicOnlySummary(topic, sessionLogs)
+      const draft = buildTopicOnlySummary(topic, sessionLogs)
+      const { summary, meta, topicPatches } = await reviseSummaryForExport(
+        draft,
+        'argomento',
+        settings.language,
+      )
+      for (const t of topicPatches) {
+        updateTopic(t.id, {
+          title: t.title,
+          interest: t.interest,
+          objectives: t.objectives,
+          reflections: t.reflections,
+          questions: t.questions,
+          practices: t.practices,
+        })
+      }
       if (kind === 'pdf') await exportSummaryPdf(summary)
       else await exportSummaryEpub(summary)
-      setArchiveMsg(kind === 'pdf' ? 'PDF dell’argomento scaricato.' : 'EPUB dell’argomento scaricato.')
+      setArchiveMsg(
+        `${meta.message} ${kind === 'pdf' ? 'PDF' : 'EPUB'} dell’argomento scaricato.`,
+      )
     } catch (e) {
       setArchiveMsg(e instanceof Error ? e.message : 'Esportazione non riuscita')
     } finally {
@@ -186,12 +204,29 @@ export function StudioView() {
 
   async function exportArchivedTopic(target: StudyTopic, kind: 'pdf' | 'epub') {
     setExportBusy(kind)
-    setArchiveMsg('')
+    setArchiveMsg('Revisiono il documento prima dell’export…')
     try {
-      const summary = buildTopicOnlySummary(target, sessionLogs)
+      const draft = buildTopicOnlySummary(target, sessionLogs)
+      const { summary, meta, topicPatches } = await reviseSummaryForExport(
+        draft,
+        'argomento',
+        settings.language,
+      )
+      for (const t of topicPatches) {
+        updateTopic(t.id, {
+          title: t.title,
+          interest: t.interest,
+          objectives: t.objectives,
+          reflections: t.reflections,
+          questions: t.questions,
+          practices: t.practices,
+        })
+      }
       if (kind === 'pdf') await exportSummaryPdf(summary)
       else await exportSummaryEpub(summary)
-      setArchiveMsg(kind === 'pdf' ? 'PDF dell’argomento scaricato.' : 'EPUB dell’argomento scaricato.')
+      setArchiveMsg(
+        `${meta.message} ${kind === 'pdf' ? 'PDF' : 'EPUB'} dell’argomento scaricato.`,
+      )
     } catch (e) {
       setArchiveMsg(e instanceof Error ? e.message : 'Esportazione non riuscita')
     } finally {

@@ -31,6 +31,7 @@ import {
 import { extractGoalsFromPlan, goalsFromTitles, mergeGoals } from '../lib/decisionGoals'
 import { analyzeDecisionLucidity } from '../lib/decisionLucidity'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
+import { reviseSummaryForExport } from '../lib/exportRevise'
 import { normalizeJwItalian } from '../lib/jwItalianTerms'
 import { buildDecisionOnlySummary } from '../lib/studySummary'
 import {
@@ -135,12 +136,33 @@ export function DecisioniView() {
   async function exportDecision(kind: 'pdf' | 'epub') {
     if (!decision) return
     setExportBusy(kind)
-    setStatusHint('')
+    setStatusHint('Revisiono il documento prima dell’export…')
     try {
-      const summary = buildDecisionOnlySummary(decision)
+      const draft = buildDecisionOnlySummary(decision)
+      const { summary, meta, decisionPatches } = await reviseSummaryForExport(
+        draft,
+        'decisione',
+        language,
+      )
+      for (const d of decisionPatches) {
+        updateDecision(d.id, {
+          title: d.title,
+          context: d.context,
+          chosenDecision: d.chosenDecision,
+          honestMotivations: d.honestMotivations,
+          conclusionsSummary: d.conclusionsSummary,
+          nextStepsPlan: d.nextStepsPlan,
+          conclusion: d.conclusion,
+          aiElaboration: d.aiElaboration,
+          lucidityAnalysis: d.lucidityAnalysis,
+          prayerNotes: d.prayerNotes,
+        })
+      }
       if (kind === 'pdf') await exportSummaryPdf(summary)
       else await exportSummaryEpub(summary)
-      setStatusHint(kind === 'pdf' ? 'PDF della decisione scaricato.' : 'EPUB della decisione scaricato.')
+      setStatusHint(
+        `${meta.message} ${kind === 'pdf' ? 'PDF' : 'EPUB'} della decisione scaricato.`,
+      )
     } catch (e) {
       setStatusHint(e instanceof Error ? e.message : 'Esportazione non riuscita')
     } finally {

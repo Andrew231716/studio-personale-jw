@@ -11,6 +11,7 @@ import {
 import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
+import { reviseSummaryForExport } from '../lib/exportRevise'
 import { uid } from '../lib/id'
 import { statusLabel } from '../lib/studyFlow'
 import { buildStudySummary, type StudySummary } from '../lib/studySummary'
@@ -21,9 +22,12 @@ export function DiarioView() {
   const sessions = useAppStore((s) => s.sessionLogs)
   const topics = useAppStore((s) => s.topics)
   const decisions = useAppStore((s) => s.decisions)
+  const language = useAppStore((s) => s.settings.language)
   const startSession = useAppStore((s) => s.startSession)
   const setActiveTopic = useAppStore((s) => s.setActiveTopic)
   const updateTopic = useAppStore((s) => s.updateTopic)
+  const updateDecision = useAppStore((s) => s.updateDecision)
+  const updateSessionLog = useAppStore((s) => s.updateSessionLog)
   const archiveTopic = useAppStore((s) => s.archiveTopic)
   const reopenTopic = useAppStore((s) => s.reopenTopic)
   const removeSessionLog = useAppStore((s) => s.removeSessionLog)
@@ -109,14 +113,55 @@ export function DiarioView() {
 
   async function runExport(kind: 'pdf' | 'epub') {
     setBusy(kind)
-    setMessage('')
+    setMessage('Revisiono il documento prima dell’export…')
     try {
-      if (kind === 'pdf') await exportSummaryPdf(summary)
-      if (kind === 'epub') await exportSummaryEpub(summary)
+      const { summary: revised, meta, topicPatches, decisionPatches, sessionPatches } =
+        await reviseSummaryForExport(summary, 'riepilogo', language)
+      for (const t of topicPatches) {
+        updateTopic(t.id, {
+          title: t.title,
+          interest: t.interest,
+          objectives: t.objectives,
+          reflections: t.reflections,
+          questions: t.questions,
+          practices: t.practices,
+        })
+      }
+      for (const d of decisionPatches) {
+        updateDecision(d.id, {
+          title: d.title,
+          context: d.context,
+          chosenDecision: d.chosenDecision,
+          honestMotivations: d.honestMotivations,
+          conclusionsSummary: d.conclusionsSummary,
+          nextStepsPlan: d.nextStepsPlan,
+          conclusion: d.conclusion,
+          aiElaboration: d.aiElaboration,
+          lucidityAnalysis: d.lucidityAnalysis,
+          prayerNotes: d.prayerNotes,
+        })
+      }
+      for (const s of sessionPatches) {
+        updateSessionLog(s.id, {
+          prayer: s.prayer,
+          goal: s.goal,
+          highlight: s.highlight,
+          reflection: s.reflection,
+          question: s.question,
+          answer: s.answer,
+          practice: s.practice,
+          gratitude: s.gratitude,
+          keyVerse: s.keyVerse,
+        })
+      }
+      if (kind === 'pdf') await exportSummaryPdf(revised)
+      if (kind === 'epub') await exportSummaryEpub(revised)
       setMessage(
-        kind === 'epub'
-          ? 'EPUB scaricato. Aprilo con Libri / Apple Books.'
-          : 'File PDF scaricato.',
+        `${meta.message} ${
+          kind === 'epub'
+            ? 'EPUB scaricato. Aprilo con Libri / Apple Books.'
+            : 'File PDF scaricato.'
+        }`,
       )
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Esportazione non riuscita')

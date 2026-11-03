@@ -3,6 +3,10 @@
     "api/tts.js": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "api/export-revise.js": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
   "rewrites": [

@@ -36,6 +36,7 @@ import {
   exportDiscourseEpub,
   exportDiscoursePdf,
 } from '../lib/exportDiscourse'
+import { reviseDiscourseForExport } from '../lib/exportRevise'
 import {
   SECTION_KIND_LABEL,
   ensureSections,
@@ -387,16 +388,25 @@ export function DiscorsoView() {
   async function runExport(kind: 'pdf' | 'epub' | 'txt') {
     if (!note) return
     setExportBusy(kind)
+    setPolishHint('Revisiono il documento prima dell’export…')
     try {
-      const snapshot = {
+      const draft = {
         ...note,
         sections,
         body: joinSections(sections),
         estimatedMinutes: totalMinutes(sections),
       }
-      if (kind === 'pdf') await exportDiscoursePdf(snapshot)
-      else if (kind === 'epub') await exportDiscourseEpub(snapshot, { language })
-      else downloadDiscourseText(snapshot)
+      const { note: revised, meta } = await reviseDiscourseForExport(draft, language)
+      updateNote(revised.id, {
+        title: revised.title,
+        sections: revised.sections,
+        body: revised.body,
+        estimatedMinutes: revised.estimatedMinutes,
+      })
+      if (kind === 'pdf') await exportDiscoursePdf(revised)
+      else if (kind === 'epub') await exportDiscourseEpub(revised, { language })
+      else downloadDiscourseText(revised)
+      setPolishHint(`${meta.message} File ${kind.toUpperCase()} scaricato.`)
     } catch (e) {
       setPolishHint(e instanceof Error ? e.message : 'Esportazione non riuscita')
     } finally {
