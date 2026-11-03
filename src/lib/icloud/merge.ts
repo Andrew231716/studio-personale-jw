@@ -75,5 +75,10 @@ export function mergeSnapshots(local: ICloudSnapshot, remote: ICloudSnapshot): I
       'updatedAt',
     ),
     activeDiscourseId: local.activeDiscourseId || remote.activeDiscourseId || null,
+    savedVideoTranscripts: byIdNewer(
+      local.savedVideoTranscripts || [],
+      remote.savedVideoTranscripts || [],
+      'updatedAt',
+    ),
   }
 }

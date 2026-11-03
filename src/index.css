@@ -1406,6 +1406,11 @@ img {
   padding: 0 0.12em;
 }
 
+.list-item.is-active-saved {
+  border-color: color-mix(in srgb, var(--secondary) 45%, var(--line));
+  background: color-mix(in srgb, var(--secondary) 8%, white);
+}
+
 .bible-download-progress {
   margin-top: 0.75rem;
 }

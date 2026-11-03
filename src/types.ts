@@ -112,6 +112,25 @@ export interface StudyTopic {
   }
 }
 
+/** Trascrizione salvata nella sezione Video → studio (persistente). */
+export interface SavedVideoTranscript {
+  id: string
+  title: string
+  lank: string
+  sourceUrl: string
+  progressiveUrl?: string
+  language: string
+  /** Cue VTT completi del video (per riaprire intervallo e karaoke). */
+  cues: Array<{ start: string; end: string; text: string }>
+  transcript: string
+  timedText?: string
+  rangeStartSec: number
+  rangeEndSec: number
+  createdAt: string
+  updatedAt: string
+  notes?: string
+}
+
 export interface ReflectionPoint {
   id: string
   prompt: string

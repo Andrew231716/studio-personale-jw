@@ -14,6 +14,7 @@ import type {
   MinistryAssistNote,
   SavedResource,
   SavedSearch,
+  SavedVideoTranscript,
   ScheduledStudy,
   StudySessionDraft,
   StudySessionLog,
@@ -43,6 +44,7 @@ export interface StudioBackup {
     ministryNotes: MinistryAssistNote[]
     discourseNotes?: DiscourseNote[]
     activeDiscourseId?: string | null
+    savedVideoTranscripts?: SavedVideoTranscript[]
   }
 }
 
@@ -68,6 +70,7 @@ export function buildBackup(): StudioBackup {
       ministryNotes: s.ministryNotes,
       discourseNotes: s.discourseNotes,
       activeDiscourseId: s.activeDiscourseId,
+      savedVideoTranscripts: s.savedVideoTranscripts,
     },
   }
 }
@@ -128,6 +131,9 @@ export function applyBackup(backup: StudioBackup): void {
     ministryNotes: Array.isArray(d.ministryNotes) ? d.ministryNotes : [],
     discourseNotes: Array.isArray(d.discourseNotes) ? d.discourseNotes : [],
     activeDiscourseId: d.activeDiscourseId ?? null,
+    savedVideoTranscripts: Array.isArray(d.savedVideoTranscripts)
+      ? d.savedVideoTranscripts
+      : [],
   })
 }
 
@@ -214,6 +220,12 @@ export function mergeBackup(backup: StudioBackup): void {
     cur.discourseNotes,
     Array.isArray(d.discourseNotes) ? d.discourseNotes : [],
   ).slice(0, 40)
+  const savedVideoTranscripts = mergeById(
+    cur.savedVideoTranscripts || [],
+    Array.isArray(d.savedVideoTranscripts) ? d.savedVideoTranscripts : [],
+  )
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+    .slice(0, 40)
   const aiMessages = mergeById(
     cur.aiMessages,
     Array.isArray(d.aiMessages) ? d.aiMessages : [],
@@ -230,6 +242,7 @@ export function mergeBackup(backup: StudioBackup): void {
     bibleReadingPlans,
     ministryNotes,
     discourseNotes,
+    savedVideoTranscripts,
     aiMessages,
     activeTopicId: cur.activeTopicId || d.activeTopicId || null,
     activeDecisionId: cur.activeDecisionId || d.activeDecisionId || null,

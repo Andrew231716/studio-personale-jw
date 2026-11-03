@@ -18,6 +18,7 @@ import type {
   MinistryAssistNote,
   SavedResource,
   SavedSearch,
+  SavedVideoTranscript,
   ScheduledStudy,
   StudyResource,
   StudySessionDraft,
@@ -25,6 +26,8 @@ import type {
   StudyTopic,
   ThemeConfig,
 } from '../types'
+
+const MAX_SAVED_VIDEO_TRANSCRIPTS = 40
 
 const defaultTheme: ThemeConfig = {
   primary: '#124A4A',
@@ -138,6 +141,8 @@ interface AppState {
   ministryNotes: MinistryAssistNote[]
   discourseNotes: DiscourseNote[]
   activeDiscourseId: string | null
+  /** Trascrizioni salvate in Video → studio. */
+  savedVideoTranscripts: SavedVideoTranscript[]
   /** Ultima sessione completata: mostra «E adesso?» anche dopo un cambio sezione. */
   lastCompletedSessionId: string | null
   setView: (view: AppView) => void
@@ -191,6 +196,11 @@ interface AppState {
   updateDiscourseNote: (id: string, patch: Partial<DiscourseNote>) => void
   removeDiscourseNote: (id: string) => void
   setActiveDiscourse: (id: string | null) => void
+  saveVideoTranscript: (
+    entry: Omit<SavedVideoTranscript, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+  ) => SavedVideoTranscript
+  updateVideoTranscript: (id: string, patch: Partial<SavedVideoTranscript>) => void
+  removeVideoTranscript: (id: string) => void
 }
 
 function resourceKey(r: { url: string; lank?: string; docid?: string }) {
@@ -356,6 +366,7 @@ export const useAppStore = create<AppState>()(
       ministryNotes: [],
       discourseNotes: [],
       activeDiscourseId: null,
+      savedVideoTranscripts: [],
       lastCompletedSessionId: null,
       setView: (view) => set({ view }),
       clearLastCompletedSession: () => set({ lastCompletedSessionId: null }),
@@ -817,6 +828,56 @@ export const useAppStore = create<AppState>()(
           }
         }),
       setActiveDiscourse: (id) => set({ activeDiscourseId: id, view: 'discorso' }),
+      saveVideoTranscript: (entry) => {
+        const now = new Date().toISOString()
+        const fingerprint = `${entry.lank}|${entry.rangeStartSec}|${entry.rangeEndSec}|${entry.language}`
+        const existing = get().savedVideoTranscripts.find(
+          (t) =>
+            t.id === entry.id ||
+            `${t.lank}|${t.rangeStartSec}|${t.rangeEndSec}|${t.language}` === fingerprint,
+        )
+        if (existing) {
+          const updated: SavedVideoTranscript = {
+            ...existing,
+            ...entry,
+            id: existing.id,
+            createdAt: existing.createdAt,
+            updatedAt: now,
+          }
+          set((s) => ({
+            savedVideoTranscripts: [
+              updated,
+              ...s.savedVideoTranscripts.filter((t) => t.id !== existing.id),
+            ].slice(0, MAX_SAVED_VIDEO_TRANSCRIPTS),
+          }))
+          return updated
+        }
+        const created: SavedVideoTranscript = {
+          ...entry,
+          id: entry.id || uid('vtr'),
+          createdAt: now,
+          updatedAt: now,
+        }
+        set((s) => ({
+          savedVideoTranscripts: [created, ...s.savedVideoTranscripts].slice(
+            0,
+            MAX_SAVED_VIDEO_TRANSCRIPTS,
+          ),
+        }))
+        return created
+      },
+      updateVideoTranscript: (id, patch) =>
+        set((s) => ({
+          savedVideoTranscripts: s.savedVideoTranscripts.map((t) =>
+            t.id === id
+              ? { ...t, ...patch, id: t.id, updatedAt: new Date().toISOString() }
+              : t,
+          ),
+        })),
+      removeVideoTranscript: (id) =>
+        set((s) => ({
+          savedVideoTranscripts: s.savedVideoTranscripts.filter((t) => t.id !== id),
+        })),
     }),
     {
       name: 'studio-personale-jw-v1',
@@ -903,6 +964,9 @@ export const useAppStore = create<AppState>()(
           ministryNotes: p.ministryNotes || [],
           discourseNotes: p.discourseNotes || [],
           activeDiscourseId: p.activeDiscourseId ?? null,
+          savedVideoTranscripts: Array.isArray(p.savedVideoTranscripts)
+            ? p.savedVideoTranscripts
+            : current.savedVideoTranscripts || [],
           lastCompletedSessionId: p.lastCompletedSessionId ?? null,
           view: (p.view as AppView | undefined) || current.view || 'home',
           topics: (p.topics || current.topics || []).map(normalizeTopicTerms),
@@ -931,6 +995,7 @@ export const useAppStore = create<AppState>()(
         ministryNotes: s.ministryNotes,
         discourseNotes: s.discourseNotes,
         activeDiscourseId: s.activeDiscourseId,
+        savedVideoTranscripts: s.savedVideoTranscripts,
         lastCompletedSessionId: s.lastCompletedSessionId,
       }),
     },
