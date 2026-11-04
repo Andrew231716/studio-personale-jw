@@ -138,6 +138,35 @@ export function cuesDurationSeconds(cues: VttCue[]): number {
   return Math.max(...cues.map((c) => cueTimeToSeconds(c.end)))
 }
 
+/** Redistribuisce un testo modificato sui cue esistenti (stessi tempi). */
+export function redistributeTranscriptToCues(cues: VttCue[], text: string): VttCue[] {
+  if (!cues.length) return []
+  const cleaned = text.replace(/\r\n/g, '\n').trim()
+  if (!cleaned) return cues.map((c) => ({ ...c, text: '' }))
+
+  const byLines = cleaned.split(/\n+/).map((l) => l.trim()).filter(Boolean)
+  if (byLines.length === cues.length) {
+    return cues.map((c, i) => ({ ...c, text: byLines[i] }))
+  }
+
+  const words = cleaned.split(/\s+/).filter(Boolean)
+  const durations = cues.map((c) =>
+    Math.max(0.2, cueTimeToSeconds(c.end) - cueTimeToSeconds(c.start)),
+  )
+  const total = durations.reduce((a, b) => a + b, 0) || 1
+  let offset = 0
+  return cues.map((c, i) => {
+    const isLast = i === cues.length - 1
+    const share = durations[i] / total
+    const count = isLast
+      ? Math.max(0, words.length - offset)
+      : Math.max(1, Math.round(words.length * share))
+    const slice = words.slice(offset, offset + count)
+    offset += count
+    return { ...c, text: slice.join(' ') }
+  })
+}
+
 /** Filtra i cue nell’intervallo [startSec, endSec] (inclusivo sul bordo). */
 export function filterCuesByTimeRange(
   cues: VttCue[],

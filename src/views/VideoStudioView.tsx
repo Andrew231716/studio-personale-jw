@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   BookmarkPlus,
   Captions,
+  Check,
   FolderOpen,
   NotebookPen,
+  Pencil,
   PlayCircle,
   Save,
   Search,
   Trash2,
+  X,
 } from 'lucide-react'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { NarrateButton } from '../components/NarrateButton'
@@ -15,6 +18,7 @@ import { SectionProgress } from '../components/SectionProgress'
 import { TranscriptKaraoke } from '../components/TranscriptKaraoke'
 import {
   fetchLatestVideos,
+  fetchMediaByLank,
   fetchVideoTranscript,
   searchJw,
   type LatestMediaItem,
@@ -23,10 +27,12 @@ import { uid } from '../lib/id'
 import { buildVideoStudyGuide, type VideoStudyGuide } from '../lib/videoStudyGuide'
 import {
   buildTranscriptFromCues,
+  cueTimeToSeconds,
   cuesDurationSeconds,
   filterCuesByTimeRange,
   formatClock,
   parseTimeInput,
+  redistributeTranscriptToCues,
   type VttCue,
 } from '../lib/vtt'
 import { useAppStore } from '../store/useAppStore'
@@ -43,6 +49,7 @@ export function VideoStudioView() {
   const saveResource = useAppStore((s) => s.saveResource)
   const savedTranscripts = useAppStore((s) => s.savedVideoTranscripts)
   const saveVideoTranscript = useAppStore((s) => s.saveVideoTranscript)
+  const updateVideoTranscript = useAppStore((s) => s.updateVideoTranscript)
   const removeVideoTranscript = useAppStore((s) => s.removeVideoTranscript)
 
   const [query, setQuery] = useState('')
@@ -67,6 +74,9 @@ export function VideoStudioView() {
   const [showKaraoke, setShowKaraoke] = useState(true)
   const [guide, setGuide] = useState<VideoStudyGuide | null>(null)
   const [activeSavedId, setActiveSavedId] = useState<string | null>(null)
+  const [editingTranscript, setEditingTranscript] = useState(false)
+  const [draftTranscript, setDraftTranscript] = useState('')
+  const [mediaRefreshBusy, setMediaRefreshBusy] = useState(false)
 
   const totalSec = useMemo(() => cuesDurationSeconds(allCues), [allCues])
 
@@ -162,10 +172,30 @@ export function VideoStudioView() {
     }
   }
 
-  function openSavedTranscript(entry: SavedVideoTranscript) {
+  async function refreshProgressiveUrl(forLank = lank, savedId = activeSavedId) {
+    const key = forLank.trim()
+    if (!key || mediaRefreshBusy) return ''
+    setMediaRefreshBusy(true)
+    try {
+      const media = await fetchMediaByLank(key, language)
+      const url = media.progressiveUrl || ''
+      if (url) {
+        setProgressiveUrl(url)
+        if (savedId) updateVideoTranscript(savedId, { progressiveUrl: url })
+      }
+      return url
+    } catch {
+      return ''
+    } finally {
+      setMediaRefreshBusy(false)
+    }
+  }
+
+  async function openSavedTranscript(entry: SavedVideoTranscript) {
     setError('')
     setHint('')
     setGuide(null)
+    setEditingTranscript(false)
     setVideoTitle(entry.title)
     setLank(entry.lank)
     setVideoUrl(entry.sourceUrl)
@@ -184,6 +214,58 @@ export function VideoStudioView() {
     setActiveSavedId(entry.id)
     setPhase('transcript')
     setHint(`Trascrizione riaperta: ${entry.title}`)
+    // URL progressive spesso scadono: rinnova sempre da lank
+    if (entry.lank) {
+      const url = await refreshProgressiveUrl(entry.lank, entry.id)
+      if (!url && !entry.progressiveUrl) {
+        setError('Audio del video non trovato. Riapri il video da jw.org o dal codice lank.')
+      }
+    }
+  }
+
+  function startEditTranscript() {
+    setShowKaraoke(false)
+    setShowTimed(false)
+    setDraftTranscript(filtered.transcript)
+    setEditingTranscript(true)
+  }
+
+  function cancelEditTranscript() {
+    setEditingTranscript(false)
+    setDraftTranscript('')
+  }
+
+  function saveTranscriptEdit() {
+    const nextCues = redistributeTranscriptToCues(filtered.cues, draftTranscript)
+    if (!nextCues.length) {
+      setError('Niente da salvare: trascrizione vuota.')
+      return
+    }
+    const start = range.startSec
+    const end = range.endSec || totalSec
+    const kept = allCues.filter((c) => {
+      const cs = cueTimeToSeconds(c.start)
+      const ce = cueTimeToSeconds(c.end)
+      return !(ce >= start && cs <= end)
+    })
+    const merged = [...kept, ...nextCues].sort(
+      (a, b) => cueTimeToSeconds(a.start) - cueTimeToSeconds(b.start),
+    )
+    setAllCues(merged)
+    setEditingTranscript(false)
+    setDraftTranscript('')
+    setError('')
+    if (activeSavedId) {
+      const built = buildTranscriptFromCues(merged)
+      updateVideoTranscript(activeSavedId, {
+        cues: merged,
+        transcript: built.transcript,
+        timedText: built.timedText,
+      })
+      setHint('Trascrizione modificata e salvata.')
+    } else {
+      setHint('Trascrizione aggiornata. Tocca «Salva trascrizione qui» per tenerla.')
+    }
   }
 
   function saveCurrentTranscript() {
@@ -569,15 +651,17 @@ export function VideoStudioView() {
 
           <div className="chip-row">
             <button
-              className={`chip${showKaraoke ? ' active' : ''}`}
+              className={`chip${showKaraoke && !editingTranscript ? ' active' : ''}`}
               type="button"
+              disabled={editingTranscript}
               onClick={() => setShowKaraoke(true)}
             >
               Voce + parole
             </button>
             <button
-              className={`chip${!showKaraoke && !showTimed ? ' active' : ''}`}
+              className={`chip${!showKaraoke && !showTimed && !editingTranscript ? ' active' : ''}`}
               type="button"
+              disabled={editingTranscript}
               onClick={() => {
                 setShowKaraoke(false)
                 setShowTimed(false)
@@ -586,8 +670,9 @@ export function VideoStudioView() {
               Testo continuo
             </button>
             <button
-              className={`chip${!showKaraoke && showTimed ? ' active' : ''}`}
+              className={`chip${!showKaraoke && showTimed && !editingTranscript ? ' active' : ''}`}
               type="button"
+              disabled={editingTranscript}
               onClick={() => {
                 setShowKaraoke(false)
                 setShowTimed(true)
@@ -603,19 +688,60 @@ export function VideoStudioView() {
                 setGuide(null)
                 setAllCues([])
                 setProgressiveUrl('')
+                setEditingTranscript(false)
               }}
             >
               Cambia video
             </button>
           </div>
 
-          {showKaraoke ? (
+          <div
+            className="row"
+            style={{ justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, marginTop: '0.35rem' }}
+          >
+            {!editingTranscript ? (
+              <button
+                type="button"
+                className="btn secondary small"
+                disabled={!filtered.transcript.trim()}
+                onClick={startEditTranscript}
+              >
+                <Pencil size={14} /> Modifica trascrizione
+              </button>
+            ) : (
+              <>
+                <button type="button" className="btn small" onClick={saveTranscriptEdit}>
+                  <Check size={14} /> Salva testo
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary small"
+                  onClick={cancelEditTranscript}
+                >
+                  <X size={14} /> Annulla
+                </button>
+              </>
+            )}
+          </div>
+
+          {editingTranscript ? (
+            <textarea
+              className="transcript-box"
+              value={draftTranscript}
+              onChange={(e) => setDraftTranscript(e.target.value)}
+              rows={14}
+              placeholder="Modifica la trascrizione…"
+            />
+          ) : showKaraoke ? (
             <TranscriptKaraoke
               cues={filtered.cues}
               progressiveUrl={progressiveUrl || undefined}
               startSec={range.startSec}
               endSec={range.endSec || totalSec}
               title={videoTitle}
+              onMediaError={() => {
+                if (lank) void refreshProgressiveUrl(lank, activeSavedId)
+              }}
             />
           ) : (
             <textarea
