@@ -16,12 +16,12 @@ export const MINISTRY_KIND_LABELS: Record<MinistryAssistKind, string> = {
 /** Una riga: cosa ottieni e quando usarlo. */
 export const MINISTRY_KIND_HELP: Record<MinistryAssistKind, string> = {
   schema:
-    'Traccia da leggere sul campo: saluto, domanda, 2-3 punti, obiezione, chiusura.',
+    'Traccia di predicazione (territorio): saluto, domanda, 2-3 punti, obiezione, invito.',
   presentazione:
-    'Testo ordinato da dire in 2–4 minuti (studio, ritorno, breve esposizione). Non è un PowerPoint.',
-  riassunto: 'In sintesi: cosa dice l’articolo/tema + una domanda e un invito.',
-  spunto: 'Menu di aperture, domande e illustrazioni: scegli e parti.',
-  scritture: 'Versetti pronti con perché usarli e come collegarli.',
+    'Testo da dire in 2–4 minuti a una persona interessata (ritorno / studio). Non è un PowerPoint.',
+  riassunto: 'In sintesi: cosa dice l’articolo/tema + una domanda e un invito a leggere insieme.',
+  spunto: 'Aperture, domande e illustrazioni per iniziare una conversazione di predicazione.',
+  scritture: 'Versetti pronti con perché usarli nella predicazione e come collegarli.',
 }
 
 /** Ordine mostrato in Ministero (dal più usato). */
@@ -48,12 +48,23 @@ export const MINISTRY_SUGGESTIONS = [
   'come si svolge uno studio biblico',
 ]
 
+/**
+ * Vocabolario predicazione pubblica (stile jw.org), non linguaggio interno di congregazione.
+ * @see https://www.jw.org — ministero / predicazione / territorio
+ */
+const PREACHING_VOCAB = `Contesto obbligatorio — PREDICAZIONE / MINISTERO:
+- Parli a PERSONE DEL TERRITORIO (pubblico, case, strade, ritorni, studi biblici), NON a fratelli o sorelle.
+- Usa vocaboli tipici di jw.org: predicazione, ministero, territorio, conversazione nel ministero, persona interessata, ritorno, studio biblico, pubblicazione, opuscolo, articolo, video, Buona notizia, Regno di Dio, Geova.
+- Rivolgiti così: «la persona», «chi ascolta», «lei/lui» — MAI «fratello», «sorella», «carissimo», tono da adunanza.
+- Obiettivo: condividere la Buona notizia e, se opportuno, invitare a leggere/guardare insieme un materiale jw.org.`
+
 const READY_RULES = `Regole obbligatorie:
-- Scrivi UNA scheda PRONTA DA USARE (italiano chiaro, frasi brevi).
+- Scrivi UNA scheda PRONTA DA USARE nella predicazione (italiano chiaro, frasi brevi).
 - Formato “Tu dici: …” per le frasi da pronunciare; niente discorsi meta (“ecco uno schema”, “mi dispiace”, “non ho il contenuto”).
 - Usa SOLO i materiali jw.org del contesto; cita titoli reali; non inventare link.
 - Niente citazioni bibliche lunghe: solo riferimento (TNM italiana) + 1 frase di senso.
-- Massimo ~180-220 parole.`
+- Massimo ~180-220 parole.
+${PREACHING_VOCAB}`
 
 function resultsToResources(results: JwResult[]): StudyResource[] {
   return results.slice(0, 10).map((r) => ({
@@ -73,20 +84,20 @@ function promptForKind(kind: MinistryAssistKind, topic: string): string {
     case 'riassunto':
       return `${READY_RULES}
 
-Prepara un RIASSUNTO pronto per il ministero sul tema/articolo “${topic}”.
+Prepara un RIASSUNTO per la predicazione sul tema/articolo “${topic}”.
 
 Usa esattamente queste intestazioni:
 ## In una frase
 ## Punti da ricordare
 (3-5 bullet)
 ## Scrittura chiave
-## Domanda da fare
+## Domanda alla persona
 ## Invito
-(cita un titolo jw.org del contesto)`
+(cita un titolo jw.org del contesto da leggere/guardare insieme)`
     case 'schema':
       return `${READY_RULES}
 
-Prepara una CONVERSAZIONE da campo sul tema “${topic}” (circa 2 minuti).
+Prepara una CONVERSAZIONE DI PREDICAZIONE sul tema “${topic}” (circa 2 minuti, territorio / persona del pubblico).
 
 Usa esattamente queste intestazioni:
 ## Saluto
@@ -96,15 +107,15 @@ Tu dici: …
 ## Due punti (con scrittura)
 1. … (Scrittura)
 2. … (Scrittura)
-## Se obiettano
+## Se la persona obietta
 Persona: …
 Tu dici: …
-## Chiusura
+## Chiusura / invito
 Tu dici: … + invito a un materiale jw.org del contesto`
     case 'presentazione':
       return `${READY_RULES}
 
-Prepara una PRESENTAZIONE BREVE da dire a voce (2–4 minuti) sul tema “${topic}”.
+Prepara una PRESENTAZIONE BREVE di predicazione da dire a voce (2–4 minuti) a una persona interessata sul tema “${topic}”.
 È un testo da seguire, non slide.
 
 Usa esattamente queste intestazioni:
@@ -124,7 +135,7 @@ Tu dici: … (titolo jw.org reale del contesto)`
     case 'spunto':
       return `${READY_RULES}
 
-Prepara IDEE PRONTE per iniziare una conversazione su “${topic}”.
+Prepara IDEE PRONTE per iniziare una conversazione di predicazione su “${topic}”.
 
 Usa esattamente queste intestazioni:
 ## Aperture (scegline una)
@@ -141,12 +152,12 @@ Usa esattamente queste intestazioni:
     case 'scritture':
       return `${READY_RULES}
 
-Prepara SCRITTURE UTILI per il ministero sul tema “${topic}”.
+Prepara SCRITTURE UTILI per la predicazione sul tema “${topic}”.
 
 Per 4-5 scritture, usa questo formato ripetuto:
 ### [Riferimento TNM]
-Perché: …
-Tu puoi dire: …
+Perché (nella predicazione): …
+Tu puoi dire alla persona: …
 Collegamento: [titolo jw.org del contesto, se c’è]`
   }
 }
@@ -235,10 +246,28 @@ function sameDocOrUrl(a: JwResult, url: string, docid?: string): boolean {
 
 /** Titolo sicuro per schede: mai URL grezzi o «Finder». */
 export function ministryDisplayTitle(raw?: string | null, fallback = 'Materiale jw.org'): string {
-  const t = (raw || '').trim()
+  let t = (raw || '').trim()
   if (!t || looksLikeUrl(t)) return fallback
   if (/^(finder|open|share)$/i.test(t)) return fallback
+  // Titoli vecchi: «Schema / conversazione: …» → etichetta attuale
+  t = t
+    .replace(/^Schema\s*\/\s*conversazione\s*:\s*/i, 'Conversazione: ')
+    .replace(/^Schema presentazione\s*:\s*/i, 'Presentazione breve: ')
+    .replace(/^Riassunto articolo\s*:\s*/i, 'Riassunto: ')
+    .replace(/^Spunti per conversare\s*:\s*/i, 'Idee per iniziare: ')
+    .replace(/^Scritture e spiegazioni\s*:\s*/i, 'Scritture utili: ')
   return t.slice(0, 140)
+}
+
+/** Riduce indirizzi da congregazione in schede di predicazione. */
+function polishPreachingVoice(text: string): string {
+  return text
+    .replace(/\bCaro(?:\s+fratello|\s+sorella)\b/gi, 'Buongiorno')
+    .replace(/\b(?:Fratello|Sorella)\s+[A-ZÀ-Ü][\wÀ-ÿ'-]*/g, 'la persona')
+    .replace(/\bai fratelli e (?:alle )?sorelle\b/gi, 'alle persone del territorio')
+    .replace(/\bfratelli e sorelle\b/gi, 'persone del territorio')
+    .replace(/\b(?:il |un |questo )?fratello\b/gi, 'la persona')
+    .replace(/\b(?:la |una |questa )?sorella\b/gi, 'la persona')
 }
 
 async function resolveViaPageApi(
@@ -433,19 +462,21 @@ export async function buildMinistryAssist(params: {
 
   let content = ''
   try {
-    content = await askAi({
-      prompt: promptForKind(params.kind, labelTopic),
-      context: `Tema ministero: ${labelTopic}\nTipo: ${MINISTRY_KIND_LABELS[params.kind]}\n${
-        params.focus
-          ? `Materiale principale: ${focusTitle || params.focus.title}\nURL: ${params.focus.url}\n${
-              params.focus.snippet
-                ? `Anteprima/descrizione: ${params.focus.snippet.slice(0, 500)}\n`
-                : ''
-            }`
-          : ''
-      }\nFonti jw.org:\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org.'}`,
-      allowedUrls: resources.map((r) => r.url),
-    })
+    content = polishPreachingVoice(
+      await askAi({
+        prompt: promptForKind(params.kind, labelTopic),
+        context: `Sezione: Ministero / predicazione (persone del territorio, non fratelli/sorelle).\nTema: ${labelTopic}\nTipo scheda: ${MINISTRY_KIND_LABELS[params.kind]}\n${
+          params.focus
+            ? `Materiale principale: ${focusTitle || params.focus.title}\nURL: ${params.focus.url}\n${
+                params.focus.snippet
+                  ? `Anteprima/descrizione: ${params.focus.snippet.slice(0, 500)}\n`
+                  : ''
+              }`
+            : ''
+        }\nFonti jw.org:\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org.'}\n${PREACHING_VOCAB}`,
+        allowedUrls: resources.map((r) => r.url),
+      }),
+    )
   } catch {
     content = [
       `Tema: ${labelTopic}`,

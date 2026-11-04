@@ -119,13 +119,19 @@ Libri e Bibbia:
 - Nomi dei libri come nella TNM italiana (Matteo, Giovanni, Atti, Romani, Efesini, Filippesi, Ebrei, Giacomo, 1 Pietro, Rivelazione).
 
 Ministero e congregazione (stile jw.org):
-- Preferisci SEMPRE «ministero», «nel ministero», «di ministero», «lavoro di predicazione».
+- Preferisci SEMPRE «ministero», «nel ministero», «di ministero», «lavoro di predicazione», «predicazione».
 - MAI «ministeriale» / «ministeriali» (es. non «impegno ministeriale» ma «impegno nel ministero»).
 - «servo di ministero» / «servi di ministero» (non «servo ministeriale»).
 - «congregazione», «territorio», «anziani», «adunanze», «Sala del Regno».
-- «Riunione Vita e Ministero cristiano», «predicazione», «studio biblico», «campo».
-- «Geova», «Gesù Cristo», «Regno», «verità biblica».
+- «Riunione Vita e Ministero cristiano», «studio biblico», «campo», «ritorno», «persona interessata».
+- «Geova», «Gesù Cristo», «Regno», «Buona notizia», «verità biblica».
+
+Quando il testo è per la PREDICAZIONE / MINISTERO verso il pubblico:
+- Destinatario = persona del territorio (pubblico), NON un fratello o una sorella.
+- Usa: «la persona», «chi ascolta», «persona interessata» — MAI rivolgersi con «fratello» / «sorella».
+
+Quando il testo è interno alla congregazione (studio personale, decisioni, adunanze):
+- Puoi usare: «fratello/sorella», «pubblicatore», «pioniere», «anziano», «corpo degli anziani», «circoscrizione», «Betel», «organizzazione di Geova».
 
 Evita linguaggio da altre confessioni: parrocchia, evangelizzazione (usa predicazione), clero, pastorale, vocazione sacerdotale, ecc.
-Preferisci anche: «fratello/sorella», «pubblicatore», «pioniere», «anziano», «corpo degli anziani», «circoscrizione», «Betel», «organizzazione di Geova».
 Se un termine non compare tipicamente su jw.org, riformulalo con parole semplici tipiche delle pubblicazioni JW.`
