@@ -508,29 +508,46 @@ export function VideoStudioView() {
 
           <div className="range-picker">
             <div className="field">
-              <label htmlFor="from-min">Da minuto</label>
+              <label htmlFor="from-min">Da (minuti o m:ss)</label>
               <input
                 id="from-min"
+                type="text"
                 value={startMin}
                 onChange={(e) => {
-                  setStartMin(e.target.value)
+                  // Solo cifre, due punti e punto/virgola (es. 5, 5:30, 5.5)
+                  const next = e.target.value.replace(/[^\d:.,]/g, '')
+                  setStartMin(next)
                   setGuide(null)
                 }}
                 placeholder="0 oppure 2:30"
-                inputMode="decimal"
+                inputMode="text"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="done"
               />
             </div>
             <div className="field">
-              <label htmlFor="to-min">A minuto</label>
+              <label htmlFor="to-min">A (minuti o m:ss)</label>
               <input
                 id="to-min"
+                type="text"
                 value={endMin}
                 onChange={(e) => {
-                  setEndMin(e.target.value)
+                  const next = e.target.value.replace(/[^\d:.,]/g, '')
+                  setEndMin(next)
                   setGuide(null)
                 }}
-                placeholder={totalSec ? String(Math.ceil(totalSec / 60)) : 'es. 8'}
-                inputMode="decimal"
+                placeholder={
+                  totalSec
+                    ? formatClock(totalSec).replace(/^0:/, '') || String(Math.ceil(totalSec / 60))
+                    : 'es. 8:00'
+                }
+                inputMode="text"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="done"
               />
             </div>
             <div className="field" style={{ justifyContent: 'flex-end' }}>
