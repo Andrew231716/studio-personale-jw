@@ -15,6 +15,7 @@ import { JwOpenButtons } from '../components/JwOpenButtons'
 import { NarrateButton } from '../components/NarrateButton'
 import { SectionProgress } from '../components/SectionProgress'
 import {
+  MINISTRY_CORE_SOURCES,
   MINISTRY_KIND_HELP,
   MINISTRY_KIND_LABELS,
   MINISTRY_KIND_ORDER,
@@ -223,11 +224,27 @@ export function MinisteroView() {
           <div>
             <h2>Ministero</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Ti prepara una <strong>scheda pronta da usare</strong> (testo da leggere o dire).
-              Non apre app e non registra visite: la usi tu.
+              Ti prepara una <strong>scheda di predicazione</strong> pronta da usare, basata su
+              pubblicazioni e video ufficiali di jw.org.
             </p>
           </div>
         </div>
+
+        <details className="decision-fold archive-topic-fold" style={{ marginBottom: '0.85rem' }}>
+          <summary className="decision-fold-summary">
+            Fonti ufficiali usate ({MINISTRY_CORE_SOURCES.length})
+          </summary>
+          <div className="decision-fold-body archive-topic-body">
+            <ul className="muted" style={{ margin: 0, paddingLeft: '1.15rem' }}>
+              {MINISTRY_CORE_SOURCES.map((s) => (
+                <li key={s.id} style={{ margin: '0.35rem 0' }}>
+                  <strong style={{ color: 'var(--primary)' }}>{s.title}</strong>
+                  {s.pub ? ` · pub=${s.pub}` : ''} — {s.useFor}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
 
         <div className="seg-tabs" role="tablist" aria-label="Sezioni ministero">
           {(

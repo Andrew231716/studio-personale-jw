@@ -2,7 +2,15 @@ import { askAi } from './ai'
 import { fetchMediaByLank, searchJw, searchJwDeep } from './jwApi'
 import { uid } from './id'
 import { extractJwRefs, isMediaLank } from './jwLibrary'
+import {
+  MINISTRY_CORE_SOURCES,
+  ministryCoreBoost,
+  ministryCoreSourcesPromptBlock,
+  ministrySourceQueries,
+} from './ministrySources'
 import type { JwResult, MinistryAssistKind, MinistryAssistNote, StudyResource } from '../types'
+
+export { MINISTRY_CORE_SOURCES } from './ministrySources'
 
 /** Etichette corte, chiare in UI. */
 export const MINISTRY_KIND_LABELS: Record<MinistryAssistKind, string> = {
@@ -61,6 +69,7 @@ const PREACHING_VOCAB = `Contesto obbligatorio — PREDICAZIONE / MINISTERO:
 const READY_RULES = `Regole obbligatorie:
 - Scrivi UNA scheda PRONTA DA USARE nella predicazione (italiano chiaro, frasi brevi).
 - Formato “Tu dici: …” per le frasi da pronunciare; niente discorsi meta (“ecco uno schema”, “mi dispiace”, “non ho il contenuto”).
+- Ancorati alle fonti ufficiali del contesto (Ama le persone / Ragioniamo / Traete beneficio / Applicati / Efficaci nel ministero / video Ministero).
 - Usa SOLO i materiali jw.org del contesto; cita titoli reali; non inventare link.
 - Niente citazioni bibliche lunghe: solo riferimento (TNM italiana) + 1 frase di senso.
 - Massimo ~180-220 parole.
@@ -172,6 +181,74 @@ function sourceBlockFromResults(results: JwResult[]): string {
     .join('\n')
 }
 
+function resultKey(r: JwResult): string {
+  return `${r.docid || ''}|${r.lank || ''}|${r.url}`
+}
+
+function mergeRankedMinistryResults(batches: JwResult[][]): JwResult[] {
+  const map = new Map<string, JwResult>()
+  for (const batch of batches) {
+    for (const r of batch) {
+      const key = resultKey(r)
+      const prev = map.get(key)
+      if (!prev || ministryCoreBoost(r) > ministryCoreBoost(prev)) {
+        map.set(key, r)
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => ministryCoreBoost(b) - ministryCoreBoost(a))
+}
+
+/** Ricerca tema + fonti ufficiali (Ragioniamo, LMD, Guida, video, …). */
+async function gatherMinistryResults(params: {
+  topic: string
+  language: string
+  focus?: Pick<JwResult, 'title' | 'url' | 'snippet' | 'context' | 'lank' | 'docid' | 'kind' | 'section'>
+}): Promise<JwResult[]> {
+  const { topic, language, focus } = params
+  const batches: JwResult[][] = []
+
+  if (focus?.url) {
+    batches.push([
+      {
+        id: focus.docid || focus.lank || uid('focus'),
+        title: focus.title,
+        snippet: focus.snippet || '',
+        kind: focus.kind || 'article',
+        section: focus.section || (focus.kind === 'video' ? 'video' : 'articoli'),
+        url: focus.url,
+        lank: focus.lank,
+        docid: focus.docid,
+        context: focus.context,
+      },
+    ])
+  }
+
+  const deep = await searchJwDeep(`${topic} ministero predicazione`, {
+    language,
+    filters: ['publications', 'videos', 'indexes'],
+    maxQueries: 4,
+    perSection: 6,
+  }).catch(() => null)
+  if (deep?.flat.length) batches.push(deep.flat)
+
+  const targeted = ministrySourceQueries(topic).slice(0, 5)
+  const targetedHits = await Promise.all(
+    targeted.map((q) =>
+      searchJw(q, { language, filter: 'publications' }).catch(() => [] as JwResult[]),
+    ),
+  )
+  batches.push(...targetedHits)
+
+  const videoHits = await searchJw(`${topic} ministero`, {
+    language,
+    filter: 'videos',
+  }).catch(() => [] as JwResult[])
+  if (videoHits.length) batches.push(videoHits)
+
+  return mergeRankedMinistryResults(batches).slice(0, 16)
+}
+
 export async function searchMinistryArticles(params: {
   query: string
   language?: string
@@ -179,13 +256,7 @@ export async function searchMinistryArticles(params: {
   const language = params.language || 'I'
   const query = params.query.trim()
   if (!query) return []
-  const deep = await searchJwDeep(`${query} ministero predicazione`, {
-    language,
-    filters: ['publications', 'videos', 'indexes'],
-    maxQueries: 4,
-    perSection: 8,
-  })
-  return deep.flat
+  return gatherMinistryResults({ topic: query, language })
 }
 
 const GENERIC_SLUGS = new Set([
@@ -422,39 +493,16 @@ export async function buildMinistryAssist(params: {
     focusTitle || 'Tema ministero',
   )
 
-  let results: JwResult[] = []
-  if (params.focus?.url) {
-    const isVideo =
-      params.focus.kind === 'video' ||
-      Boolean(params.focus.lank && isMediaLank(params.focus.lank))
-    const searchQ = focusTitle || topic
-    const extra = await searchJw(searchQ, {
-      language,
-      filter: isVideo ? 'videos' : 'publications',
-    }).catch(() => [] as JwResult[])
-    results = [
-      {
-        id: params.focus.docid || params.focus.lank || uid('focus'),
-        title: focusTitle || 'Materiale jw.org',
-        snippet: params.focus.snippet || '',
-        kind: params.focus.kind || (isVideo ? 'video' : 'article'),
-        section: params.focus.section || (isVideo ? 'video' : 'articoli'),
-        url: params.focus.url,
-        lank: params.focus.lank,
-        docid: params.focus.docid,
-        context: params.focus.context,
-      },
-      ...extra,
-    ]
-  } else {
-    const deep = await searchJwDeep(`${topic} ministero predicazione`, {
-      language,
-      filters: ['publications', 'videos', 'indexes'],
-      maxQueries: 4,
-      perSection: 5,
-    })
-    results = deep.flat
-  }
+  const results = await gatherMinistryResults({
+    topic: focusTitle || topic,
+    language,
+    focus: params.focus
+      ? {
+          ...params.focus,
+          title: focusTitle || params.focus.title,
+        }
+      : undefined,
+  })
 
   const resources = resultsToResources(results)
   const sourceBlock = sourceBlockFromResults(results)
@@ -473,7 +521,7 @@ export async function buildMinistryAssist(params: {
                   : ''
               }`
             : ''
-        }\nFonti jw.org:\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org.'}\n${PREACHING_VOCAB}`,
+        }\n${ministryCoreSourcesPromptBlock()}\n\nRisultati jw.org (privilegia quelli delle fonti ufficiali sopra):\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org le pubblicazioni elencate.'}\n${PREACHING_VOCAB}`,
         allowedUrls: resources.map((r) => r.url),
       }),
     )
@@ -481,7 +529,9 @@ export async function buildMinistryAssist(params: {
     content = [
       `Tema: ${labelTopic}`,
       '',
-      'Cerca su jw.org articoli aggiornati su questo argomento.',
+      'Consulta su jw.org / JW Library:',
+      ...MINISTRY_CORE_SOURCES.map((s) => `- ${s.title}`),
+      '',
       'Prepara: 1 scrittura, 1 punto principale, 1 domanda gentile, 1 invito a leggere insieme.',
     ].join('\n')
   }
