@@ -1,6 +1,7 @@
 import { askAi } from './ai'
-import { searchJw, searchJwDeep } from './jwApi'
+import { fetchMediaByLank, searchJw, searchJwDeep } from './jwApi'
 import { uid } from './id'
+import { extractJwRefs, isMediaLank } from './jwLibrary'
 import type { JwResult, MinistryAssistKind, MinistryAssistNote, StudyResource } from '../types'
 
 export const MINISTRY_KIND_LABELS: Record<MinistryAssistKind, string> = {
@@ -113,29 +114,146 @@ export async function searchMinistryArticles(params: {
   return deep.flat
 }
 
+function humanizeUrlSlug(raw: string): string {
+  try {
+    const u = new URL(raw, 'https://www.jw.org')
+    const parts = u.pathname.split('/').filter(Boolean)
+    const last = parts[parts.length - 1] || parts[parts.length - 2] || ''
+    const cleaned = decodeURIComponent(last)
+      .replace(/\.(html?|xhtml)$/i, '')
+      .replace(/[-_+]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (cleaned.length >= 4) {
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+    }
+  } catch {
+    /* ignore */
+  }
+  return 'Materiale jw.org'
+}
+
+function sameDocOrUrl(a: JwResult, url: string, docid?: string): boolean {
+  if (docid && a.docid && a.docid === docid) return true
+  const norm = (s: string) => s.replace(/\/+$/, '').toLowerCase()
+  try {
+    return norm(a.url) === norm(url) || (a.wolUrl ? norm(a.wolUrl) === norm(url) : false)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Risolve un link jw.org / codice lank in un materiale usabile per creare
+ * schema, riassunto o spunti nel Ministero.
+ */
+export async function resolveMinistryLink(
+  raw: string,
+  language = 'I',
+): Promise<JwResult> {
+  const input = raw.trim()
+  if (!input) throw new Error('Incolla un link jw.org (video o articolo) oppure un codice lank.')
+
+  const refs = extractJwRefs(input)
+  const lankCandidate = refs.lank || (isMediaLank(input) ? input.trim() : '')
+
+  if (lankCandidate && isMediaLank(lankCandidate)) {
+    const media = await fetchMediaByLank(lankCandidate, language)
+    return {
+      id: media.lank || lankCandidate,
+      title: media.title || 'Video JW',
+      snippet: media.description || '',
+      kind: 'video',
+      section: 'video',
+      url: media.url,
+      lank: media.lank || lankCandidate,
+      duration: media.duration,
+      image: media.image,
+    }
+  }
+
+  const looksUrl = /^https?:\/\//i.test(input) || /jw\.org/i.test(input)
+  if (!looksUrl && !refs.docid && !refs.pub) {
+    throw new Error(
+      'Serve un link jw.org di un video o di un articolo, oppure un codice video (es. pub-…_VIDEO).',
+    )
+  }
+
+  const url = /^https?:\/\//i.test(input)
+    ? input
+    : refs.docid
+      ? `https://www.jw.org/open?docid=${encodeURIComponent(refs.docid)}&prefer=lang&wtlocale=${encodeURIComponent(language)}`
+      : refs.pub
+        ? `https://www.jw.org/open?pub=${encodeURIComponent(refs.pub)}&prefer=lang&wtlocale=${encodeURIComponent(language)}`
+        : `https://${input.replace(/^\/+/, '')}`
+
+  const titleHint = humanizeUrlSlug(url)
+  const queries = [titleHint, refs.docid, refs.pub].filter(Boolean) as string[]
+  let hits: JwResult[] = []
+  for (const q of queries.slice(0, 2)) {
+    const found = await searchJw(q, { language, filter: 'publications' }).catch(
+      () => [] as JwResult[],
+    )
+    if (found.length) {
+      hits = found
+      break
+    }
+  }
+
+  const match =
+    hits.find((h) => sameDocOrUrl(h, url, refs.docid)) ||
+    hits.find((h) =>
+      titleHint.length >= 6
+        ? h.title.toLowerCase().includes(titleHint.toLowerCase().slice(0, 24))
+        : false,
+    ) ||
+    hits[0]
+
+  if (match) {
+    return {
+      ...match,
+      url: match.url || url,
+      docid: match.docid || refs.docid,
+      wolUrl: match.wolUrl || (/wol\.jw\.org/i.test(url) ? url : match.wolUrl),
+    }
+  }
+
+  return {
+    id: refs.docid || refs.pub || uid('link'),
+    title: titleHint,
+    snippet: '',
+    kind: 'article',
+    section: 'articoli',
+    url,
+    docid: refs.docid,
+    wolUrl: /wol\.jw\.org/i.test(url) ? url : undefined,
+  }
+}
+
 export async function buildMinistryAssist(params: {
   kind: MinistryAssistKind
   topic: string
   language?: string
   /** Se presente, centra il riassunto/schema su questo materiale */
-  focus?: Pick<JwResult, 'title' | 'url' | 'snippet' | 'context' | 'lank' | 'docid' | 'kind'>
+  focus?: Pick<JwResult, 'title' | 'url' | 'snippet' | 'context' | 'lank' | 'docid' | 'kind' | 'section'>
 }): Promise<MinistryAssistNote> {
   const language = params.language || 'I'
   const topic = params.topic.trim()
 
   let results: JwResult[] = []
   if (params.focus?.url) {
+    const isVideo = params.focus.kind === 'video' || Boolean(params.focus.lank && isMediaLank(params.focus.lank))
     const extra = await searchJw(topic || params.focus.title, {
       language,
-      filter: 'publications',
+      filter: isVideo ? 'videos' : 'publications',
     }).catch(() => [] as JwResult[])
     results = [
       {
         id: params.focus.docid || params.focus.lank || uid('focus'),
         title: params.focus.title,
         snippet: params.focus.snippet || '',
-        kind: params.focus.kind || 'article',
-        section: 'articoli',
+        kind: params.focus.kind || (isVideo ? 'video' : 'article'),
+        section: params.focus.section || (isVideo ? 'video' : 'articoli'),
         url: params.focus.url,
         lank: params.focus.lank,
         docid: params.focus.docid,
@@ -161,7 +279,13 @@ export async function buildMinistryAssist(params: {
     content = await askAi({
       prompt: promptForKind(params.kind, topic || params.focus?.title || ''),
       context: `Tema ministero: ${topic}\nTipo: ${MINISTRY_KIND_LABELS[params.kind]}\n${
-        params.focus ? `Materiale principale: ${params.focus.title}\nURL: ${params.focus.url}\n` : ''
+        params.focus
+          ? `Materiale principale: ${params.focus.title}\nURL: ${params.focus.url}\n${
+              params.focus.snippet
+                ? `Anteprima/descrizione: ${params.focus.snippet.slice(0, 500)}\n`
+                : ''
+            }`
+          : ''
       }\nFonti jw.org:\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org.'}`,
       allowedUrls: resources.map((r) => r.url),
     })
