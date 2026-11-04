@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
 import {
   BookmarkPlus,
+  Check,
   Clapperboard,
   Link2,
   MessagesSquare,
   NotebookPen,
+  Pencil,
   Search,
   Trash2,
+  X,
 } from 'lucide-react'
-import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
+import { NarrateButton } from '../components/NarrateButton'
 import { SectionProgress } from '../components/SectionProgress'
 import {
   MINISTRY_KIND_HELP,
@@ -53,12 +56,19 @@ export function MinisteroView() {
   const [error, setError] = useState('')
   const [hint, setHint] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editContent, setEditContent] = useState('')
   const [tab, setTab] = useState<Tab>('aiuto')
   const [videoCat, setVideoCat] = useState<string>(MINISTRY_VIDEO_CATEGORIES[0].key)
   const [videos, setVideos] = useState<LatestMediaItem[]>([])
   const [articles, setArticles] = useState<JwResult[]>([])
 
   const active = notes.find((n) => n.id === activeId) || notes[0] || null
+
+  useEffect(() => {
+    setEditing(false)
+  }, [active?.id])
 
   useEffect(() => {
     if (tab !== 'video') return
@@ -176,9 +186,32 @@ export function MinisteroView() {
     setView('studio')
   }
 
+  function startEdit() {
+    if (!active) return
+    setEditTitle(active.title)
+    setEditContent(active.content)
+    setEditing(true)
+  }
+
+  function cancelEdit() {
+    setEditing(false)
+    setEditTitle('')
+    setEditContent('')
+  }
+
+  function saveEdit() {
+    if (!active) return
+    updateNote(active.id, {
+      title: editTitle.trim() || active.title,
+      content: editContent,
+    })
+    setEditing(false)
+  }
+
   function goTab(next: Tab) {
     setError('')
     setHint('')
+    setEditing(false)
     setTab(next)
   }
 
@@ -355,7 +388,7 @@ export function MinisteroView() {
       </section>
 
       {tab === 'aiuto' && (
-        <div className="split split-main-first">
+        <div className="stack">
           <section className="panel">
             {busy && (
               <p className="muted">
@@ -369,18 +402,28 @@ export function MinisteroView() {
                     <span className="badge">
                       {MINISTRY_KIND_LABELS[active.kind] || active.kind}
                     </span>
-                    <h3
-                      style={{
-                        margin: '0.4rem 0 0',
-                        overflowWrap: 'anywhere',
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {ministryDisplayTitle(active.title, active.topic || 'Scheda')}
-                    </h3>
+                    {!editing ? (
+                      <h3
+                        style={{
+                          margin: '0.4rem 0 0',
+                          overflowWrap: 'anywhere',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {ministryDisplayTitle(active.title, active.topic || 'Scheda')}
+                      </h3>
+                    ) : (
+                      <div className="field" style={{ marginTop: '0.55rem', marginBottom: 0 }}>
+                        <label htmlFor="min-edit-title">Titolo</label>
+                        <input
+                          id="min-edit-title"
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                        />
+                      </div>
+                    )}
                     <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.88rem' }}>
-                      {MINISTRY_KIND_HELP[active.kind] ||
-                        'Scheda modificabile: leggila, ritoccala e usala.'}
+                      {MINISTRY_KIND_HELP[active.kind] || 'Scheda pronta da usare.'}
                     </p>
                     {active.sourceTitle && (
                       <p
@@ -395,31 +438,81 @@ export function MinisteroView() {
                       </p>
                     )}
                   </div>
+                  <div className="row" style={{ gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+                    {!editing && active.content.trim() ? (
+                      <NarrateButton text={active.content} compact />
+                    ) : null}
+                    {!editing ? (
+                      <button
+                        type="button"
+                        className="btn secondary small"
+                        onClick={startEdit}
+                        aria-label="Modifica scheda"
+                      >
+                        <Pencil size={14} /> Modifica
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn small"
+                          onClick={saveEdit}
+                          aria-label="Salva modifiche"
+                        >
+                          <Check size={14} /> Salva
+                        </button>
+                        <button
+                          type="button"
+                          className="btn secondary small"
+                          onClick={cancelEdit}
+                          aria-label="Annulla modifiche"
+                        >
+                          <X size={14} /> Annulla
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <ExpandableField
-                  label="Titolo scheda"
-                  value={active.title}
-                  onChange={(value) => updateNote(active.id, { title: value })}
-                  rows={2}
-                />
-                <ExpandableField
-                  label="Testo pronto da usare (modificabile)"
-                  value={active.content}
-                  onChange={(value) => updateNote(active.id, { content: value })}
-                  rows={16}
-                  narrate
-                />
-                <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
-                  Usa così: leggilo ad alta voce, ritocca le frasi «Tu dici», poi se vuoi
-                  salvalo o aprilo in Discorso.
-                </p>
+
+                {!editing ? (
+                  <div
+                    className="ministry-sheet-body"
+                    style={{
+                      margin: 0,
+                      padding: '0.85rem 0.95rem',
+                      borderRadius: 12,
+                      border: '1px solid var(--line)',
+                      background: 'color-mix(in srgb, var(--bg) 55%, white)',
+                      whiteSpace: 'pre-wrap',
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      lineHeight: 1.55,
+                      fontSize: '0.98rem',
+                    }}
+                  >
+                    {active.content.trim() || '—'}
+                  </div>
+                ) : (
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor="min-edit-content">Testo scheda</label>
+                    <textarea
+                      id="min-edit-content"
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      rows={Math.max(12, editContent.split('\n').length + 2)}
+                      style={{ minHeight: '14rem', whiteSpace: 'pre-wrap' }}
+                    />
+                  </div>
+                )}
+
                 <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-                  <button className="btn" type="button" onClick={saveAsStudy}>
+                  <button className="btn" type="button" onClick={saveAsStudy} disabled={editing}>
                     <NotebookPen size={14} /> Salva nel Quaderno
                   </button>
                   <button
                     className="btn secondary"
                     type="button"
+                    disabled={editing}
                     onClick={() => {
                       addDiscourseNote(
                         ministryDisplayTitle(active.title, active.topic || 'Discorso'),
@@ -437,6 +530,7 @@ export function MinisteroView() {
                     <button
                       className="btn secondary"
                       type="button"
+                      disabled={editing}
                       onClick={() => {
                         for (const r of active.resources.slice(0, 5)) {
                           saveResource(r, active.topic)
@@ -447,6 +541,41 @@ export function MinisteroView() {
                     </button>
                   )}
                 </div>
+
+                <details className="decision-fold archive-topic-fold">
+                  <summary className="decision-fold-summary">
+                    Materiale jw.org ({active.resources.length})
+                  </summary>
+                  <div className="decision-fold-body archive-topic-body">
+                    <div className="list">
+                      {(active.resources || []).map((r) => (
+                        <div className="list-item" key={r.id}>
+                          <strong style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                            {ministryDisplayTitle(r.title)}
+                          </strong>
+                          {r.notes && (
+                            <p className="muted" style={{ margin: '0.25rem 0' }}>
+                              {r.notes.slice(0, 140)}
+                            </p>
+                          )}
+                          <JwOpenButtons
+                            url={r.url}
+                            wolUrl={r.wolUrl}
+                            lank={r.lank}
+                            docid={r.docid}
+                            bible={r.bible}
+                            pub={r.pub}
+                            language={language}
+                            compact
+                          />
+                        </div>
+                      ))}
+                      {!active.resources.length && (
+                        <div className="empty">Nessun materiale collegato a questa scheda.</div>
+                      )}
+                    </div>
+                  </div>
+                </details>
               </div>
             ) : (
               !busy && (
@@ -458,93 +587,68 @@ export function MinisteroView() {
             )}
           </section>
 
-          <section className="panel">
-            <h3>Articoli / video usati</h3>
-            <div className="list">
-              {(active?.resources || []).map((r) => (
-                <div className="list-item" key={r.id}>
-                  <strong style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
-                    {ministryDisplayTitle(r.title)}
-                  </strong>
-                  {r.notes && (
-                    <p className="muted" style={{ margin: '0.25rem 0' }}>
-                      {r.notes.slice(0, 140)}
-                    </p>
-                  )}
-                  <JwOpenButtons
-                    url={r.url}
-                    wolUrl={r.wolUrl}
-                    lank={r.lank}
-                    docid={r.docid}
-                    bible={r.bible}
-                    pub={r.pub}
-                    language={language}
-                    compact
-                  />
-                </div>
-              ))}
-              {!active?.resources.length && (
-                <div className="empty">Qui vedrai gli articoli e i video usati per lo schema.</div>
-              )}
-            </div>
-
-            <h3 style={{ marginTop: '1.25rem' }}>Schede salvate ({notes.length})</h3>
-            <div className="list">
-              {notes.length === 0 && <div className="empty">Nessuna scheda ancora.</div>}
-              {notes.map((n) => {
-                const cardTitle = ministryDisplayTitle(
-                  n.title,
-                  ministryDisplayTitle(n.sourceTitle, ministryDisplayTitle(n.topic, 'Scheda')),
-                )
-                return (
-                  <div
-                    className={`list-item ${active?.id === n.id ? 'active' : ''}`}
-                    key={n.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setActiveId(n.id)}
-                    onKeyDown={(e) => e.key === 'Enter' && setActiveId(n.id)}
-                  >
+          <details className="decision-fold archive-topic-fold panel" style={{ padding: '0.85rem 1rem' }}>
+            <summary className="decision-fold-summary">
+              Schede salvate ({notes.length})
+            </summary>
+            <div className="decision-fold-body" style={{ marginTop: '0.75rem' }}>
+              <div className="list">
+                {notes.length === 0 && <div className="empty">Nessuna scheda ancora.</div>}
+                {notes.map((n) => {
+                  const cardTitle = ministryDisplayTitle(
+                    n.title,
+                    ministryDisplayTitle(n.sourceTitle, ministryDisplayTitle(n.topic, 'Scheda')),
+                  )
+                  return (
                     <div
-                      className="row"
-                      style={{
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        flexWrap: 'nowrap',
-                        gap: 8,
-                      }}
+                      className={`list-item ${active?.id === n.id ? 'active' : ''}`}
+                      key={n.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setActiveId(n.id)}
+                      onKeyDown={(e) => e.key === 'Enter' && setActiveId(n.id)}
                     >
-                      <strong
+                      <div
+                        className="row"
                         style={{
-                          flex: 1,
-                          minWidth: 0,
-                          overflowWrap: 'anywhere',
-                          wordBreak: 'break-word',
-                          lineHeight: 1.35,
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          flexWrap: 'nowrap',
+                          gap: 8,
                         }}
                       >
-                        {cardTitle}
-                      </strong>
-                      <button
-                        className="btn secondary small"
-                        type="button"
-                        style={{ flexShrink: 0 }}
-                        aria-label="Elimina scheda"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          removeNote(n.id)
-                          if (activeId === n.id) setActiveId(null)
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                        <strong
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflowWrap: 'anywhere',
+                            wordBreak: 'break-word',
+                            lineHeight: 1.35,
+                          }}
+                        >
+                          {cardTitle}
+                        </strong>
+                        <button
+                          className="btn secondary small"
+                          type="button"
+                          style={{ flexShrink: 0 }}
+                          aria-label="Elimina scheda"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            removeNote(n.id)
+                            if (activeId === n.id) setActiveId(null)
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <span className="badge">{MINISTRY_KIND_LABELS[n.kind] || n.kind}</span>
                     </div>
-                    <span className="badge">{MINISTRY_KIND_LABELS[n.kind] || n.kind}</span>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
-          </section>
+          </details>
         </div>
       )}
 
