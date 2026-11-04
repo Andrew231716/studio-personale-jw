@@ -12,7 +12,9 @@ import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { SectionProgress } from '../components/SectionProgress'
 import {
+  MINISTRY_KIND_HELP,
   MINISTRY_KIND_LABELS,
+  MINISTRY_KIND_ORDER,
   MINISTRY_SUGGESTIONS,
   buildMinistryAssist,
   ministryDisplayTitle,
@@ -188,8 +190,8 @@ export function MinisteroView() {
           <div>
             <h2>Ministero</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Prepara uno schema da un tema, da un link jw.org (video o articolo), oppure cerca
-              materiale del ministero.
+              Ti prepara una <strong>scheda pronta da usare</strong> (testo da leggere o dire).
+              Non apre app e non registra visite: la usi tu.
             </p>
           </div>
         </div>
@@ -197,7 +199,7 @@ export function MinisteroView() {
         <div className="seg-tabs" role="tablist" aria-label="Sezioni ministero">
           {(
             [
-              ['aiuto', 'Prepara'],
+              ['aiuto', 'Scheda'],
               ['articoli', 'Articoli'],
               ['video', 'Video'],
             ] as const
@@ -215,14 +217,42 @@ export function MinisteroView() {
           ))}
         </div>
 
-        {tab === 'aiuto' && (
-          <p className="muted" style={{ margin: '0 0 0.85rem' }}>
-            Qui crei schemi, riassunti e spunti per conversare, partendo da jw.org.
-          </p>
+        {(tab === 'aiuto' || Boolean(linkPaste.trim())) && (
+          <div className="field" style={{ marginBottom: '0.85rem' }}>
+            <label>1. Cosa ti serve?</label>
+            <div className="list" style={{ gap: '0.55rem' }}>
+              {MINISTRY_KIND_ORDER.map((k) => {
+                const selected = kind === k
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    className={`list-item ${selected ? 'active' : ''}`}
+                    onClick={() => setKind(k)}
+                    style={{
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      width: '100%',
+                      border: selected
+                        ? '1px solid color-mix(in srgb, var(--accent) 65%, var(--line))'
+                        : undefined,
+                    }}
+                  >
+                    <strong>{MINISTRY_KIND_LABELS[k]}</strong>
+                    <p className="muted" style={{ margin: '0.2rem 0 0', fontSize: '0.88rem' }}>
+                      {MINISTRY_KIND_HELP[k]}
+                    </p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         )}
 
         <div className="field">
-          <label htmlFor="min-topic">Tema</label>
+          <label htmlFor="min-topic">
+            {tab === 'articoli' ? 'Cerca articoli su' : '2. Tema (o lascia vuoto se usi un link)'}
+          </label>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
             <input
               id="min-topic"
@@ -256,20 +286,20 @@ export function MinisteroView() {
                 onClick={() => void generate()}
               >
                 <MessagesSquare size={16} />
-                {busy ? 'Preparo…' : 'Prepara'}
+                {busy ? 'Preparo…' : `Prepara: ${MINISTRY_KIND_LABELS[kind]}`}
               </button>
             ) : null}
           </div>
         </div>
 
         <div className="field" style={{ marginBottom: tab === 'aiuto' ? '0.85rem' : 0 }}>
-          <label htmlFor="min-link">Link video o articolo jw.org</label>
+          <label htmlFor="min-link">Oppure link jw.org (video / articolo)</label>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
             <input
               id="min-link"
               value={linkPaste}
               onChange={(e) => setLinkPaste(e.target.value)}
-              placeholder="Incolla URL jw.org / wol oppure codice lank del video…"
+              placeholder="Incolla URL jw.org oppure codice lank del video…"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
@@ -279,49 +309,20 @@ export function MinisteroView() {
               style={{ flex: 1, minWidth: 160 }}
             />
             <button
-              className="btn"
+              className="btn secondary"
               type="button"
               disabled={linkBusy || busy || !linkPaste.trim()}
               onClick={() => void createFromLink()}
             >
               <Link2 size={16} />
-              {linkBusy || busy ? 'Creo…' : 'Crea da link'}
+              {linkBusy || busy ? 'Creo…' : `Da link: ${MINISTRY_KIND_LABELS[kind]}`}
             </button>
           </div>
-          <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
-            Usa il tipo di preparazione scelto sotto (schema, riassunto, spunti…).
-          </p>
         </div>
-
-        {(tab === 'aiuto' || Boolean(linkPaste.trim())) && (
-          <div className="field" style={{ marginBottom: tab === 'aiuto' ? '0.85rem' : 0 }}>
-            <label>Tipo di preparazione</label>
-            <div className="chip-row">
-              {(
-                [
-                  ['schema', 'Schema conversazione'],
-                  ['riassunto', 'Riassunto'],
-                  ['presentazione', 'Presentazione'],
-                  ['spunto', 'Spunti'],
-                  ['scritture', 'Scritture'],
-                ] as const
-              ).map(([k, label]) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={`chip ${kind === k ? 'active' : ''}`}
-                  onClick={() => setKind(k)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {tab === 'aiuto' && (
           <div className="field" style={{ marginBottom: 0 }}>
-            <label>Temi suggeriti</label>
+            <label>Temi rapidi</label>
             <div className="chip-row">
               {MINISTRY_SUGGESTIONS.slice(0, 8).map((s) => (
                 <button
@@ -356,7 +357,11 @@ export function MinisteroView() {
       {tab === 'aiuto' && (
         <div className="split split-main-first">
           <section className="panel">
-            {busy && <p className="muted">Sto preparando l’aiuto da jw.org…</p>}
+            {busy && (
+              <p className="muted">
+                Preparo la scheda «{MINISTRY_KIND_LABELS[kind]}» con materiale jw.org…
+              </p>
+            )}
             {!busy && active ? (
               <div className="stack">
                 <div className="section-head">
@@ -373,6 +378,10 @@ export function MinisteroView() {
                     >
                       {ministryDisplayTitle(active.title, active.topic || 'Scheda')}
                     </h3>
+                    <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.88rem' }}>
+                      {MINISTRY_KIND_HELP[active.kind] ||
+                        'Scheda modificabile: leggila, ritoccala e usala.'}
+                    </p>
                     {active.sourceTitle && (
                       <p
                         className="muted"
@@ -388,18 +397,22 @@ export function MinisteroView() {
                   </div>
                 </div>
                 <ExpandableField
-                  label="Titolo"
+                  label="Titolo scheda"
                   value={active.title}
                   onChange={(value) => updateNote(active.id, { title: value })}
                   rows={2}
                 />
                 <ExpandableField
-                  label="Contenuto (modificabile)"
+                  label="Testo pronto da usare (modificabile)"
                   value={active.content}
                   onChange={(value) => updateNote(active.id, { content: value })}
-                  rows={14}
+                  rows={16}
                   narrate
                 />
+                <p className="muted" style={{ margin: 0, fontSize: '0.85rem' }}>
+                  Usa così: leggilo ad alta voce, ritocca le frasi «Tu dici», poi se vuoi
+                  salvalo o aprilo in Discorso.
+                </p>
                 <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
                   <button className="btn" type="button" onClick={saveAsStudy}>
                     <NotebookPen size={14} /> Salva nel Quaderno
@@ -438,15 +451,15 @@ export function MinisteroView() {
             ) : (
               !busy && (
                 <div className="empty">
-                  Scrivi un tema e tocca <strong>Prepara schema</strong>, oppure scegli un
-                  suggerimento qui sopra.
+                  Scegli cosa ti serve, scrivi un tema e tocca{' '}
+                  <strong>Prepara: {MINISTRY_KIND_LABELS[kind]}</strong>.
                 </div>
               )
             )}
           </section>
 
           <section className="panel">
-            <h3>Materiale jw.org</h3>
+            <h3>Articoli / video usati</h3>
             <div className="list">
               {(active?.resources || []).map((r) => (
                 <div className="list-item" key={r.id}>
@@ -538,7 +551,9 @@ export function MinisteroView() {
       {tab === 'articoli' && (
         <section className="panel">
           <h3>Articoli su jw.org</h3>
-          <p className="muted">Tocca un articolo per creare subito uno schema di conversazione.</p>
+          <p className="muted">
+            Scegli un articolo e crea subito una scheda «{MINISTRY_KIND_LABELS[kind]}».
+          </p>
           {searchBusy && <p className="muted">Cerco su jw.org…</p>}
           <div className="list">
             {articles.map((a) => (
@@ -562,9 +577,9 @@ export function MinisteroView() {
                     className="btn small"
                     type="button"
                     disabled={busy}
-                    onClick={() => void generate(a.title, a, 'schema')}
+                    onClick={() => void generate(a.title, a, kind)}
                   >
-                    Crea schema
+                    Prepara: {MINISTRY_KIND_LABELS[kind]}
                   </button>
                   <button
                     className="btn secondary small"
@@ -572,7 +587,7 @@ export function MinisteroView() {
                     disabled={busy}
                     onClick={() => void generate(a.title, a, 'riassunto')}
                   >
-                    Riassumi
+                    Solo riassunto
                   </button>
                 </div>
               </div>
@@ -641,18 +656,22 @@ export function MinisteroView() {
                         type="button"
                         disabled={busy}
                         onClick={() =>
-                          void generate(v.title, {
-                            id: v.guid,
-                            title: v.title,
-                            snippet: v.description,
-                            kind: 'video',
-                            section: 'video',
-                            url: v.url,
-                            lank: v.lank,
-                          }, 'schema')
+                          void generate(
+                            v.title,
+                            {
+                              id: v.guid,
+                              title: v.title,
+                              snippet: v.description,
+                              kind: 'video',
+                              section: 'video',
+                              url: v.url,
+                              lank: v.lank,
+                            },
+                            kind,
+                          )
                         }
                       >
-                        Crea schema
+                        Prepara: {MINISTRY_KIND_LABELS[kind]}
                       </button>
                     </div>
                   </div>
