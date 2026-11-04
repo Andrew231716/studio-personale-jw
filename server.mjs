@@ -70,6 +70,15 @@ app.get('/api/jw-bible', async (req, res) => {
   }
 })
 
+app.get('/api/jw-resolve', async (req, res) => {
+  try {
+    const { default: handler } = await import('./api/jw-resolve.js')
+    await handler(req, res)
+  } catch (e) {
+    res.status(502).json({ error: String(e) })
+  }
+})
+
 app.post('/api/ai', express.json({ limit: '1mb' }), async (req, res) => {
   try {
     const upstream = await fetch('https://text.pollinations.ai/', {

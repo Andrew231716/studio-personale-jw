@@ -98,6 +98,47 @@ async function localApiMiddleware(
       res.end(text)
       return
     }
+    if (url.pathname === '/api/jw-resolve') {
+      // @ts-expect-error API route is plain JS without declarations
+      const mod = (await import('./api/jw-resolve.js')) as {
+        default: (req: unknown, res: unknown) => Promise<void>
+      }
+      const fakeReq = {
+        method: 'GET',
+        query: Object.fromEntries(url.searchParams.entries()),
+      }
+      await new Promise<void>((resolve, reject) => {
+        const fakeRes = {
+          statusCode: 200,
+          status(code: number) {
+            this.statusCode = code
+            return this
+          },
+          setHeader() {
+            return this
+          },
+          json(payload: unknown) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(payload))
+            resolve()
+          },
+          send(payload: unknown) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'application/json')
+            res.end(typeof payload === 'string' ? payload : JSON.stringify(payload))
+            resolve()
+          },
+          end() {
+            res.statusCode = this.statusCode
+            res.end()
+            resolve()
+          },
+        }
+        void mod.default(fakeReq, fakeRes).catch(reject)
+      })
+      return
+    }
     if (url.pathname === '/api/ai' && req.method === 'POST') {
       const body = await readBody(req)
       const upstream = await fetch('https://text.pollinations.ai/', {
