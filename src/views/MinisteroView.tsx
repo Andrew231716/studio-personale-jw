@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   BookmarkPlus,
   Clapperboard,
+  Link2,
   MessagesSquare,
   NotebookPen,
   Search,
@@ -14,6 +15,7 @@ import {
   MINISTRY_KIND_LABELS,
   MINISTRY_SUGGESTIONS,
   buildMinistryAssist,
+  resolveMinistryLink,
   searchMinistryArticles,
 } from '../lib/ministryAssist'
 import {
@@ -40,10 +42,13 @@ export function MinisteroView() {
 
   const [kind, setKind] = useState<MinistryAssistKind>('schema')
   const [topic, setTopic] = useState('')
+  const [linkPaste, setLinkPaste] = useState('')
   const [busy, setBusy] = useState(false)
+  const [linkBusy, setLinkBusy] = useState(false)
   const [searchBusy, setSearchBusy] = useState(false)
   const [videoBusy, setVideoBusy] = useState(false)
   const [error, setError] = useState('')
+  const [hint, setHint] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('aiuto')
   const [videoCat, setVideoCat] = useState<string>(MINISTRY_VIDEO_CATEGORIES[0].key)
@@ -76,10 +81,11 @@ export function MinisteroView() {
 
   async function generate(t = topic, focus?: JwResult, forceKind?: MinistryAssistKind) {
     const text = (focus?.title || t).trim()
-    if (!text || busy) return
+    if (!text || busy || linkBusy) return
     const useKind = forceKind || kind
     setBusy(true)
     setError('')
+    setHint('')
     setTab('aiuto')
     try {
       const note = await buildMinistryAssist({
@@ -91,9 +97,48 @@ export function MinisteroView() {
       pushNote(note)
       setActiveId(note.id)
       if (!focus) setTopic(text)
+      if (focus) {
+        setHint(
+          `Creato da «${focus.title}» · ${MINISTRY_KIND_LABELS[useKind] || useKind}.`,
+        )
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Impossibile preparare l’aiuto per il ministero')
     } finally {
+      setBusy(false)
+    }
+  }
+
+  async function createFromLink() {
+    const raw = linkPaste.trim()
+    if (!raw || busy || linkBusy) return
+    setLinkBusy(true)
+    setBusy(true)
+    setError('')
+    setHint('')
+    setTab('aiuto')
+    try {
+      const focus = await resolveMinistryLink(raw, language)
+      const useTopic = topic.trim() || focus.title
+      setTopic(useTopic)
+      setLinkPaste(focus.url || raw)
+      const note = await buildMinistryAssist({
+        kind,
+        topic: useTopic,
+        language,
+        focus,
+      })
+      pushNote(note)
+      setActiveId(note.id)
+      setHint(`Creato da «${focus.title}» · ${MINISTRY_KIND_LABELS[kind] || kind}.`)
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Impossibile usare questo link. Controlla che sia un video o un articolo jw.org.',
+      )
+    } finally {
+      setLinkBusy(false)
       setBusy(false)
     }
   }
@@ -128,6 +173,7 @@ export function MinisteroView() {
 
   function goTab(next: Tab) {
     setError('')
+    setHint('')
     setTab(next)
   }
 
@@ -139,7 +185,8 @@ export function MinisteroView() {
           <div>
             <h2>Ministero</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Prepara uno schema, cerca un articolo su jw.org oppure guarda i video del ministero.
+              Prepara uno schema da un tema, da un link jw.org (video o articolo), oppure cerca
+              materiale del ministero.
             </p>
           </div>
         </div>
@@ -183,7 +230,7 @@ export function MinisteroView() {
                 if (e.key === 'Enter') {
                   e.preventDefault()
                   if (tab === 'articoli') void runArticleSearch()
-                  else void generate()
+                  else if (tab === 'aiuto') void generate()
                 }
               }}
               style={{ flex: 1, minWidth: 160 }}
@@ -202,7 +249,7 @@ export function MinisteroView() {
               <button
                 className="btn"
                 type="button"
-                disabled={busy || !topic.trim()}
+                disabled={busy || linkBusy || !topic.trim()}
                 onClick={() => void generate()}
               >
                 <MessagesSquare size={16} />
@@ -212,56 +259,92 @@ export function MinisteroView() {
           </div>
         </div>
 
-        {tab === 'aiuto' && (
-          <>
-            <div className="field" style={{ marginBottom: '0.85rem' }}>
-              <label>Tipo di preparazione</label>
-              <div className="chip-row">
-                {(
-                  [
-                    ['schema', 'Schema conversazione'],
-                    ['riassunto', 'Riassunto'],
-                    ['presentazione', 'Presentazione'],
-                    ['spunto', 'Spunti'],
-                    ['scritture', 'Scritture'],
-                  ] as const
-                ).map(([k, label]) => (
-                  <button
-                    key={k}
-                    type="button"
-                    className={`chip ${kind === k ? 'active' : ''}`}
-                    onClick={() => setKind(k)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="field" style={{ marginBottom: tab === 'aiuto' ? '0.85rem' : 0 }}>
+          <label htmlFor="min-link">Link video o articolo jw.org</label>
+          <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+            <input
+              id="min-link"
+              value={linkPaste}
+              onChange={(e) => setLinkPaste(e.target.value)}
+              placeholder="Incolla URL jw.org / wol oppure codice lank del video…"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void createFromLink()
+                }
+              }}
+              style={{ flex: 1, minWidth: 160 }}
+            />
+            <button
+              className="btn"
+              type="button"
+              disabled={linkBusy || busy || !linkPaste.trim()}
+              onClick={() => void createFromLink()}
+            >
+              <Link2 size={16} />
+              {linkBusy || busy ? 'Creo…' : 'Crea da link'}
+            </button>
+          </div>
+          <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
+            Usa il tipo di preparazione scelto sotto (schema, riassunto, spunti…).
+          </p>
+        </div>
 
-            <div className="field" style={{ marginBottom: 0 }}>
-              <label>Temi suggeriti</label>
-              <div className="chip-row">
-                {MINISTRY_SUGGESTIONS.slice(0, 8).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className="chip"
-                    disabled={busy}
-                    onClick={() => {
-                      setTopic(s)
-                      void generate(s)
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+        {(tab === 'aiuto' || Boolean(linkPaste.trim())) && (
+          <div className="field" style={{ marginBottom: tab === 'aiuto' ? '0.85rem' : 0 }}>
+            <label>Tipo di preparazione</label>
+            <div className="chip-row">
+              {(
+                [
+                  ['schema', 'Schema conversazione'],
+                  ['riassunto', 'Riassunto'],
+                  ['presentazione', 'Presentazione'],
+                  ['spunto', 'Spunti'],
+                  ['scritture', 'Scritture'],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  className={`chip ${kind === k ? 'active' : ''}`}
+                  onClick={() => setKind(k)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-          </>
+          </div>
         )}
 
-        {error && (
+        {tab === 'aiuto' && (
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Temi suggeriti</label>
+            <div className="chip-row">
+              {MINISTRY_SUGGESTIONS.slice(0, 8).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="chip"
+                  disabled={busy || linkBusy}
+                  onClick={() => {
+                    setTopic(s)
+                    void generate(s)
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {hint && (
           <p className="muted" style={{ marginTop: '0.75rem' }}>
+            {hint}
+          </p>
+        )}
+        {error && (
+          <p className="error-text" style={{ marginTop: '0.75rem' }}>
             {error}
           </p>
         )}
