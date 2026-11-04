@@ -2447,3 +2447,30 @@ img {
       color-mix(in srgb, var(--surface) 94%, white) 55%
     );
 }
+
+/* ——— Ministero: scheda a tutta larghezza ——— */
+.ministry-sheet {
+  gap: 0.75rem;
+}
+
+.ministry-sheet-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 3.6vw, 1.45rem);
+  letter-spacing: -0.02em;
+}
+
+.ministry-sheet-body {
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 55%, white);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.55;
+  font-size: 0.98rem;
+}

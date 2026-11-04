@@ -396,48 +396,19 @@ export function MinisteroView() {
               </p>
             )}
             {!busy && active ? (
-              <div className="stack">
-                <div className="section-head">
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <span className="badge">
-                      {MINISTRY_KIND_LABELS[active.kind] || active.kind}
-                    </span>
-                    {!editing ? (
-                      <h3
-                        style={{
-                          margin: '0.4rem 0 0',
-                          overflowWrap: 'anywhere',
-                          wordBreak: 'break-word',
-                        }}
-                      >
-                        {ministryDisplayTitle(active.title, active.topic || 'Scheda')}
-                      </h3>
-                    ) : (
-                      <div className="field" style={{ marginTop: '0.55rem', marginBottom: 0 }}>
-                        <label htmlFor="min-edit-title">Titolo</label>
-                        <input
-                          id="min-edit-title"
-                          value={editTitle}
-                          onChange={(e) => setEditTitle(e.target.value)}
-                        />
-                      </div>
-                    )}
-                    <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.88rem' }}>
-                      {MINISTRY_KIND_HELP[active.kind] || 'Scheda pronta da usare.'}
-                    </p>
-                    {active.sourceTitle && (
-                      <p
-                        className="muted"
-                        style={{
-                          margin: '0.35rem 0 0',
-                          overflowWrap: 'anywhere',
-                          wordBreak: 'break-word',
-                        }}
-                      >
-                        Da: {ministryDisplayTitle(active.sourceTitle)}
-                      </p>
-                    )}
-                  </div>
+              <div className="stack ministry-sheet">
+                <div
+                  className="row"
+                  style={{
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: 8,
+                  }}
+                >
+                  <span className="badge">
+                    {MINISTRY_KIND_LABELS[active.kind] || active.kind}
+                  </span>
                   <div className="row" style={{ gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
                     {!editing && active.content.trim() ? (
                       <NarrateButton text={active.content} compact />
@@ -475,21 +446,52 @@ export function MinisteroView() {
                 </div>
 
                 {!editing ? (
-                  <div
-                    className="ministry-sheet-body"
+                  <h3
+                    className="ministry-sheet-title"
                     style={{
                       margin: 0,
-                      padding: '0.85rem 0.95rem',
-                      borderRadius: 12,
-                      border: '1px solid var(--line)',
-                      background: 'color-mix(in srgb, var(--bg) 55%, white)',
-                      whiteSpace: 'pre-wrap',
+                      width: '100%',
+                      maxWidth: '100%',
                       overflowWrap: 'anywhere',
                       wordBreak: 'break-word',
-                      lineHeight: 1.55,
-                      fontSize: '0.98rem',
+                      lineHeight: 1.25,
                     }}
                   >
+                    {ministryDisplayTitle(active.title, active.topic || 'Scheda')}
+                  </h3>
+                ) : (
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label htmlFor="min-edit-title">Titolo</label>
+                    <input
+                      id="min-edit-title"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <p
+                  className="muted"
+                  style={{ margin: 0, fontSize: '0.88rem', maxWidth: '100%' }}
+                >
+                  {MINISTRY_KIND_HELP[active.kind] || 'Scheda pronta da usare nella predicazione.'}
+                </p>
+                {active.sourceTitle && (
+                  <p
+                    className="muted"
+                    style={{
+                      margin: 0,
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      maxWidth: '100%',
+                    }}
+                  >
+                    Da: {ministryDisplayTitle(active.sourceTitle)}
+                  </p>
+                )}
+
+                {!editing ? (
+                  <div className="ministry-sheet-body">
                     {active.content.trim() || '—'}
                   </div>
                 ) : (
