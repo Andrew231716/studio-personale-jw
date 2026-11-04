@@ -114,23 +114,50 @@ export async function searchMinistryArticles(params: {
   return deep.flat
 }
 
+const GENERIC_SLUGS = new Set([
+  'finder',
+  'open',
+  'share',
+  'index',
+  'home',
+  'it',
+  'en',
+  'es',
+  'fr',
+  'de',
+  'biblioteca',
+  'biblioteca-digitale',
+  'library',
+  'articoli',
+  'articles',
+  'video',
+  'videos',
+  'media',
+])
+
+function looksLikeUrl(s: string): boolean {
+  return /^https?:\/\//i.test(s) || /jw\.org/i.test(s) || /^www\./i.test(s)
+}
+
 function humanizeUrlSlug(raw: string): string {
   try {
     const u = new URL(raw, 'https://www.jw.org')
     const parts = u.pathname.split('/').filter(Boolean)
-    const last = parts[parts.length - 1] || parts[parts.length - 2] || ''
-    const cleaned = decodeURIComponent(last)
-      .replace(/\.(html?|xhtml)$/i, '')
-      .replace(/[-_+]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    if (cleaned.length >= 4) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const cleaned = decodeURIComponent(parts[i])
+        .replace(/\.(html?|xhtml)$/i, '')
+        .replace(/[-_+]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      if (cleaned.length < 4) continue
+      if (GENERIC_SLUGS.has(cleaned.toLowerCase())) continue
+      if (/^\d+$/.test(cleaned)) continue
       return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
     }
   } catch {
     /* ignore */
   }
-  return 'Materiale jw.org'
+  return ''
 }
 
 function sameDocOrUrl(a: JwResult, url: string, docid?: string): boolean {
@@ -140,6 +167,54 @@ function sameDocOrUrl(a: JwResult, url: string, docid?: string): boolean {
     return norm(a.url) === norm(url) || (a.wolUrl ? norm(a.wolUrl) === norm(url) : false)
   } catch {
     return false
+  }
+}
+
+/** Titolo sicuro per schede: mai URL grezzi o «Finder». */
+export function ministryDisplayTitle(raw?: string | null, fallback = 'Materiale jw.org'): string {
+  const t = (raw || '').trim()
+  if (!t || looksLikeUrl(t)) return fallback
+  if (/^(finder|open|share)$/i.test(t)) return fallback
+  return t.slice(0, 140)
+}
+
+async function resolveViaPageApi(
+  input: string,
+  language: string,
+  docid?: string,
+): Promise<JwResult | null> {
+  const params = new URLSearchParams({ language })
+  if (docid) params.set('docid', docid)
+  else params.set('url', input)
+  try {
+    const { readApiJson } = await import('./apiJson')
+    const res = await fetch(`/api/jw-resolve?${params.toString()}`)
+    const data = await readApiJson<{
+      title?: string
+      snippet?: string
+      url?: string
+      docid?: string
+      kind?: string
+      error?: string
+    }>(res, 'Impossibile risolvere il link jw.org')
+    const title = ministryDisplayTitle(data.title)
+    if (!title || title === 'Materiale jw.org') return null
+    const isVideo = data.kind === 'video'
+    return {
+      id: data.docid || docid || uid('link'),
+      title,
+      snippet: data.snippet || '',
+      kind: isVideo ? 'video' : 'article',
+      section: isVideo ? 'video' : 'articoli',
+      url:
+        data.url ||
+        (docid
+          ? `https://www.jw.org/finder?wtlocale=${encodeURIComponent(language)}&docid=${encodeURIComponent(docid)}&srcid=share`
+          : input),
+      docid: data.docid || docid,
+    }
+  } catch {
+    return null
   }
 }
 
@@ -172,7 +247,7 @@ export async function resolveMinistryLink(
     }
   }
 
-  const looksUrl = /^https?:\/\//i.test(input) || /jw\.org/i.test(input)
+  const looksUrl = looksLikeUrl(input)
   if (!looksUrl && !refs.docid && !refs.pub) {
     throw new Error(
       'Serve un link jw.org di un video o di un articolo, oppure un codice video (es. pub-…_VIDEO).',
@@ -182,15 +257,21 @@ export async function resolveMinistryLink(
   const url = /^https?:\/\//i.test(input)
     ? input
     : refs.docid
-      ? `https://www.jw.org/open?docid=${encodeURIComponent(refs.docid)}&prefer=lang&wtlocale=${encodeURIComponent(language)}`
+      ? `https://www.jw.org/finder?wtlocale=${encodeURIComponent(language)}&docid=${encodeURIComponent(refs.docid)}&srcid=share`
       : refs.pub
         ? `https://www.jw.org/open?pub=${encodeURIComponent(refs.pub)}&prefer=lang&wtlocale=${encodeURIComponent(language)}`
         : `https://${input.replace(/^\/+/, '')}`
 
+  // 1) Pagina reale (finder?docid=… → titolo articolo)
+  const fromPage = await resolveViaPageApi(url, language, refs.docid)
+  if (fromPage) return fromPage
+
+  // 2) Ricerca jw.org con slug utile (non «Finder»)
   const titleHint = humanizeUrlSlug(url)
   const queries = [titleHint, refs.docid, refs.pub].filter(Boolean) as string[]
   let hits: JwResult[] = []
   for (const q of queries.slice(0, 2)) {
+    if (/^(finder|open)$/i.test(q)) continue
     const found = await searchJw(q, { language, filter: 'publications' }).catch(
       () => [] as JwResult[],
     )
@@ -207,20 +288,24 @@ export async function resolveMinistryLink(
         ? h.title.toLowerCase().includes(titleHint.toLowerCase().slice(0, 24))
         : false,
     ) ||
+    (refs.docid ? hits.find((h) => h.docid === refs.docid) : undefined) ||
     hits[0]
 
   if (match) {
     return {
       ...match,
+      title: ministryDisplayTitle(match.title, titleHint || 'Articolo jw.org'),
       url: match.url || url,
       docid: match.docid || refs.docid,
       wolUrl: match.wolUrl || (/wol\.jw\.org/i.test(url) ? url : match.wolUrl),
     }
   }
 
+  const fallbackTitle =
+    titleHint || (refs.docid ? `Articolo jw.org (${refs.docid})` : 'Articolo jw.org')
   return {
     id: refs.docid || refs.pub || uid('link'),
-    title: titleHint,
+    title: fallbackTitle,
     snippet: '',
     kind: 'article',
     section: 'articoli',
@@ -238,19 +323,27 @@ export async function buildMinistryAssist(params: {
   focus?: Pick<JwResult, 'title' | 'url' | 'snippet' | 'context' | 'lank' | 'docid' | 'kind' | 'section'>
 }): Promise<MinistryAssistNote> {
   const language = params.language || 'I'
-  const topic = params.topic.trim()
+  const focusTitle = ministryDisplayTitle(params.focus?.title, '')
+  const topicRaw = params.topic.trim()
+  const topic = ministryDisplayTitle(
+    looksLikeUrl(topicRaw) ? '' : topicRaw,
+    focusTitle || 'Tema ministero',
+  )
 
   let results: JwResult[] = []
   if (params.focus?.url) {
-    const isVideo = params.focus.kind === 'video' || Boolean(params.focus.lank && isMediaLank(params.focus.lank))
-    const extra = await searchJw(topic || params.focus.title, {
+    const isVideo =
+      params.focus.kind === 'video' ||
+      Boolean(params.focus.lank && isMediaLank(params.focus.lank))
+    const searchQ = focusTitle || topic
+    const extra = await searchJw(searchQ, {
       language,
       filter: isVideo ? 'videos' : 'publications',
     }).catch(() => [] as JwResult[])
     results = [
       {
         id: params.focus.docid || params.focus.lank || uid('focus'),
-        title: params.focus.title,
+        title: focusTitle || 'Materiale jw.org',
         snippet: params.focus.snippet || '',
         kind: params.focus.kind || (isVideo ? 'video' : 'article'),
         section: params.focus.section || (isVideo ? 'video' : 'articoli'),
@@ -273,14 +366,15 @@ export async function buildMinistryAssist(params: {
 
   const resources = resultsToResources(results)
   const sourceBlock = sourceBlockFromResults(results)
+  const labelTopic = focusTitle || topic
 
   let content = ''
   try {
     content = await askAi({
-      prompt: promptForKind(params.kind, topic || params.focus?.title || ''),
-      context: `Tema ministero: ${topic}\nTipo: ${MINISTRY_KIND_LABELS[params.kind]}\n${
+      prompt: promptForKind(params.kind, labelTopic),
+      context: `Tema ministero: ${labelTopic}\nTipo: ${MINISTRY_KIND_LABELS[params.kind]}\n${
         params.focus
-          ? `Materiale principale: ${params.focus.title}\nURL: ${params.focus.url}\n${
+          ? `Materiale principale: ${focusTitle || params.focus.title}\nURL: ${params.focus.url}\n${
               params.focus.snippet
                 ? `Anteprima/descrizione: ${params.focus.snippet.slice(0, 500)}\n`
                 : ''
@@ -291,7 +385,7 @@ export async function buildMinistryAssist(params: {
     })
   } catch {
     content = [
-      `Tema: ${topic || params.focus?.title || ''}`,
+      `Tema: ${labelTopic}`,
       '',
       'Cerca su jw.org articoli aggiornati su questo argomento.',
       'Prepara: 1 scrittura, 1 punto principale, 1 domanda gentile, 1 invito a leggere insieme.',
@@ -300,15 +394,12 @@ export async function buildMinistryAssist(params: {
 
   return {
     id: uid('min'),
-    title: `${MINISTRY_KIND_LABELS[params.kind]}: ${topic || params.focus?.title || ''}`.slice(
-      0,
-      120,
-    ),
+    title: `${MINISTRY_KIND_LABELS[params.kind]}: ${labelTopic}`.slice(0, 120),
     kind: params.kind,
-    topic: topic || params.focus?.title || '',
+    topic: labelTopic,
     content,
     resources,
-    sourceTitle: params.focus?.title,
+    sourceTitle: focusTitle || undefined,
     sourceUrl: params.focus?.url,
     createdAt: new Date().toISOString(),
   }

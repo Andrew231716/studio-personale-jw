@@ -15,6 +15,7 @@ import {
   MINISTRY_KIND_LABELS,
   MINISTRY_SUGGESTIONS,
   buildMinistryAssist,
+  ministryDisplayTitle,
   resolveMinistryLink,
   searchMinistryArticles,
 } from '../lib/ministryAssist'
@@ -119,9 +120,11 @@ export function MinisteroView() {
     setTab('aiuto')
     try {
       const focus = await resolveMinistryLink(raw, language)
-      const useTopic = topic.trim() || focus.title
+      const useTopic = ministryDisplayTitle(topic, focus.title)
       setTopic(useTopic)
-      setLinkPaste(focus.url || raw)
+      // Mantieni il link incollato; mostra URL canonico se più chiaro
+      if (focus.url && !/finder\?/i.test(raw)) setLinkPaste(focus.url)
+      else if (focus.url) setLinkPaste(raw)
       const note = await buildMinistryAssist({
         kind,
         topic: useTopic,
@@ -357,14 +360,29 @@ export function MinisteroView() {
             {!busy && active ? (
               <div className="stack">
                 <div className="section-head">
-                  <div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
                     <span className="badge">
                       {MINISTRY_KIND_LABELS[active.kind] || active.kind}
                     </span>
-                    <h3 style={{ margin: '0.4rem 0 0' }}>{active.title}</h3>
+                    <h3
+                      style={{
+                        margin: '0.4rem 0 0',
+                        overflowWrap: 'anywhere',
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {ministryDisplayTitle(active.title, active.topic || 'Scheda')}
+                    </h3>
                     {active.sourceTitle && (
-                      <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-                        Da: {active.sourceTitle}
+                      <p
+                        className="muted"
+                        style={{
+                          margin: '0.35rem 0 0',
+                          overflowWrap: 'anywhere',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        Da: {ministryDisplayTitle(active.sourceTitle)}
                       </p>
                     )}
                   </div>
@@ -373,13 +391,13 @@ export function MinisteroView() {
                   label="Titolo"
                   value={active.title}
                   onChange={(value) => updateNote(active.id, { title: value })}
-                  rows={1}
+                  rows={2}
                 />
                 <ExpandableField
                   label="Contenuto (modificabile)"
                   value={active.content}
                   onChange={(value) => updateNote(active.id, { content: value })}
-                  rows={12}
+                  rows={14}
                   narrate
                 />
                 <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -390,10 +408,13 @@ export function MinisteroView() {
                     className="btn secondary"
                     type="button"
                     onClick={() => {
-                      addDiscourseNote(active.title || 'Discorso', {
-                        body: active.content,
-                        sourceMinistryNoteId: active.id,
-                      })
+                      addDiscourseNote(
+                        ministryDisplayTitle(active.title, active.topic || 'Discorso'),
+                        {
+                          body: active.content,
+                          sourceMinistryNoteId: active.id,
+                        },
+                      )
                       setView('discorso')
                     }}
                   >
@@ -429,7 +450,9 @@ export function MinisteroView() {
             <div className="list">
               {(active?.resources || []).map((r) => (
                 <div className="list-item" key={r.id}>
-                  <strong>{r.title}</strong>
+                  <strong style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
+                    {ministryDisplayTitle(r.title)}
+                  </strong>
                   {r.notes && (
                     <p className="muted" style={{ margin: '0.25rem 0' }}>
                       {r.notes.slice(0, 140)}
@@ -455,32 +478,58 @@ export function MinisteroView() {
             <h3 style={{ marginTop: '1.25rem' }}>Schede salvate ({notes.length})</h3>
             <div className="list">
               {notes.length === 0 && <div className="empty">Nessuna scheda ancora.</div>}
-              {notes.map((n) => (
-                <div
-                  className={`list-item ${active?.id === n.id ? 'active' : ''}`}
-                  key={n.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => setActiveId(n.id)}
-                  onKeyDown={(e) => e.key === 'Enter' && setActiveId(n.id)}
-                >
-                  <div className="row" style={{ justifyContent: 'space-between' }}>
-                    <strong>{n.title}</strong>
-                    <button
-                      className="btn secondary small"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        removeNote(n.id)
-                        if (activeId === n.id) setActiveId(null)
+              {notes.map((n) => {
+                const cardTitle = ministryDisplayTitle(
+                  n.title,
+                  ministryDisplayTitle(n.sourceTitle, ministryDisplayTitle(n.topic, 'Scheda')),
+                )
+                return (
+                  <div
+                    className={`list-item ${active?.id === n.id ? 'active' : ''}`}
+                    key={n.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setActiveId(n.id)}
+                    onKeyDown={(e) => e.key === 'Enter' && setActiveId(n.id)}
+                  >
+                    <div
+                      className="row"
+                      style={{
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        flexWrap: 'nowrap',
+                        gap: 8,
                       }}
                     >
-                      <Trash2 size={14} />
-                    </button>
+                      <strong
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          overflowWrap: 'anywhere',
+                          wordBreak: 'break-word',
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        {cardTitle}
+                      </strong>
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        style={{ flexShrink: 0 }}
+                        aria-label="Elimina scheda"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          removeNote(n.id)
+                          if (activeId === n.id) setActiveId(null)
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <span className="badge">{MINISTRY_KIND_LABELS[n.kind] || n.kind}</span>
                   </div>
-                  <span className="badge">{MINISTRY_KIND_LABELS[n.kind] || n.kind}</span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </section>
         </div>
