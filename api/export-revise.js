@@ -3,12 +3,7 @@
  * Non inventa contenuti; corregge solo forma e chiarezza.
  */
 
-import {
-  chatCompletion,
-  resolveGeminiKey,
-  resolveOpenAiKey,
-  resolveProvider,
-} from './openaiChat.js'
+import { chatCompletion, resolveGeminiKey, resolveProvider } from './llmChat.js'
 
 const MAX_PIECES = 40
 const MAX_CHARS_TOTAL = 14000
@@ -108,7 +103,6 @@ ${payload}`
     max_tokens: 4000,
     model: opts?.model,
     provider: opts?.provider || 'free',
-    apiKey: opts?.apiKey,
     geminiApiKey: opts?.geminiApiKey,
   })
 
@@ -141,14 +135,12 @@ export default async function handler(req, res) {
     let engine = 'local'
     let revised = local
     const provider = resolveProvider(req, body)
-    const apiKey = resolveOpenAiKey(req, body)
     const geminiApiKey = resolveGeminiKey(req, body)
     const model = String(body.model || '').trim() || undefined
 
     try {
       const aiRaw = await reviseWithAi(kind, language, local, {
         provider,
-        apiKey,
         geminiApiKey,
         model,
       })

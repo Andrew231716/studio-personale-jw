@@ -1,4 +1,4 @@
-import { openAiRequestExtras } from './ai'
+import { aiRequestExtras } from './ai'
 import { localPolishDiscourse } from './discourseAi'
 import { ensureSections, joinSections, totalMinutes } from './discourseStructure'
 import { normalizeJwItalian } from './jwItalianTerms'
@@ -44,7 +44,7 @@ async function revisePiecesRemote(
   }
 
   try {
-    const extras = openAiRequestExtras()
+    const extras = aiRequestExtras()
     const res = await fetch('/api/export-revise', {
       method: 'POST',
       headers: extras.headers,

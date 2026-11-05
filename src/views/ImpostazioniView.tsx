@@ -17,14 +17,13 @@ import {
   getCachedVerseCount,
   getOfflineBibleStats,
 } from '../lib/bibleText'
-import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS, OPENAI_MODEL_OPTIONS } from '../lib/ai'
+import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS } from '../lib/ai'
 import { NARRATION_VOICES } from '../lib/speechNarration'
 import type {
   AiProviderPref,
   GeminiModelPref,
   NarrationEnginePref,
   NarrationVoicePref,
-  OpenAiModelPref,
 } from '../types'
 import { NarrateButton } from '../components/NarrateButton'
 import {
@@ -206,25 +205,22 @@ export function ImpostazioniView() {
       <section className="panel">
         <h2>Motore AI</h2>
         <p className="lede">
-          Di default l’app usa un motore <strong>gratuito</strong> (stile ChatGPT) per Assistente,
-          Quaderno, Decisioni, Discorso, Ministero e export — senza abbonamento Plus e senza
-          crediti a pagamento.
+          Motore <strong>gratuito</strong> per Assistente, Quaderno, Decisioni, Discorso, Ministero
+          e export. Nessun account OpenAI o ChatGPT Plus.
         </p>
         <div className="field">
           <label htmlFor="ai-provider">Provider</label>
           <select
             id="ai-provider"
-            value={settings.openAi?.provider || 'free'}
+            value={settings.ai?.provider || 'free'}
             onChange={(e) =>
               updateSettings({
-                openAi: {
-                  ...settings.openAi,
+                ai: {
                   provider: e.target.value as AiProviderPref,
-                  apiKey: settings.openAi?.apiKey || '',
-                  model: settings.openAi?.model || 'gpt-4o-mini',
-                  geminiApiKey: settings.openAi?.geminiApiKey || '',
-                  geminiModel: settings.openAi?.geminiModel || 'gemini-2.0-flash',
+                  geminiApiKey: settings.ai?.geminiApiKey || '',
+                  geminiModel: settings.ai?.geminiModel || 'gemini-2.0-flash',
                 },
+                openAi: undefined,
               })
             }
           >
@@ -235,123 +231,58 @@ export function ImpostazioniView() {
             ))}
           </select>
         </div>
-
-        {(settings.openAi?.provider || 'free') !== 'openai' && (
-          <>
-            <div className="field">
-              <label htmlFor="gemini-key">Chiave Gemini (opzionale, gratuita)</label>
-              <input
-                id="gemini-key"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="AIza…"
-                value={settings.openAi?.geminiApiKey || ''}
-                onChange={(e) =>
-                  updateSettings({
-                    openAi: {
-                      ...settings.openAi,
-                      provider: settings.openAi?.provider || 'free',
-                      apiKey: settings.openAi?.apiKey || '',
-                      model: settings.openAi?.model || 'gpt-4o-mini',
-                      geminiApiKey: e.target.value,
-                      geminiModel: settings.openAi?.geminiModel || 'gemini-2.0-flash',
-                    },
-                  })
-                }
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="gemini-model">Modello Gemini</label>
-              <select
-                id="gemini-model"
-                value={settings.openAi?.geminiModel || 'gemini-2.0-flash'}
-                onChange={(e) =>
-                  updateSettings({
-                    openAi: {
-                      ...settings.openAi,
-                      provider: settings.openAi?.provider || 'free',
-                      apiKey: settings.openAi?.apiKey || '',
-                      model: settings.openAi?.model || 'gpt-4o-mini',
-                      geminiApiKey: settings.openAi?.geminiApiKey || '',
-                      geminiModel: e.target.value as GeminiModelPref,
-                    },
-                  })
-                }
-              >
-                {GEMINI_MODEL_OPTIONS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Senza chiave Gemini l’app usa comunque un motore gratuito (senza registrazione). Con
-              una chiave free da{' '}
-              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
-                Google AI Studio
-              </a>{' '}
-              la qualità è più stabile. Nessuna carta di credito richiesta per il piano free.
-            </p>
-          </>
-        )}
-
-        {(settings.openAi?.provider || 'free') === 'openai' && (
-          <>
-            <p className="muted" style={{ marginTop: 0 }}>
-              OpenAI richiede crediti API su platform.openai.com. <strong>ChatGPT Plus non basta</strong>.
-            </p>
-            <div className="field">
-              <label htmlFor="openai-key">Chiave API OpenAI</label>
-              <input
-                id="openai-key"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder="sk-…"
-                value={settings.openAi?.apiKey || ''}
-                onChange={(e) =>
-                  updateSettings({
-                    openAi: {
-                      ...settings.openAi,
-                      provider: 'openai',
-                      apiKey: e.target.value,
-                      model: settings.openAi?.model || 'gpt-4o-mini',
-                      geminiApiKey: settings.openAi?.geminiApiKey || '',
-                      geminiModel: settings.openAi?.geminiModel || 'gemini-2.0-flash',
-                    },
-                  })
-                }
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="openai-model">Modello OpenAI</label>
-              <select
-                id="openai-model"
-                value={settings.openAi?.model || 'gpt-4o-mini'}
-                onChange={(e) =>
-                  updateSettings({
-                    openAi: {
-                      ...settings.openAi,
-                      provider: 'openai',
-                      apiKey: settings.openAi?.apiKey || '',
-                      model: e.target.value as OpenAiModelPref,
-                      geminiApiKey: settings.openAi?.geminiApiKey || '',
-                      geminiModel: settings.openAi?.geminiModel || 'gemini-2.0-flash',
-                    },
-                  })
-                }
-              >
-                {OPENAI_MODEL_OPTIONS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
+        <div className="field">
+          <label htmlFor="gemini-key">Chiave Gemini (opzionale, gratuita)</label>
+          <input
+            id="gemini-key"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="AIza…"
+            value={settings.ai?.geminiApiKey || ''}
+            onChange={(e) =>
+              updateSettings({
+                ai: {
+                  provider: settings.ai?.provider || 'free',
+                  geminiApiKey: e.target.value,
+                  geminiModel: settings.ai?.geminiModel || 'gemini-2.0-flash',
+                },
+                openAi: undefined,
+              })
+            }
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="gemini-model">Modello Gemini</label>
+          <select
+            id="gemini-model"
+            value={settings.ai?.geminiModel || 'gemini-2.0-flash'}
+            onChange={(e) =>
+              updateSettings({
+                ai: {
+                  provider: settings.ai?.provider || 'free',
+                  geminiApiKey: settings.ai?.geminiApiKey || '',
+                  geminiModel: e.target.value as GeminiModelPref,
+                },
+                openAi: undefined,
+              })
+            }
+          >
+            {GEMINI_MODEL_OPTIONS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+          Senza chiave Gemini l’app usa comunque un motore gratuito (senza registrazione). Con una
+          chiave free da{' '}
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
+            Google AI Studio
+          </a>{' '}
+          la qualità è più stabile.
+        </p>
       </section>
 
       <section className="panel">

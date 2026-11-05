@@ -3,22 +3,14 @@ import { JW_ITALIAN_TERM_HINT, normalizeJwItalian } from './jwItalianTerms'
 import type {
   AiMessage,
   AiProviderPref,
+  AiSettings,
   DecisionItem,
   GeminiModelPref,
   JwResult,
-  OpenAiModelPref,
   StudyTopic,
 } from '../types'
 import { uid } from './id'
 import { useAppStore } from '../store/useAppStore'
-
-export const OPENAI_MODEL_OPTIONS: Array<{ id: OpenAiModelPref; label: string }> = [
-  { id: 'gpt-4o-mini', label: 'GPT-4o mini (veloce, consigliato)' },
-  { id: 'gpt-4o', label: 'GPT-4o (più capace)' },
-  { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
-  { id: 'gpt-4.1', label: 'GPT-4.1' },
-  { id: 'o4-mini', label: 'o4-mini (ragionamento)' },
-]
 
 export const GEMINI_MODEL_OPTIONS: Array<{ id: GeminiModelPref; label: string }> = [
   { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (consigliato, gratuito)' },
@@ -28,59 +20,55 @@ export const GEMINI_MODEL_OPTIONS: Array<{ id: GeminiModelPref; label: string }>
 
 export const AI_PROVIDER_OPTIONS: Array<{ id: AiProviderPref; label: string }> = [
   { id: 'free', label: 'Gratuito (consigliato)' },
-  { id: 'gemini', label: 'Google Gemini (gratuito con chiave)' },
-  { id: 'openai', label: 'OpenAI / ChatGPT API (a pagamento)' },
+  { id: 'gemini', label: 'Google Gemini (con chiave free)' },
 ]
 
-/** Header + body per il proxy /api/* in base al provider scelto. */
-export function openAiRequestExtras(): {
+function readAiSettings(): AiSettings {
+  const s = useAppStore.getState().settings
+  const legacy = s.openAi
+  const cur = s.ai
+  const providerRaw = cur?.provider || legacy?.provider || 'free'
+  const provider: AiProviderPref = providerRaw === 'gemini' ? 'gemini' : 'free'
+  return {
+    provider,
+    geminiApiKey: (cur?.geminiApiKey || legacy?.geminiApiKey || '').trim(),
+    geminiModel: cur?.geminiModel || legacy?.geminiModel || 'gemini-2.0-flash',
+  }
+}
+
+/** Header + body per il proxy /api/* (solo motori gratuiti). */
+export function aiRequestExtras(): {
   headers: Record<string, string>
   provider: AiProviderPref
-  apiKey?: string
   geminiApiKey?: string
   model: string
 } {
-  const cfg = useAppStore.getState().settings.openAi
-  const provider = (cfg?.provider || 'free') as AiProviderPref
-  const openAiKey = (cfg?.apiKey || '').trim()
-  const geminiApiKey = (cfg?.geminiApiKey || '').trim()
-  const openAiModel = (cfg?.model || 'gpt-4o-mini') as OpenAiModelPref
-  const geminiModel = (cfg?.geminiModel || 'gemini-2.0-flash') as GeminiModelPref
+  const cfg = readAiSettings()
+  const provider = cfg.provider || 'free'
+  const geminiApiKey = (cfg.geminiApiKey || '').trim()
+  const geminiModel = (cfg.geminiModel || 'gemini-2.0-flash') as GeminiModelPref
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-ai-provider': provider,
   }
-
-  if (provider === 'openai' && openAiKey) {
-    headers['x-openai-key'] = openAiKey
-  }
-  if ((provider === 'free' || provider === 'gemini') && geminiApiKey) {
-    headers['x-gemini-key'] = geminiApiKey
-  }
-
-  const model =
-    provider === 'openai' ? openAiModel : provider === 'gemini' || provider === 'free'
-      ? geminiModel
-      : 'openai'
+  if (geminiApiKey) headers['x-gemini-key'] = geminiApiKey
 
   return {
     headers,
     provider,
-    apiKey: provider === 'openai' ? openAiKey || undefined : undefined,
-    geminiApiKey:
-      provider === 'free' || provider === 'gemini' ? geminiApiKey || undefined : undefined,
-    model,
+    geminiApiKey: geminiApiKey || undefined,
+    model: geminiModel,
   }
 }
 
-export function hasOpenAiKeyConfigured(): boolean {
-  const cfg = useAppStore.getState().settings.openAi
-  return (cfg?.provider || 'free') === 'openai' && Boolean((cfg?.apiKey || '').trim())
+/** @deprecated usa aiRequestExtras */
+export function openAiRequestExtras() {
+  return aiRequestExtras()
 }
 
 export function getAiProvider(): AiProviderPref {
-  return (useAppStore.getState().settings.openAi?.provider || 'free') as AiProviderPref
+  return readAiSettings().provider || 'free'
 }
 
 const SYSTEM_GROUNDING = `Sei un assistente per lo studio personale dei Testimoni di Geova.
@@ -127,66 +115,10 @@ export async function askAi(params: {
   try {
     const remote = await askRemoteAi(prompt, history, context)
     if (remote?.trim()) return enforceGrounding(remote.trim(), allowedUrls)
-  } catch (e) {
-    // Solo con OpenAI a pagamento mostriamo l’errore dedicato (crediti/chiave).
-    // Con motore gratuito passiamo al coach locale senza bloccare l’uso.
-    if (hasOpenAiKeyConfigured()) {
-      return normalizeJwItalian(formatOpenAiUserError(e))
-    }
+  } catch {
+    // Motore remoto non disponibile → coach locale
   }
   return normalizeJwItalian(localCoach(prompt, context))
-}
-
-/** Messaggi chiari per errori tipici OpenAI (crediti, chiave, limiti…). */
-export function formatOpenAiUserError(error: unknown): string {
-  const detail = error instanceof Error ? error.message : 'OpenAI non disponibile'
-  const lower = detail.toLowerCase()
-
-  if (
-    /no credits remaining|insufficient_quota|exceeded your current quota|billing/i.test(
-      lower,
-    )
-  ) {
-    return [
-      'La chiave API è riconosciuta, ma sull’account OpenAI non ci sono crediti API.',
-      '',
-      'ChatGPT Plus (l’abbonamento su chatgpt.com) non include i crediti per le API usate da questa app.',
-      'Serve un pagamento/credito su platform.openai.com (Billing), separato da Plus.',
-      '',
-      'Aggiungi crediti qui:',
-      'https://platform.openai.com/settings/organization/billing',
-      '',
-      `Dettaglio tecnico: ${detail}`,
-    ].join('\n')
-  }
-
-  if (/incorrect api key|invalid.?api.?key|authentication|401/i.test(lower)) {
-    return [
-      'La chiave API non è valida o è stata revocata.',
-      '',
-      'Crea una nuova chiave su platform.openai.com/api-keys e aggiornala in Impostazioni → ChatGPT / OpenAI.',
-      '',
-      `Dettaglio tecnico: ${detail}`,
-    ].join('\n')
-  }
-
-  if (/rate.?limit|429|too many requests/i.test(lower)) {
-    return [
-      'OpenAI ha limitato temporaneamente le richieste (troppo traffico o piano base).',
-      '',
-      'Riprova tra poco. Se succede spesso, aumenta i limiti in platform.openai.com.',
-      '',
-      `Dettaglio tecnico: ${detail}`,
-    ].join('\n')
-  }
-
-  return [
-    'Non riesco a usare ChatGPT al momento.',
-    '',
-    detail,
-    '',
-    'Controlla la chiave in Impostazioni → ChatGPT / OpenAI, oppure riprova tra poco.',
-  ].join('\n')
 }
 
 async function askRemoteAi(
@@ -205,7 +137,7 @@ async function askRemoteAi(
     },
   ]
 
-  const extras = openAiRequestExtras()
+  const extras = aiRequestExtras()
   const res = await fetch('/api/ai', {
     method: 'POST',
     headers: extras.headers,

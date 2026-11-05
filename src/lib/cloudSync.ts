@@ -75,13 +75,12 @@ function snapshotFromStore(): ICloudSnapshot {
   // Non sincronizzare le chiavi AI sul cloud (restano solo sul dispositivo).
   const settings: AppSettings = {
     ...s.settings,
-    openAi: {
-      provider: s.settings.openAi?.provider || 'free',
-      apiKey: '',
-      model: s.settings.openAi?.model || 'gpt-4o-mini',
+    ai: {
+      provider: s.settings.ai?.provider || 'free',
       geminiApiKey: '',
-      geminiModel: s.settings.openAi?.geminiModel || 'gemini-2.0-flash',
+      geminiModel: s.settings.ai?.geminiModel || 'gemini-2.0-flash',
     },
+    openAi: undefined,
   }
   return {
     version: 1,
