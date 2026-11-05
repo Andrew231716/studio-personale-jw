@@ -1,7 +1,34 @@
 import { DECISION_STEPS, STUDY_STEPS } from './studyMethod'
 import { JW_ITALIAN_TERM_HINT, normalizeJwItalian } from './jwItalianTerms'
-import type { AiMessage, DecisionItem, JwResult, StudyTopic } from '../types'
+import type { AiMessage, DecisionItem, JwResult, OpenAiModelPref, StudyTopic } from '../types'
 import { uid } from './id'
+import { useAppStore } from '../store/useAppStore'
+
+export const OPENAI_MODEL_OPTIONS: Array<{ id: OpenAiModelPref; label: string }> = [
+  { id: 'gpt-4o-mini', label: 'GPT-4o mini (veloce, consigliato)' },
+  { id: 'gpt-4o', label: 'GPT-4o (più capace)' },
+  { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+  { id: 'gpt-4.1', label: 'GPT-4.1' },
+  { id: 'o4-mini', label: 'o4-mini (ragionamento)' },
+]
+
+/** Header + campi body per passare la chiave OpenAI al proxy /api/*. */
+export function openAiRequestExtras(): {
+  headers: Record<string, string>
+  apiKey?: string
+  model: OpenAiModelPref
+} {
+  const cfg = useAppStore.getState().settings.openAi
+  const apiKey = (cfg?.apiKey || '').trim()
+  const model = (cfg?.model || 'gpt-4o-mini') as OpenAiModelPref
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) headers['x-openai-key'] = apiKey
+  return { headers, apiKey: apiKey || undefined, model }
+}
+
+export function hasOpenAiKeyConfigured(): boolean {
+  return Boolean((useAppStore.getState().settings.openAi?.apiKey || '').trim())
+}
 
 const SYSTEM_GROUNDING = `Sei un assistente per lo studio personale dei Testimoni di Geova.
 Usi SOLO informazioni e linguaggio tipici di jw.org / JW Library / Traduzione del Nuovo Mondo (italiano).
@@ -45,15 +72,21 @@ export async function askAi(params: {
 }): Promise<string> {
   const { prompt, history = [], context = '', allowedUrls = [] } = params
   try {
-    const remote = await askPollinations(prompt, history, context)
+    const remote = await askRemoteAi(prompt, history, context)
     if (remote?.trim()) return enforceGrounding(remote.trim(), allowedUrls)
-  } catch {
-    // fallback locale
+  } catch (e) {
+    // Con chiave OpenAI configurata, non nascondere l’errore dietro il coach locale.
+    if (hasOpenAiKeyConfigured()) {
+      const detail = e instanceof Error ? e.message : 'OpenAI non disponibile'
+      return normalizeJwItalian(
+        `Non riesco a usare ChatGPT al momento.\n\n${detail}\n\nControlla la chiave in Impostazioni → ChatGPT / OpenAI, oppure riprova tra poco.`,
+      )
+    }
   }
   return normalizeJwItalian(localCoach(prompt, context))
 }
 
-async function askPollinations(
+async function askRemoteAi(
   prompt: string,
   history: AiMessage[],
   context: string,
@@ -69,23 +102,29 @@ async function askPollinations(
     },
   ]
 
+  const extras = openAiRequestExtras()
   const res = await fetch('/api/ai', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: extras.headers,
     body: JSON.stringify({
       messages,
-      model: 'openai',
+      model: extras.apiKey ? extras.model : 'openai',
       temperature: 0.25,
-      seed: Date.now() % 100000,
       // Evita risposte tagliate a metà (sintesi lunghe / analisi decisioni).
       max_tokens: 3500,
     }),
   })
 
-  if (!res.ok) throw new Error(`AI HTTP ${res.status}`)
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(errText.trim() || `AI HTTP ${res.status}`)
+  }
   const text = await res.text()
   try {
-    const json = JSON.parse(text) as { choices?: Array<{ message?: { content?: string } }> }
+    const json = JSON.parse(text) as {
+      choices?: Array<{ message?: { content?: string } }>
+      engine?: string
+    }
     const content = json.choices?.[0]?.message?.content
     if (content) return content
   } catch {

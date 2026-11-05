@@ -102,6 +102,10 @@ const defaultSettings: AppSettings = {
     enabled: true,
     syncKey: '',
   },
+  openAi: {
+    apiKey: '',
+    model: 'gpt-4o-mini',
+  },
 }
 
 function emptyDraft(topicId: string | null = null): StudySessionDraft {
@@ -299,6 +303,12 @@ export function mergeAppSettings(
       ? { ...base.cloudSync, ...incoming.cloudSync }
       : base.cloudSync,
     iCloud: incoming.iCloud ? { ...base.iCloud, ...incoming.iCloud } : base.iCloud,
+    openAi: {
+      // Chiave: non azzerare quella locale se il sync/backup arriva senza
+      apiKey:
+        (incoming.openAi?.apiKey || '').trim() || base.openAi?.apiKey || '',
+      model: incoming.openAi?.model ?? base.openAi?.model ?? 'gpt-4o-mini',
+    },
     navOrder: Array.isArray(incoming.navOrder) && incoming.navOrder.length
       ? incoming.navOrder
       : base.navOrder,
@@ -906,6 +916,14 @@ export const useAppStore = create<AppState>()(
             cloudSync: {
               ...current.settings.cloudSync!,
               ...(p.settings?.cloudSync || {}),
+            },
+            openAi: {
+              apiKey:
+                (p.settings?.openAi?.apiKey || '').trim() ||
+                current.settings.openAi?.apiKey ||
+                '',
+              model:
+                p.settings?.openAi?.model ?? current.settings.openAi?.model ?? 'gpt-4o-mini',
             },
             navOrder: (() => {
               let order = [...(p.settings?.navOrder || current.settings.navOrder)]
