@@ -77,13 +77,62 @@ export async function askAi(params: {
   } catch (e) {
     // Con chiave OpenAI configurata, non nascondere l’errore dietro il coach locale.
     if (hasOpenAiKeyConfigured()) {
-      const detail = e instanceof Error ? e.message : 'OpenAI non disponibile'
-      return normalizeJwItalian(
-        `Non riesco a usare ChatGPT al momento.\n\n${detail}\n\nControlla la chiave in Impostazioni → ChatGPT / OpenAI, oppure riprova tra poco.`,
-      )
+      return normalizeJwItalian(formatOpenAiUserError(e))
     }
   }
   return normalizeJwItalian(localCoach(prompt, context))
+}
+
+/** Messaggi chiari per errori tipici OpenAI (crediti, chiave, limiti…). */
+export function formatOpenAiUserError(error: unknown): string {
+  const detail = error instanceof Error ? error.message : 'OpenAI non disponibile'
+  const lower = detail.toLowerCase()
+
+  if (
+    /no credits remaining|insufficient_quota|exceeded your current quota|billing/i.test(
+      lower,
+    )
+  ) {
+    return [
+      'La chiave API è riconosciuta, ma sull’account OpenAI non ci sono crediti API.',
+      '',
+      'ChatGPT Plus (l’abbonamento su chatgpt.com) non include i crediti per le API usate da questa app.',
+      'Serve un pagamento/credito su platform.openai.com (Billing), separato da Plus.',
+      '',
+      'Aggiungi crediti qui:',
+      'https://platform.openai.com/settings/organization/billing',
+      '',
+      `Dettaglio tecnico: ${detail}`,
+    ].join('\n')
+  }
+
+  if (/incorrect api key|invalid.?api.?key|authentication|401/i.test(lower)) {
+    return [
+      'La chiave API non è valida o è stata revocata.',
+      '',
+      'Crea una nuova chiave su platform.openai.com/api-keys e aggiornala in Impostazioni → ChatGPT / OpenAI.',
+      '',
+      `Dettaglio tecnico: ${detail}`,
+    ].join('\n')
+  }
+
+  if (/rate.?limit|429|too many requests/i.test(lower)) {
+    return [
+      'OpenAI ha limitato temporaneamente le richieste (troppo traffico o piano base).',
+      '',
+      'Riprova tra poco. Se succede spesso, aumenta i limiti in platform.openai.com.',
+      '',
+      `Dettaglio tecnico: ${detail}`,
+    ].join('\n')
+  }
+
+  return [
+    'Non riesco a usare ChatGPT al momento.',
+    '',
+    detail,
+    '',
+    'Controlla la chiave in Impostazioni → ChatGPT / OpenAI, oppure riprova tra poco.',
+  ].join('\n')
 }
 
 async function askRemoteAi(

@@ -204,6 +204,14 @@ export function ImpostazioniView() {
           Discorso, Ministero, letture e revisione export. Senza chiave l’app usa un motore
           gratuito di riserva (meno stabile).
         </p>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Nota: <strong>ChatGPT Plus</strong> (chatgpt.com) non include i crediti API. Per questa
+          app serve un account su{' '}
+          <a href="https://platform.openai.com/settings/organization/billing" target="_blank" rel="noreferrer">
+            platform.openai.com → Billing
+          </a>{' '}
+          con crediti o metodo di pagamento.
+        </p>
         <div className="field">
           <label htmlFor="openai-key">Chiave API OpenAI</label>
           <input
@@ -246,11 +254,11 @@ export function ImpostazioniView() {
         </div>
         <p className="muted" style={{ margin: '0.35rem 0 0' }}>
           {(settings.openAi?.apiKey || '').trim()
-            ? 'ChatGPT attivo: la chiave resta su questo dispositivo (non va nel sync cloud) e passa solo al proxy dell’app.'
+            ? 'Chiave salvata su questo dispositivo (non va nel sync cloud). Se compare “no credits”, aggiungi crediti in Billing API — non basta Plus.'
             : 'Nessuna chiave: l’AI resta disponibile in modalità gratuita di riserva.'}{' '}
-          Chiave da{' '}
+          Chiavi:{' '}
           <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">
-            platform.openai.com/api-keys
+            api-keys
           </a>
           .
         </p>
