@@ -135,3 +135,6 @@ Quando il testo è interno alla congregazione (studio personale, decisioni, adun
 
 Evita linguaggio da altre confessioni: parrocchia, evangelizzazione (usa predicazione), clero, pastorale, vocazione sacerdotale, ecc.
 Se un termine non compare tipicamente su jw.org, riformulalo con parole semplici tipiche delle pubblicazioni JW.`
+
+/** Versione corta per le chiamate AI (risparmio token). */
+export const JW_ITALIAN_TERM_HINT_SHORT = `TNM/jw.org: 1–2 Corinti (non Corinzi); Rivelazione (non Apocalisse); Scritture ebraiche/greche cristiane; ministero (mai «ministeriale»); servo di ministero; congregazione, territorio, anziani, adunanze, Sala del Regno; Geova, Gesù, Regno. In predicazione: «la persona» (non fratello/sorella).`

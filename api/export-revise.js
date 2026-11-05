@@ -100,7 +100,7 @@ ${payload}`
       { role: 'user', content: prompt },
     ],
     temperature: 0.15,
-    max_tokens: 1200,
+    max_tokens: 640,
     model: opts?.model,
     provider: opts?.provider || 'free',
     geminiApiKey: opts?.geminiApiKey,

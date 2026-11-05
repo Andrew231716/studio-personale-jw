@@ -1,5 +1,5 @@
 import { DECISION_STEPS, STUDY_STEPS } from './studyMethod'
-import { JW_ITALIAN_TERM_HINT, normalizeJwItalian } from './jwItalianTerms'
+import { JW_ITALIAN_TERM_HINT_SHORT, normalizeJwItalian } from './jwItalianTerms'
 import type {
   AiMessage,
   AiProviderPref,
@@ -36,11 +36,12 @@ function readAiSettings(): AiSettings {
   }
 }
 
-/** Output token limitati (piano free Gemini / risparmio). */
-export const AI_MAX_OUT_TOKENS = 1024
-const CONTEXT_CHAR_LIMIT = 7000
-const HISTORY_MSG_LIMIT = 4
-const HISTORY_CHAR_LIMIT = 1200
+/** Output token sempre bassi (piano free / risparmio). */
+export const AI_MAX_OUT_TOKENS = 512
+const CONTEXT_CHAR_LIMIT = 2800
+const HISTORY_MSG_LIMIT = 2
+const HISTORY_CHAR_LIMIT = 500
+const PROMPT_CHAR_LIMIT = 1600
 
 function clipText(value: string, max: number): string {
   const s = String(value || '')
@@ -166,39 +167,11 @@ export async function probeAiEngine(): Promise<{ ok: boolean; engine: string; te
   }
 }
 
-const SYSTEM_GROUNDING = `Sei un assistente per lo studio personale dei Testimoni di Geova.
-Usi SOLO informazioni e linguaggio tipici di jw.org / JW Library / Traduzione del Nuovo Mondo (italiano).
-
-## Fonti (obbligatorio)
-- Basa consigli e collegamenti ESCLUSIVAMENTE sui risultati di ricerca jw.org forniti nel contesto.
-- Puoi citare SOLO titoli e URL presenti in quel contesto. Non inventare articoli, video, docid o link.
-- Se i risultati non bastano, dillo chiaramente e invita a cercare su jw.org / JW Library. Non colmare i vuoti con invenzioni.
-- Non inventare citazioni letterali della Bibbia o delle pubblicazioni. Puoi parafrasare principi in modo generale e rimandare alle fonti elencate.
-- Per i riferimenti biblici, usa ESATTAMENTE i nomi dei libri della TNM italiana (come su jw.org), non quelli di altre traduzioni.
-
-## Terminologia (italiano JW — usa solo queste forme)
-${JW_ITALIAN_TERM_HINT}
-Controllo anti-sbaglio frequente: non scrivere mai «ministeriale»; scrivi «ministero» / «nel ministero» / «di ministero».
-Usa anche:
-- congregazione, territorio, anziani, servi di ministero
-- adunanze di congregazione, Riunione Vita e Ministero cristiano, assemblea di circoscrizione / di zona
-- campo, predicazione, ministero, studio biblico, discepolato
-- Geova, Gesù Cristo, Regno, verità biblica
-NON inventare nomi di riunioni, programmi, organizzazioni o luoghi (es. niente termini inventati tipo “Papa-Si-si’m”, “fratelli-di-perfezione”, chiese o gruppi inesistenti, “Washington New Life”, ecc.).
-Se non conosci il nome esatto di un’adunanza o pubblicazione, usa una descrizione generica corretta (“adunanze di congregazione”, “articolo su jw.org”) oppure rimanda ai risultati forniti.
-
-## Specificità sul contenuto dell’utente (obbligatorio)
-- Quando chiedono obiettivi, riflessioni, domande o pratiche, ancorali al materiale, alle note o alla trascrizione forniti: cita temi, esempi o consigli concreti del contesto.
-- Evita formule vuote («Capire meglio», «Applicare nella vita quotidiana», «Crescere spiritualmente») se non le colleghi a un punto specifico del materiale.
-- Se il contesto è scarso, dillo e resta sul titolo/note disponibili invece di inventare contenuti.
-
-## Stile della risposta
-- Italiano chiaro, rispettoso, caldo e pratico, come nelle pubblicazioni JW.
-- Struttura preferita: Preghiera → Obiettivi → Materiale da jw.org per sezione (Articoli, Libri, Opuscoli, Video, Guida alle ricerche, Indici, ecc. — solo fonti del contesto) → Riflessione → Applicazione.
-- Quando elenchi materiale jw.org, raggruppalo per sezione come nel contesto.
-- Per le decisioni: priorità, principi, pro/contro, conclusione basata su ciò che dice l’utente e sulle fonti elencate.
-- Non sostituisci la Bibbia, gli anziani né la coscienza personale.
-- Evita toni burocratici, slang e frasi che non suonano da pubblicazioni JW.`
+/** System prompt compatto: meno token in ingresso su ogni chiamata. */
+const SYSTEM_GROUNDING = `Assistente studio personale Testimoni di Geova (jw.org / JW Library / TNM italiana).
+Regole: cita SOLO titoli/URL del contesto; non inventare articoli, versetti letterali o nomi; se manca materiale dillo e invita a jw.org. Ancora obiettivi/riflessioni al contenuto fornito; evita frasi vuote. Italiano caldo e pratico, breve. Decisioni: priorità, pro/contro, conclusione prudente. Non sostituisci Bibbia né anziani.
+${JW_ITALIAN_TERM_HINT_SHORT}
+Rispondi in modo conciso (pochi elenchi, niente ripetizioni).`
 
 export async function askAi(params: {
   prompt: string
@@ -243,8 +216,8 @@ async function askRemoteAi(
     {
       role: 'user',
       content:
-        clipText(prompt, 4000) +
-        '\n\n(Ricorda: usa solo i risultati jw.org del contesto; terminologia JW corretta; niente nomi inventati. Risposta concisa.)',
+        clipText(prompt, PROMPT_CHAR_LIMIT) +
+        '\n\n(Solo fonti del contesto; terminologia JW; risposta breve.)',
     },
   ]
 
