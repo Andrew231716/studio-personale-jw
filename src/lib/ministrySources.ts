@@ -129,12 +129,13 @@ export function ministryCoreSourcesPromptBlock(): string {
     (s) =>
       `- ${s.title}${s.pub ? ` (pub=${s.pub})` : ''} [${s.kind}]: ${s.useFor}`,
   )
-  return `Fonti UFFICIALI da privilegiare (jw.org / JW Library) — usa il loro approccio e, se presenti nei risultati, citale per titolo:
+  return `Fonti UFFICIALI per analisi e preparazione (jw.org / JW Library) — ancora SOLO a queste per metodo e stile:
 ${lines.join('\n')}
 Istruzioni:
-- Basa aperture, punti, obiezioni e inviti sullo stile di queste pubblicazioni/video.
+- Per preparare la scheda (aperture, punti, obiezioni, inviti) usa esclusivamente l’approccio di queste pubblicazioni/video e i risultati elencati nel contesto.
 - Se nei risultati c’è una voce di «Ragioniamo» o «Efficaci nel ministero», usala in priorità.
-- Non inventare citazioni letterali lunghe da questi libri: riassumi il metodo e collega scritture/titoli presenti nel contesto.`
+- Non inventare citazioni letterali lunghe da questi libri: riassumi il metodo e collega scritture/titoli presenti nel contesto.
+- La ricerca libera di materiale su tutto jw.org è un passo separato: qui non espandere ad altre pubblicazioni fuori da questo elenco.`
 }
 
 /** Punteggio extra per ordinare i risultati (più alto = meglio). */

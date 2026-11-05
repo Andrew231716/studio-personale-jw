@@ -224,17 +224,21 @@ export function MinisteroView() {
           <div>
             <h2>Ministero</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Ti prepara una <strong>scheda di predicazione</strong> pronta da usare, basata su
-              pubblicazioni e video ufficiali di jw.org.
+              Preparazione e analisi sulle <strong>fonti ufficiali</strong> del ministero; la ricerca
+              materiale esplora invece <strong>tutto jw.org</strong>.
             </p>
           </div>
         </div>
 
         <details className="decision-fold archive-topic-fold" style={{ marginBottom: '0.85rem' }}>
           <summary className="decision-fold-summary">
-            Fonti ufficiali usate ({MINISTRY_CORE_SOURCES.length})
+            Fonti per analisi e preparazione ({MINISTRY_CORE_SOURCES.length})
           </summary>
           <div className="decision-fold-body archive-topic-body">
+            <p className="muted" style={{ margin: '0 0 0.5rem' }}>
+              Usate solo quando prepari o analizzi una scheda. Per trovare materiale apri la scheda
+              «Articoli» e cerca su tutto il sito.
+            </p>
             <ul className="muted" style={{ margin: 0, paddingLeft: '1.15rem' }}>
               {MINISTRY_CORE_SOURCES.map((s) => (
                 <li key={s.id} style={{ margin: '0.35rem 0' }}>
@@ -301,7 +305,9 @@ export function MinisteroView() {
 
         <div className="field">
           <label htmlFor="min-topic">
-            {tab === 'articoli' ? 'Cerca articoli su' : '2. Tema (o lascia vuoto se usi un link)'}
+            {tab === 'articoli'
+              ? 'Cerca materiale su tutto jw.org'
+              : '2. Tema (o lascia vuoto se usi un link)'}
           </label>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
             <input
@@ -409,7 +415,8 @@ export function MinisteroView() {
           <section className="panel">
             {busy && (
               <p className="muted">
-                Preparo la scheda «{MINISTRY_KIND_LABELS[kind]}» con materiale jw.org…
+                Preparo la scheda «{MINISTRY_KIND_LABELS[kind]}» con le fonti ufficiali del
+                ministero…
               </p>
             )}
             {!busy && active ? (
@@ -673,11 +680,13 @@ export function MinisteroView() {
 
       {tab === 'articoli' && (
         <section className="panel">
-          <h3>Articoli su jw.org</h3>
+          <h3>Ricerca materiale (tutto jw.org)</h3>
           <p className="muted">
-            Scegli un articolo e crea subito una scheda «{MINISTRY_KIND_LABELS[kind]}».
+            Cerca in pubblicazioni, video, indici e Bibbia su tutto il sito. Poi, se vuoi, prepara
+            una scheda «{MINISTRY_KIND_LABELS[kind]}» (l’analisi userà le fonti ufficiali del
+            ministero).
           </p>
-          {searchBusy && <p className="muted">Cerco su jw.org…</p>}
+          {searchBusy && <p className="muted">Cerco su tutto jw.org…</p>}
           <div className="list">
             {articles.map((a) => (
               <div className="list-item" key={a.id + a.url}>
