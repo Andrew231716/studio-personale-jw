@@ -73,11 +73,11 @@ const READY_RULES = `Regole obbligatorie:
 - Ancorati alle fonti ufficiali del contesto (Ama le persone / Ragioniamo / Traete beneficio / Applicati / Efficaci nel ministero / video Ministero).
 - Usa SOLO i materiali jw.org del contesto; cita titoli reali; non inventare link.
 - Niente citazioni bibliche lunghe: solo riferimento (TNM italiana) + 1 frase di senso.
-- Massimo ~180-220 parole.
+- Massimo ~120-150 parole.
 ${PREACHING_VOCAB}`
 
 function resultsToResources(results: JwResult[]): StudyResource[] {
-  return results.slice(0, 10).map((r) => ({
+  return results.slice(0, 6).map((r) => ({
     id: uid('res'),
     title: r.title,
     url: r.url,
@@ -174,9 +174,9 @@ Collegamento: [titolo jw.org del contesto, se c’è]`
 
 function sourceBlockFromResults(results: JwResult[]): string {
   return results
-    .slice(0, 12)
+    .slice(0, 6)
     .map((r) => {
-      const snip = r.snippet ? ` — ${r.snippet.slice(0, 160)}` : ''
+      const snip = r.snippet ? ` — ${r.snippet.slice(0, 80)}` : ''
       return `- ${r.title}${r.context ? ` (${r.context})` : ''}${snip}\n  URL: ${r.url}`
     })
     .join('\n')
@@ -560,17 +560,17 @@ export async function buildMinistryAssist(params: {
           params.focus
             ? `Materiale principale scelto dall’utente: ${focusTitle || params.focus.title}\nURL: ${params.focus.url}\n${
                 params.focus.snippet
-                  ? `Anteprima/descrizione: ${params.focus.snippet.slice(0, 500)}\n`
+                  ? `Anteprima: ${params.focus.snippet.slice(0, 180)}\n`
                   : ''
               }`
             : ''
         }\n${ministryCoreSourcesPromptBlock()}
 
-## Contesto per analisi e preparazione (SOLO fonti ufficiali Ministero${params.focus ? ' + materiale scelto' : ''})
-Usa queste fonti per metodo, aperture, punti, obiezioni e inviti. Non inventare altre pubblicazioni.
-${sourceBlock || 'Nessuna voce trovata tra le fonti ufficiali: resta sul metodo di Ragioniamo / Ama le persone / Efficaci nel ministero senza inventare titoli.'}
+## Fonti per preparazione (solo ufficiali Ministero${params.focus ? ' + scelto' : ''})
+${sourceBlock || 'Nessuna voce ufficiale: usa metodo Ragioniamo / Ama le persone / Efficaci nel ministero senza inventare titoli.'}
 
-${PREACHING_VOCAB}`,
+${PREACHING_VOCAB}
+Rispondi breve.`,
         allowedUrls: resources.map((r) => r.url),
       }),
     )

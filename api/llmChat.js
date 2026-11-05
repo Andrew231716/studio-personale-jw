@@ -23,9 +23,9 @@ const GEMINI_FALLBACKS = [
   'gemini-2.5-flash',
 ]
 
-/** Cap output: tiene basso il consumo token sul free tier. */
-const MAX_OUT_TOKENS = 1536
-const DEFAULT_OUT_TOKENS = 1024
+/** Cap output: sempre pochi token (free tier / risparmio). */
+const MAX_OUT_TOKENS = 768
+const DEFAULT_OUT_TOKENS = 512
 
 export function resolveProvider(req, body = {}) {
   const raw = String(

@@ -283,7 +283,8 @@ export function ImpostazioniView() {
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
             Google AI Studio
           </a>{' '}
-          la qualità è più stabile. Le risposte usano pochi token per restare nel piano free.
+          la qualità è più stabile. L’AI usa sempre pochi token (risposte corte, contesto
+          ridotto).
         </p>
         <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
           <button
