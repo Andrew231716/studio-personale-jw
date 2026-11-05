@@ -4,6 +4,7 @@ import { uid } from './id'
 import { extractJwRefs, isMediaLank } from './jwLibrary'
 import {
   MINISTRY_CORE_SOURCES,
+  isMinistryCoreResult,
   ministryCoreBoost,
   ministryCoreSourcesPromptBlock,
   ministrySourceQueries,
@@ -185,7 +186,18 @@ function resultKey(r: JwResult): string {
   return `${r.docid || ''}|${r.lank || ''}|${r.url}`
 }
 
-function mergeRankedMinistryResults(batches: JwResult[][]): JwResult[] {
+function mergeUniqueResults(batches: JwResult[][]): JwResult[] {
+  const map = new Map<string, JwResult>()
+  for (const batch of batches) {
+    for (const r of batch) {
+      const key = resultKey(r)
+      if (!map.has(key)) map.set(key, r)
+    }
+  }
+  return Array.from(map.values())
+}
+
+function mergeRankedMinistryCoreResults(batches: JwResult[][]): JwResult[] {
   const map = new Map<string, JwResult>()
   for (const batch of batches) {
     for (const r of batch) {
@@ -199,8 +211,27 @@ function mergeRankedMinistryResults(batches: JwResult[][]): JwResult[] {
   return Array.from(map.values()).sort((a, b) => ministryCoreBoost(b) - ministryCoreBoost(a))
 }
 
-/** Ricerca tema + fonti ufficiali (Ragioniamo, LMD, Guida, video, …). */
-async function gatherMinistryResults(params: {
+function focusAsResult(
+  focus: Pick<JwResult, 'title' | 'url' | 'snippet' | 'context' | 'lank' | 'docid' | 'kind' | 'section'>,
+): JwResult {
+  return {
+    id: focus.docid || focus.lank || uid('focus'),
+    title: focus.title,
+    snippet: focus.snippet || '',
+    kind: focus.kind || 'article',
+    section: focus.section || (focus.kind === 'video' ? 'video' : 'articoli'),
+    url: focus.url,
+    lank: focus.lank,
+    docid: focus.docid,
+    context: focus.context,
+  }
+}
+
+/**
+ * Solo fonti ufficiali Ministero (Ragioniamo, LMD, Guida, video ministero…).
+ * Usato per analisi / preparazione schede — non per la ricerca materiale libera.
+ */
+async function gatherMinistryCoreResults(params: {
   topic: string
   language: string
   focus?: Pick<JwResult, 'title' | 'url' | 'snippet' | 'context' | 'lank' | 'docid' | 'kind' | 'section'>
@@ -208,31 +239,9 @@ async function gatherMinistryResults(params: {
   const { topic, language, focus } = params
   const batches: JwResult[][] = []
 
-  if (focus?.url) {
-    batches.push([
-      {
-        id: focus.docid || focus.lank || uid('focus'),
-        title: focus.title,
-        snippet: focus.snippet || '',
-        kind: focus.kind || 'article',
-        section: focus.section || (focus.kind === 'video' ? 'video' : 'articoli'),
-        url: focus.url,
-        lank: focus.lank,
-        docid: focus.docid,
-        context: focus.context,
-      },
-    ])
-  }
+  if (focus?.url) batches.push([focusAsResult(focus)])
 
-  const deep = await searchJwDeep(`${topic} ministero predicazione`, {
-    language,
-    filters: ['publications', 'videos', 'indexes'],
-    maxQueries: 4,
-    perSection: 6,
-  }).catch(() => null)
-  if (deep?.flat.length) batches.push(deep.flat)
-
-  const targeted = ministrySourceQueries(topic).slice(0, 5)
+  const targeted = ministrySourceQueries(topic).slice(0, 6)
   const targetedHits = await Promise.all(
     targeted.map((q) =>
       searchJw(q, { language, filter: 'publications' }).catch(() => [] as JwResult[]),
@@ -246,9 +255,25 @@ async function gatherMinistryResults(params: {
   }).catch(() => [] as JwResult[])
   if (videoHits.length) batches.push(videoHits)
 
-  return mergeRankedMinistryResults(batches).slice(0, 16)
+  const deep = await searchJwDeep(`${topic} ministero`, {
+    language,
+    filters: ['publications', 'videos'],
+    maxQueries: 3,
+    perSection: 5,
+  }).catch(() => null)
+  if (deep?.flat.length) batches.push(deep.flat)
+
+  const focusKey = focus?.url ? resultKey(focusAsResult(focus)) : ''
+  const ranked = mergeRankedMinistryCoreResults(batches).filter(
+    (r) => (focusKey && resultKey(r) === focusKey) || isMinistryCoreResult(r),
+  )
+  return ranked.slice(0, 14)
 }
 
+/**
+ * Ricerca materiale su tutto jw.org (pubblicazioni, video, indici, audio, Bibbia).
+ * Non limita alle sole fonti ufficiali del Ministero.
+ */
 export async function searchMinistryArticles(params: {
   query: string
   language?: string
@@ -256,7 +281,24 @@ export async function searchMinistryArticles(params: {
   const language = params.language || 'I'
   const query = params.query.trim()
   if (!query) return []
-  return gatherMinistryResults({ topic: query, language })
+
+  const deep = await searchJwDeep(query, {
+    language,
+    filters: ['publications', 'videos', 'indexes', 'audio', 'bible'],
+    maxQueries: 5,
+    perSection: 8,
+  }).catch(() => null)
+
+  const broad = await Promise.all([
+    searchJw(query, { language, filter: 'all' }).catch(() => [] as JwResult[]),
+    searchJw(query, { language, filter: 'publications' }).catch(() => [] as JwResult[]),
+    searchJw(query, { language, filter: 'videos' }).catch(() => [] as JwResult[]),
+  ])
+
+  const merged = mergeUniqueResults([deep?.flat || [], ...broad])
+  // Ordine: punteggio tematico se presente, altrimenti come arrivano
+  merged.sort((a, b) => (b.themeScore || 0) - (a.themeScore || 0))
+  return merged.slice(0, 28)
 }
 
 const GENERIC_SLUGS = new Set([
@@ -493,7 +535,8 @@ export async function buildMinistryAssist(params: {
     focusTitle || 'Tema ministero',
   )
 
-  const results = await gatherMinistryResults({
+  // Analisi / preparazione: solo fonti ufficiali (+ eventuale materiale scelto come focus)
+  const results = await gatherMinistryCoreResults({
     topic: focusTitle || topic,
     language,
     focus: params.focus
@@ -515,13 +558,19 @@ export async function buildMinistryAssist(params: {
         prompt: promptForKind(params.kind, labelTopic),
         context: `Sezione: Ministero / predicazione (persone del territorio, non fratelli/sorelle).\nTema: ${labelTopic}\nTipo scheda: ${MINISTRY_KIND_LABELS[params.kind]}\n${
           params.focus
-            ? `Materiale principale: ${focusTitle || params.focus.title}\nURL: ${params.focus.url}\n${
+            ? `Materiale principale scelto dall’utente: ${focusTitle || params.focus.title}\nURL: ${params.focus.url}\n${
                 params.focus.snippet
                   ? `Anteprima/descrizione: ${params.focus.snippet.slice(0, 500)}\n`
                   : ''
               }`
             : ''
-        }\n${ministryCoreSourcesPromptBlock()}\n\nRisultati jw.org (privilegia quelli delle fonti ufficiali sopra):\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org le pubblicazioni elencate.'}\n${PREACHING_VOCAB}`,
+        }\n${ministryCoreSourcesPromptBlock()}
+
+## Contesto per analisi e preparazione (SOLO fonti ufficiali Ministero${params.focus ? ' + materiale scelto' : ''})
+Usa queste fonti per metodo, aperture, punti, obiezioni e inviti. Non inventare altre pubblicazioni.
+${sourceBlock || 'Nessuna voce trovata tra le fonti ufficiali: resta sul metodo di Ragioniamo / Ama le persone / Efficaci nel ministero senza inventare titoli.'}
+
+${PREACHING_VOCAB}`,
         allowedUrls: resources.map((r) => r.url),
       }),
     )
