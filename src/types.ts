@@ -420,7 +420,7 @@ export interface AiSettings {
   provider?: AiProviderPref
   /** Chiave gratuita Google AI Studio (Gemini). */
   geminiApiKey?: string
-  /** Modello Gemini. Default: gemini-2.0-flash. */
+  /** Modello Gemini. Default: gemini-2.0-flash-lite. */
   geminiModel?: GeminiModelPref
 }
 

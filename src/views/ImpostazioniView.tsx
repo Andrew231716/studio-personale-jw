@@ -220,7 +220,7 @@ export function ImpostazioniView() {
                 ai: {
                   provider: e.target.value as AiProviderPref,
                   geminiApiKey: settings.ai?.geminiApiKey || '',
-                  geminiModel: settings.ai?.geminiModel || 'gemini-2.0-flash',
+                  geminiModel: settings.ai?.geminiModel || 'gemini-2.0-flash-lite',
                 },
                 openAi: undefined,
               })
@@ -247,7 +247,7 @@ export function ImpostazioniView() {
                 ai: {
                   provider: settings.ai?.provider || 'free',
                   geminiApiKey: e.target.value,
-                  geminiModel: settings.ai?.geminiModel || 'gemini-2.0-flash',
+                  geminiModel: settings.ai?.geminiModel || 'gemini-2.0-flash-lite',
                 },
                 openAi: undefined,
               })
@@ -258,7 +258,7 @@ export function ImpostazioniView() {
           <label htmlFor="gemini-model">Modello Gemini</label>
           <select
             id="gemini-model"
-            value={settings.ai?.geminiModel || 'gemini-2.0-flash'}
+            value={settings.ai?.geminiModel || 'gemini-2.0-flash-lite'}
             onChange={(e) =>
               updateSettings({
                 ai: {

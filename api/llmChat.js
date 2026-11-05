@@ -16,10 +16,11 @@ const GEMINI_MODELS = new Set([
 ])
 
 const GEMINI_FALLBACKS = [
+  'gemini-2.0-flash-lite',
   'gemini-2.0-flash',
   'gemini-2.0-flash-001',
-  'gemini-2.0-flash-lite',
   'gemini-flash-latest',
+  'gemini-2.5-flash',
 ]
 
 /** Cap output: tiene basso il consumo token sul free tier. */
@@ -127,7 +128,7 @@ function toGeminiBody(messages, temperature, maxTokens) {
 }
 
 function modelCandidates(requested) {
-  const first = GEMINI_MODELS.has(requested) ? requested : 'gemini-2.0-flash'
+  const first = GEMINI_MODELS.has(requested) ? requested : 'gemini-2.0-flash-lite'
   const list = [first, ...GEMINI_FALLBACKS.filter((m) => m !== first)]
   return [...new Set(list)]
 }
@@ -177,6 +178,26 @@ async function chatGeminiOnce({ messages, temperature, maxTokens, model, apiKey 
   return { ok: true, status: 200, engine: 'gemini', text, raw, model }
 }
 
+function isGeminiModelMissing(result) {
+  const msg = String(result?.text || '')
+  return (
+    result?.status === 404 ||
+    /not found|is not found|not supported|invalid model/i.test(msg)
+  )
+}
+
+/** Saturazione / limiti temporanei: conviene altro modello o motore di riserva. */
+function isGeminiTemporarilyBusy(result) {
+  const msg = String(result?.text || '')
+  return (
+    result?.status === 429 ||
+    result?.status === 503 ||
+    /high demand|spikes in demand|try again later|unavailable|overloaded|resource.?exhausted|quota|rate.?limit|temporarily/i.test(
+      msg,
+    )
+  )
+}
+
 async function chatGemini(opts) {
   const models = modelCandidates(String(opts.model || '').trim())
   let last = null
@@ -184,12 +205,9 @@ async function chatGemini(opts) {
     const result = await chatGeminiOnce({ ...opts, model })
     last = result
     if (result.ok) return result
-    // Riprova solo se modello assente / non supportato
-    const msg = String(result.text || '')
-    const retryable =
-      result.status === 404 ||
-      /not found|is not found|not supported|invalid model/i.test(msg)
-    if (!retryable) return result
+    // Altro modello se assente o saturo
+    if (isGeminiModelMissing(result) || isGeminiTemporarilyBusy(result)) continue
+    return result
   }
   return last || {
     ok: false,
@@ -198,6 +216,29 @@ async function chatGemini(opts) {
     text: 'Gemini non disponibile.',
     raw: '',
   }
+}
+
+async function withPollinationsFallback(gem, { messages, temperature, maxTokens }) {
+  if (gem?.ok) return gem
+  const fallback = await chatPollinations({ messages, temperature, maxTokens })
+  if (fallback.ok) {
+    return {
+      ...fallback,
+      note: `gemini_failed:${String(gem?.text || '').slice(0, 160)}`,
+    }
+  }
+  // Se Gemini è solo saturo, messaggio più chiaro
+  if (isGeminiTemporarilyBusy(gem)) {
+    return {
+      ok: false,
+      status: gem.status || 503,
+      engine: 'gemini',
+      text:
+        'Gemini: alta domanda sul modello in questo momento. Riprova tra poco (il motore di riserva non ha risposto).',
+      raw: gem.raw || '',
+    }
+  }
+  return gem
 }
 
 async function chatPollinations({ messages, temperature, maxTokens }) {
@@ -273,13 +314,15 @@ export async function chatCompletion(opts) {
         raw: '',
       }
     }
-    return chatGemini({
+    const gem = await chatGemini({
       messages,
       temperature,
       maxTokens,
       model,
       apiKey: geminiKey,
     })
+    // Alta domanda / modelli assenti → riserva automatica
+    return withPollinationsFallback(gem, { messages, temperature, maxTokens })
   }
 
   if (provider === 'pollinations') {
@@ -292,19 +335,10 @@ export async function chatCompletion(opts) {
       messages,
       temperature,
       maxTokens,
-      model: model || 'gemini-2.0-flash',
+      model: model || 'gemini-2.0-flash-lite',
       apiKey: geminiKey,
     })
-    if (gem.ok) return gem
-    const fallback = await chatPollinations({ messages, temperature, maxTokens })
-    if (fallback.ok) {
-      return {
-        ...fallback,
-        text: `${fallback.text}`,
-        note: `gemini_failed:${String(gem.text || '').slice(0, 120)}`,
-      }
-    }
-    return gem
+    return withPollinationsFallback(gem, { messages, temperature, maxTokens })
   }
 
   return chatPollinations({ messages, temperature, maxTokens })
