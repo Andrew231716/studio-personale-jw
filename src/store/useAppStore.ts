@@ -103,8 +103,11 @@ const defaultSettings: AppSettings = {
     syncKey: '',
   },
   openAi: {
+    provider: 'free',
     apiKey: '',
     model: 'gpt-4o-mini',
+    geminiApiKey: '',
+    geminiModel: 'gemini-2.0-flash',
   },
 }
 
@@ -304,10 +307,19 @@ export function mergeAppSettings(
       : base.cloudSync,
     iCloud: incoming.iCloud ? { ...base.iCloud, ...incoming.iCloud } : base.iCloud,
     openAi: {
-      // Chiave: non azzerare quella locale se il sync/backup arriva senza
+      provider: incoming.openAi?.provider ?? base.openAi?.provider ?? 'free',
+      // Chiavi: non azzerare quelle locali se sync/backup arriva senza
       apiKey:
         (incoming.openAi?.apiKey || '').trim() || base.openAi?.apiKey || '',
       model: incoming.openAi?.model ?? base.openAi?.model ?? 'gpt-4o-mini',
+      geminiApiKey:
+        (incoming.openAi?.geminiApiKey || '').trim() ||
+        base.openAi?.geminiApiKey ||
+        '',
+      geminiModel:
+        incoming.openAi?.geminiModel ??
+        base.openAi?.geminiModel ??
+        'gemini-2.0-flash',
     },
     navOrder: Array.isArray(incoming.navOrder) && incoming.navOrder.length
       ? incoming.navOrder
@@ -918,12 +930,24 @@ export const useAppStore = create<AppState>()(
               ...(p.settings?.cloudSync || {}),
             },
             openAi: {
+              provider:
+                p.settings?.openAi?.provider ??
+                current.settings.openAi?.provider ??
+                'free',
               apiKey:
                 (p.settings?.openAi?.apiKey || '').trim() ||
                 current.settings.openAi?.apiKey ||
                 '',
               model:
                 p.settings?.openAi?.model ?? current.settings.openAi?.model ?? 'gpt-4o-mini',
+              geminiApiKey:
+                (p.settings?.openAi?.geminiApiKey || '').trim() ||
+                current.settings.openAi?.geminiApiKey ||
+                '',
+              geminiModel:
+                p.settings?.openAi?.geminiModel ??
+                current.settings.openAi?.geminiModel ??
+                'gemini-2.0-flash',
             },
             navOrder: (() => {
               let order = [...(p.settings?.navOrder || current.settings.navOrder)]
