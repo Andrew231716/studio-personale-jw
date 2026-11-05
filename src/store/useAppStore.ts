@@ -105,7 +105,7 @@ const defaultSettings: AppSettings = {
   ai: {
     provider: 'free',
     geminiApiKey: '',
-    geminiModel: 'gemini-2.0-flash',
+    geminiModel: 'gemini-2.0-flash-lite',
   },
 }
 
@@ -307,7 +307,7 @@ export function mergeAppSettings(
     ai: (() => {
       const fromNew = incoming.ai
       const fromLegacy = incoming.openAi
-      const baseAi = base.ai || { provider: 'free' as const, geminiApiKey: '', geminiModel: 'gemini-2.0-flash' as const }
+      const baseAi = base.ai || { provider: 'free' as const, geminiApiKey: '', geminiModel: 'gemini-2.0-flash-lite' as const }
       const providerRaw = fromNew?.provider || fromLegacy?.provider || baseAi.provider || 'free'
       return {
         provider: (providerRaw === 'gemini' ? 'gemini' : 'free') as 'free' | 'gemini',
@@ -320,7 +320,7 @@ export function mergeAppSettings(
           fromNew?.geminiModel ||
           fromLegacy?.geminiModel ||
           baseAi.geminiModel ||
-          'gemini-2.0-flash',
+          'gemini-2.0-flash-lite',
       }
     })(),
     navOrder: Array.isArray(incoming.navOrder) && incoming.navOrder.length
@@ -948,7 +948,7 @@ export const useAppStore = create<AppState>()(
                   fromNew?.geminiModel ||
                   fromLegacy?.geminiModel ||
                   cur?.geminiModel ||
-                  'gemini-2.0-flash',
+                  'gemini-2.0-flash-lite',
               }
             })(),
             navOrder: (() => {

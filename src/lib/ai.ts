@@ -13,8 +13,8 @@ import { uid } from './id'
 import { useAppStore } from '../store/useAppStore'
 
 export const GEMINI_MODEL_OPTIONS: Array<{ id: GeminiModelPref; label: string }> = [
-  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (consigliato, gratuito)' },
-  { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite (più veloce)' },
+  { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite (consigliato, meno saturo)' },
+  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
   { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
 ]
 
@@ -32,7 +32,7 @@ function readAiSettings(): AiSettings {
   return {
     provider,
     geminiApiKey: (cur?.geminiApiKey || legacy?.geminiApiKey || '').trim(),
-    geminiModel: cur?.geminiModel || legacy?.geminiModel || 'gemini-2.0-flash',
+    geminiModel: cur?.geminiModel || legacy?.geminiModel || 'gemini-2.0-flash-lite',
   }
 }
 
@@ -58,7 +58,7 @@ export function aiRequestExtras(): {
   const cfg = readAiSettings()
   const provider = cfg.provider || 'free'
   const geminiApiKey = (cfg.geminiApiKey || '').trim()
-  const geminiModel = (cfg.geminiModel || 'gemini-2.0-flash') as GeminiModelPref
+  const geminiModel = (cfg.geminiModel || 'gemini-2.0-flash-lite') as GeminiModelPref
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -100,11 +100,15 @@ export function formatGeminiUserError(error: unknown): string {
       `Dettaglio: ${detail}`,
     ].join('\n')
   }
-  if (/quota|rate.?limit|429|resource.?exhausted/.test(lower)) {
+  if (
+    /high demand|spikes in demand|try again later|unavailable|overloaded|quota|rate.?limit|429|resource.?exhausted|503/.test(
+      lower,
+    )
+  ) {
     return [
-      'Gemini ha raggiunto il limite gratuito momentaneo.',
+      'Gemini in questo momento è saturo (alta domanda sul modello). Di solito passa in pochi minuti.',
       '',
-      'Riprova tra poco, oppure lascia vuota la chiave per usare il motore di riserva.',
+      'Riprova tra poco. Se serve subito, in Impostazioni → Motore AI imposta il provider su «Gratuito» (senza forzare solo Gemini).',
       '',
       `Dettaglio: ${detail}`,
     ].join('\n')

@@ -78,7 +78,7 @@ function snapshotFromStore(): ICloudSnapshot {
     ai: {
       provider: s.settings.ai?.provider || 'free',
       geminiApiKey: '',
-      geminiModel: s.settings.ai?.geminiModel || 'gemini-2.0-flash',
+      geminiModel: s.settings.ai?.geminiModel || 'gemini-2.0-flash-lite',
     },
     openAi: undefined,
   }
