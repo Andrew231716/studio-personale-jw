@@ -81,13 +81,8 @@ app.get('/api/jw-resolve', async (req, res) => {
 
 app.post('/api/ai', express.json({ limit: '1mb' }), async (req, res) => {
   try {
-    const upstream = await fetch('https://text.pollinations.ai/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body ?? {}),
-    })
-    const text = await upstream.text()
-    res.status(upstream.status).type(upstream.headers.get('content-type') || 'text/plain').send(text)
+    const { default: handler } = await import('./api/ai.js')
+    await handler(req, res)
   } catch (e) {
     res.status(502).send(String(e))
   }

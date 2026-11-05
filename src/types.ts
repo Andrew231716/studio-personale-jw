@@ -406,6 +406,21 @@ export interface CloudSyncSettings {
   syncKey: string
 }
 
+/** ChatGPT / OpenAI per Assistente, Quaderno, Decisioni, Discorso, export… */
+export type OpenAiModelPref =
+  | 'gpt-4o-mini'
+  | 'gpt-4o'
+  | 'gpt-4.1-mini'
+  | 'gpt-4.1'
+  | 'o4-mini'
+
+export interface OpenAiSettings {
+  /** Chiave personale (sk-…). Opzionale se il server ha OPENAI_API_KEY. */
+  apiKey: string
+  /** Modello ChatGPT. Default: gpt-4o-mini. */
+  model: OpenAiModelPref
+}
+
 export type NarrationVoicePref =
   | 'isabella'
   | 'elsa'
@@ -432,4 +447,6 @@ export interface AppSettings {
   iCloud?: ICloudSettings
   /** Sync cloud automatica tra dispositivi. */
   cloudSync?: CloudSyncSettings
+  /** OpenAI / ChatGPT — migliora tutte le funzioni AI dell’app. */
+  openAi?: OpenAiSettings
 }

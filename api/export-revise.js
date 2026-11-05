@@ -3,6 +3,8 @@
  * Non inventa contenuti; corregge solo forma e chiarezza.
  */
 
+import { chatCompletion, resolveOpenAiKey } from './openaiChat.js'
+
 const MAX_PIECES = 40
 const MAX_CHARS_TOTAL = 14000
 
@@ -52,7 +54,7 @@ function parseAiPieces(raw, fallback) {
   return fallback
 }
 
-async function reviseWithAi(kind, language, pieces) {
+async function reviseWithAi(kind, language, pieces, opts = {}) {
   const langHint = language === 'E' ? 'English' : 'italiano'
   const kindHint =
     kind === 'discorso'
@@ -88,35 +90,23 @@ Vincoli stretti:
 Pezzi da revisionare:
 ${payload}`
 
-  const upstream = await fetch('https://text.pollinations.ai/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Revisore editoriale JW. Correggi solo forma e chiarezza. Rispondi solo JSON.',
-        },
-        { role: 'user', content: prompt },
-      ],
-      model: 'openai',
-      temperature: 0.15,
-      seed: Date.now() % 100000,
-      max_tokens: 4000,
-    }),
+  const result = await chatCompletion({
+    messages: [
+      {
+        role: 'system',
+        content:
+          'Revisore editoriale JW. Correggi solo forma e chiarezza. Rispondi solo JSON.',
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.15,
+    max_tokens: 4000,
+    model: opts?.model,
+    apiKey: opts?.apiKey,
   })
 
-  if (!upstream.ok) throw new Error(`AI HTTP ${upstream.status}`)
-  const text = await upstream.text()
-  let content = text
-  try {
-    const json = JSON.parse(text)
-    content = json?.choices?.[0]?.message?.content || text
-  } catch {
-    /* plain */
-  }
-  return content
+  if (!result.ok) throw new Error(result.text || `AI HTTP ${result.status}`)
+  return result.text
 }
 
 export default async function handler(req, res) {
@@ -143,9 +133,11 @@ export default async function handler(req, res) {
     const local = localRevisePieces(pieces)
     let engine = 'local'
     let revised = local
+    const apiKey = resolveOpenAiKey(req, body)
+    const model = String(body.model || '').trim() || undefined
 
     try {
-      const aiRaw = await reviseWithAi(kind, language, local)
+      const aiRaw = await reviseWithAi(kind, language, local, { apiKey, model })
       const parsed = parseAiPieces(aiRaw, null)
       if (parsed && parsed.length) {
         const byId = new Map(parsed.map((p) => [p.id, p.text]))

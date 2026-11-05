@@ -140,16 +140,53 @@ async function localApiMiddleware(
       return
     }
     if (url.pathname === '/api/ai' && req.method === 'POST') {
-      const body = await readBody(req)
-      const upstream = await fetch('https://text.pollinations.ai/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
+      // @ts-expect-error API route is plain JS without declarations
+      const mod = (await import('./api/ai.js')) as {
+        default: (req: unknown, res: unknown) => Promise<void>
+      }
+      const raw = await readBody(req)
+      let body: unknown = {}
+      try {
+        body = JSON.parse(raw || '{}')
+      } catch {
+        body = {}
+      }
+      await new Promise<void>((resolve, reject) => {
+        const fakeReq = {
+          method: 'POST',
+          headers: req.headers || {},
+          body,
+        }
+        const fakeRes = {
+          statusCode: 200,
+          status(code: number) {
+            this.statusCode = code
+            return this
+          },
+          setHeader(name: string, value: string) {
+            res.setHeader(name, value)
+            return this
+          },
+          json(payload: unknown) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(payload))
+            resolve()
+          },
+          send(payload: string) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+            res.end(payload)
+            resolve()
+          },
+          end(payload?: string) {
+            res.statusCode = this.statusCode
+            res.end(payload)
+            resolve()
+          },
+        }
+        void mod.default(fakeReq, fakeRes).catch(reject)
       })
-      const text = await upstream.text()
-      res.statusCode = upstream.status
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'text/plain')
-      res.end(text)
       return
     }
     if (url.pathname === '/api/export-revise' && req.method === 'POST') {
@@ -192,7 +229,9 @@ async function localApiMiddleware(
             resolve()
           },
         }
-        void mod.default({ method: 'POST', body }, fakeRes).catch(reject)
+        void mod
+          .default({ method: 'POST', headers: req.headers || {}, body }, fakeRes)
+          .catch(reject)
       })
       return
     }

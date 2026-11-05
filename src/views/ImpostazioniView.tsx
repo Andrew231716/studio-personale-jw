@@ -17,8 +17,9 @@ import {
   getCachedVerseCount,
   getOfflineBibleStats,
 } from '../lib/bibleText'
+import { OPENAI_MODEL_OPTIONS } from '../lib/ai'
 import { NARRATION_VOICES } from '../lib/speechNarration'
-import type { NarrationEnginePref, NarrationVoicePref } from '../types'
+import type { NarrationEnginePref, NarrationVoicePref, OpenAiModelPref } from '../types'
 import { NarrateButton } from '../components/NarrateButton'
 import {
   notificationPermission,
@@ -194,6 +195,65 @@ export function ImpostazioniView() {
             onChange={(e) => updateSettings({ studyMethodNotes: e.target.value })}
           />
         </div>
+      </section>
+
+      <section className="panel">
+        <h2>ChatGPT / OpenAI</h2>
+        <p className="lede">
+          Inserisci una chiave API OpenAI per usare ChatGPT in Assistente, Quaderno, Decisioni,
+          Discorso, Ministero, letture e revisione export. Senza chiave l’app usa un motore
+          gratuito di riserva (meno stabile).
+        </p>
+        <div className="field">
+          <label htmlFor="openai-key">Chiave API OpenAI</label>
+          <input
+            id="openai-key"
+            type="password"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="sk-…"
+            value={settings.openAi?.apiKey || ''}
+            onChange={(e) =>
+              updateSettings({
+                openAi: {
+                  apiKey: e.target.value,
+                  model: settings.openAi?.model || 'gpt-4o-mini',
+                },
+              })
+            }
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="openai-model">Modello</label>
+          <select
+            id="openai-model"
+            value={settings.openAi?.model || 'gpt-4o-mini'}
+            onChange={(e) =>
+              updateSettings({
+                openAi: {
+                  apiKey: settings.openAi?.apiKey || '',
+                  model: e.target.value as OpenAiModelPref,
+                },
+              })
+            }
+          >
+            {OPENAI_MODEL_OPTIONS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+          {(settings.openAi?.apiKey || '').trim()
+            ? 'ChatGPT attivo: la chiave resta su questo dispositivo (non va nel sync cloud) e passa solo al proxy dell’app.'
+            : 'Nessuna chiave: l’AI resta disponibile in modalità gratuita di riserva.'}{' '}
+          Chiave da{' '}
+          <a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">
+            platform.openai.com/api-keys
+          </a>
+          .
+        </p>
       </section>
 
       <section className="panel">

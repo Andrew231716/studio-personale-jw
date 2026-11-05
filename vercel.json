@@ -4,6 +4,10 @@
       "maxDuration": 60,
       "memory": 1024
     },
+    "api/ai.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
     "api/export-revise.js": {
       "maxDuration": 60,
       "memory": 1024

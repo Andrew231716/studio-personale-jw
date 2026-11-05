@@ -143,10 +143,11 @@ export function AssistenteView() {
       <section className="panel">
         <div className="section-head">
           <div>
-            <h2>Assistente AI gratuito</h2>
+            <h2>Assistente AI</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
               Ricerca approfondita su jw.org per tema e contesto, con risultati divisi per sezione
-              (libri, opuscoli, articoli, video, guida alle ricerche…).
+              (libri, opuscoli, articoli, video, guida alle ricerche…). Per ChatGPT, inserisci la
+              chiave in Impostazioni.
             </p>
           </div>
           <button

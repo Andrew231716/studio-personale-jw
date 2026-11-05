@@ -1,3 +1,4 @@
+import { openAiRequestExtras } from './ai'
 import { localPolishDiscourse } from './discourseAi'
 import { ensureSections, joinSections, totalMinutes } from './discourseStructure'
 import { normalizeJwItalian } from './jwItalianTerms'
@@ -43,10 +44,16 @@ async function revisePiecesRemote(
   }
 
   try {
+    const extras = openAiRequestExtras()
     const res = await fetch('/api/export-revise', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind, language, pieces: prepared }),
+      headers: extras.headers,
+      body: JSON.stringify({
+        kind,
+        language,
+        pieces: prepared,
+        model: extras.apiKey ? extras.model : undefined,
+      }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = (await res.json()) as {
