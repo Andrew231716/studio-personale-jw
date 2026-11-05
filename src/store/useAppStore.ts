@@ -102,10 +102,8 @@ const defaultSettings: AppSettings = {
     enabled: true,
     syncKey: '',
   },
-  openAi: {
+  ai: {
     provider: 'free',
-    apiKey: '',
-    model: 'gpt-4o-mini',
     geminiApiKey: '',
     geminiModel: 'gemini-2.0-flash',
   },
@@ -306,21 +304,25 @@ export function mergeAppSettings(
       ? { ...base.cloudSync, ...incoming.cloudSync }
       : base.cloudSync,
     iCloud: incoming.iCloud ? { ...base.iCloud, ...incoming.iCloud } : base.iCloud,
-    openAi: {
-      provider: incoming.openAi?.provider ?? base.openAi?.provider ?? 'free',
-      // Chiavi: non azzerare quelle locali se sync/backup arriva senza
-      apiKey:
-        (incoming.openAi?.apiKey || '').trim() || base.openAi?.apiKey || '',
-      model: incoming.openAi?.model ?? base.openAi?.model ?? 'gpt-4o-mini',
-      geminiApiKey:
-        (incoming.openAi?.geminiApiKey || '').trim() ||
-        base.openAi?.geminiApiKey ||
-        '',
-      geminiModel:
-        incoming.openAi?.geminiModel ??
-        base.openAi?.geminiModel ??
-        'gemini-2.0-flash',
-    },
+    ai: (() => {
+      const fromNew = incoming.ai
+      const fromLegacy = incoming.openAi
+      const baseAi = base.ai || { provider: 'free' as const, geminiApiKey: '', geminiModel: 'gemini-2.0-flash' as const }
+      const providerRaw = fromNew?.provider || fromLegacy?.provider || baseAi.provider || 'free'
+      return {
+        provider: (providerRaw === 'gemini' ? 'gemini' : 'free') as 'free' | 'gemini',
+        geminiApiKey:
+          (fromNew?.geminiApiKey || '').trim() ||
+          (fromLegacy?.geminiApiKey || '').trim() ||
+          baseAi.geminiApiKey ||
+          '',
+        geminiModel:
+          fromNew?.geminiModel ||
+          fromLegacy?.geminiModel ||
+          baseAi.geminiModel ||
+          'gemini-2.0-flash',
+      }
+    })(),
     navOrder: Array.isArray(incoming.navOrder) && incoming.navOrder.length
       ? incoming.navOrder
       : base.navOrder,
@@ -929,26 +931,26 @@ export const useAppStore = create<AppState>()(
               ...current.settings.cloudSync!,
               ...(p.settings?.cloudSync || {}),
             },
-            openAi: {
-              provider:
-                p.settings?.openAi?.provider ??
-                current.settings.openAi?.provider ??
-                'free',
-              apiKey:
-                (p.settings?.openAi?.apiKey || '').trim() ||
-                current.settings.openAi?.apiKey ||
-                '',
-              model:
-                p.settings?.openAi?.model ?? current.settings.openAi?.model ?? 'gpt-4o-mini',
-              geminiApiKey:
-                (p.settings?.openAi?.geminiApiKey || '').trim() ||
-                current.settings.openAi?.geminiApiKey ||
-                '',
-              geminiModel:
-                p.settings?.openAi?.geminiModel ??
-                current.settings.openAi?.geminiModel ??
-                'gemini-2.0-flash',
-            },
+            ai: (() => {
+              const fromNew = p.settings?.ai
+              const fromLegacy = p.settings?.openAi
+              const cur = current.settings.ai
+              const providerRaw =
+                fromNew?.provider || fromLegacy?.provider || cur?.provider || 'free'
+              return {
+                provider: (providerRaw === 'gemini' ? 'gemini' : 'free') as 'free' | 'gemini',
+                geminiApiKey:
+                  (fromNew?.geminiApiKey || '').trim() ||
+                  (fromLegacy?.geminiApiKey || '').trim() ||
+                  cur?.geminiApiKey ||
+                  '',
+                geminiModel:
+                  fromNew?.geminiModel ||
+                  fromLegacy?.geminiModel ||
+                  cur?.geminiModel ||
+                  'gemini-2.0-flash',
+              }
+            })(),
             navOrder: (() => {
               let order = [...(p.settings?.navOrder || current.settings.navOrder)]
               if (!order.includes('sessione')) {

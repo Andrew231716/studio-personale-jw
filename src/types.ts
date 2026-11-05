@@ -407,31 +407,18 @@ export interface CloudSyncSettings {
 }
 
 /**
- * Motore AI:
- * - free: gratuito (Gemini se c’è chiave AI Studio, altrimenti Pollinations senza chiave)
- * - gemini: Google Gemini gratuito (richiede chiave free)
- * - openai: API OpenAI a pagamento (crediti), non incluso in ChatGPT Plus
+ * Motore AI gratuito:
+ * - free: Gemini se c’è chiave AI Studio, altrimenti Pollinations senza chiave
+ * - gemini: Google Gemini (richiede chiave free)
  */
-export type AiProviderPref = 'free' | 'gemini' | 'openai'
-
-/** ChatGPT / OpenAI per Assistente, Quaderno, Decisioni, Discorso, export… */
-export type OpenAiModelPref =
-  | 'gpt-4o-mini'
-  | 'gpt-4o'
-  | 'gpt-4.1-mini'
-  | 'gpt-4.1'
-  | 'o4-mini'
+export type AiProviderPref = 'free' | 'gemini'
 
 export type GeminiModelPref = 'gemini-2.0-flash' | 'gemini-2.0-flash-lite' | 'gemini-2.5-flash'
 
-export interface OpenAiSettings {
-  /** free = consigliato; openai solo con crediti API. */
+/** Impostazioni AI (solo motori gratuiti). */
+export interface AiSettings {
   provider?: AiProviderPref
-  /** Chiave OpenAI (sk-…). Serve solo se provider = openai. */
-  apiKey: string
-  /** Modello ChatGPT. Default: gpt-4o-mini. */
-  model: OpenAiModelPref
-  /** Chiave gratuita Google AI Studio (Gemini). Usata con provider free/gemini. */
+  /** Chiave gratuita Google AI Studio (Gemini). */
   geminiApiKey?: string
   /** Modello Gemini. Default: gemini-2.0-flash. */
   geminiModel?: GeminiModelPref
@@ -463,6 +450,8 @@ export interface AppSettings {
   iCloud?: ICloudSettings
   /** Sync cloud automatica tra dispositivi. */
   cloudSync?: CloudSyncSettings
-  /** OpenAI / ChatGPT — migliora tutte le funzioni AI dell’app. */
-  openAi?: OpenAiSettings
+  /** Motore AI gratuito (Gemini / Pollinations). */
+  ai?: AiSettings
+  /** @deprecated migrato in `ai` — tenuto solo per backup vecchi. */
+  openAi?: AiSettings & { apiKey?: string; model?: string }
 }

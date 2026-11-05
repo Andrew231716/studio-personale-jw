@@ -1,9 +1,4 @@
-import {
-  chatCompletion,
-  resolveGeminiKey,
-  resolveOpenAiKey,
-  resolveProvider,
-} from './openaiChat.js'
+import { chatCompletion, resolveGeminiKey, resolveProvider } from './llmChat.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -25,7 +20,6 @@ export default async function handler(req, res) {
       max_tokens: body.max_tokens,
       model: body.model,
       provider,
-      apiKey: resolveOpenAiKey(req, body),
       geminiApiKey: resolveGeminiKey(req, body),
     })
 
