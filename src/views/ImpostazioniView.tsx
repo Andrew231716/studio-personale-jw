@@ -17,7 +17,7 @@ import {
   getCachedVerseCount,
   getOfflineBibleStats,
 } from '../lib/bibleText'
-import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS } from '../lib/ai'
+import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS, probeAiEngine } from '../lib/ai'
 import { NARRATION_VOICES } from '../lib/speechNarration'
 import type {
   AiProviderPref,
@@ -69,6 +69,8 @@ export function ImpostazioniView() {
   const [fullBusy, setFullBusy] = useState(false)
   const [fullMsg, setFullMsg] = useState('')
   const [fullProgress, setFullProgress] = useState(0)
+  const [aiProbeBusy, setAiProbeBusy] = useState(false)
+  const [aiProbeMsg, setAiProbeMsg] = useState('')
   const [bibleStats, setBibleStats] = useState({
     chaptersIndexed: 0,
     chaptersLocal: 0,
@@ -281,8 +283,38 @@ export function ImpostazioniView() {
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
             Google AI Studio
           </a>{' '}
-          la qualità è più stabile.
+          la qualità è più stabile. Le risposte usano pochi token per restare nel piano free.
         </p>
+        <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
+          <button
+            className="btn secondary"
+            type="button"
+            disabled={aiProbeBusy}
+            onClick={() => {
+              setAiProbeBusy(true)
+              setAiProbeMsg('')
+              void probeAiEngine()
+                .then((r) => {
+                  setAiProbeMsg(
+                    r.ok
+                      ? `OK — motore «${r.engine}»: ${r.text.slice(0, 80)}`
+                      : `Errore — ${r.text.slice(0, 220)}`,
+                  )
+                })
+                .catch((e) => {
+                  setAiProbeMsg(e instanceof Error ? e.message : 'Prova AI non riuscita')
+                })
+                .finally(() => setAiProbeBusy(false))
+            }}
+          >
+            {aiProbeBusy ? 'Verifica…' : 'Prova AI (pochi token)'}
+          </button>
+        </div>
+        {aiProbeMsg ? (
+          <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+            {aiProbeMsg}
+          </p>
+        ) : null}
       </section>
 
       <section className="panel">

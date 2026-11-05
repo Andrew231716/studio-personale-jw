@@ -36,6 +36,18 @@ function readAiSettings(): AiSettings {
   }
 }
 
+/** Output token limitati (piano free Gemini / risparmio). */
+export const AI_MAX_OUT_TOKENS = 1024
+const CONTEXT_CHAR_LIMIT = 7000
+const HISTORY_MSG_LIMIT = 4
+const HISTORY_CHAR_LIMIT = 1200
+
+function clipText(value: string, max: number): string {
+  const s = String(value || '')
+  if (s.length <= max) return s
+  return `${s.slice(0, Math.max(0, max - 1))}…`
+}
+
 /** Header + body per il proxy /api/* (solo motori gratuiti). */
 export function aiRequestExtras(): {
   headers: Record<string, string>
@@ -52,6 +64,7 @@ export function aiRequestExtras(): {
     'Content-Type': 'application/json',
     'x-ai-provider': provider,
   }
+  // Chiave anche in header; il body la ripete (più affidabile su alcuni proxy).
   if (geminiApiKey) headers['x-gemini-key'] = geminiApiKey
 
   return {
@@ -69,6 +82,84 @@ export function openAiRequestExtras() {
 
 export function getAiProvider(): AiProviderPref {
   return readAiSettings().provider || 'free'
+}
+
+export function hasGeminiKeyConfigured(): boolean {
+  return Boolean(readAiSettings().geminiApiKey)
+}
+
+export function formatGeminiUserError(error: unknown): string {
+  const detail = error instanceof Error ? error.message : 'Gemini non disponibile'
+  const lower = detail.toLowerCase()
+  if (/api key not valid|invalid.*api.?key|permission.?denied|403/.test(lower)) {
+    return [
+      'La chiave Gemini non è valida o non ha accesso al modello.',
+      '',
+      'Crea una nuova chiave free su https://aistudio.google.com/apikey e aggiornala in Impostazioni → Motore AI.',
+      '',
+      `Dettaglio: ${detail}`,
+    ].join('\n')
+  }
+  if (/quota|rate.?limit|429|resource.?exhausted/.test(lower)) {
+    return [
+      'Gemini ha raggiunto il limite gratuito momentaneo.',
+      '',
+      'Riprova tra poco, oppure lascia vuota la chiave per usare il motore di riserva.',
+      '',
+      `Dettaglio: ${detail}`,
+    ].join('\n')
+  }
+  if (/manca la chiave/.test(lower)) {
+    return [
+      'Hai scelto Gemini ma manca la chiave API.',
+      '',
+      'Inseriscila in Impostazioni → Motore AI, oppure imposta il provider su «Gratuito».',
+    ].join('\n')
+  }
+  return [
+    'Non riesco a usare Gemini al momento.',
+    '',
+    detail,
+    '',
+    'Controlla la chiave in Impostazioni → Motore AI, oppure riprova tra poco.',
+  ].join('\n')
+}
+
+/** Prova minima Gemini/motore free (pochi token) — utile da Impostazioni. */
+export async function probeAiEngine(): Promise<{ ok: boolean; engine: string; text: string }> {
+  const extras = aiRequestExtras()
+  const res = await fetch('/api/ai', {
+    method: 'POST',
+    headers: extras.headers,
+    body: JSON.stringify({
+      provider: extras.provider,
+      model: extras.model,
+      geminiApiKey: extras.geminiApiKey,
+      temperature: 0,
+      max_tokens: 24,
+      messages: [
+        {
+          role: 'system',
+          content: 'Rispondi solo con una parola.',
+        },
+        { role: 'user', content: 'Scrivi solo: OK' },
+      ],
+    }),
+  })
+  const raw = await res.text()
+  if (!res.ok) {
+    return { ok: false, engine: extras.provider, text: raw.trim() || `HTTP ${res.status}` }
+  }
+  try {
+    const json = JSON.parse(raw) as {
+      engine?: string
+      choices?: Array<{ message?: { content?: string } }>
+    }
+    const text = json.choices?.[0]?.message?.content?.trim() || raw
+    return { ok: Boolean(text), engine: json.engine || extras.provider, text }
+  } catch {
+    return { ok: Boolean(raw.trim()), engine: extras.provider, text: raw.trim() }
+  }
 }
 
 const SYSTEM_GROUNDING = `Sei un assistente per lo studio personale dei Testimoni di Geova.
@@ -112,11 +203,16 @@ export async function askAi(params: {
   allowedUrls?: string[]
 }): Promise<string> {
   const { prompt, history = [], context = '', allowedUrls = [] } = params
+  const wantGemini =
+    hasGeminiKeyConfigured() || readAiSettings().provider === 'gemini'
   try {
     const remote = await askRemoteAi(prompt, history, context)
     if (remote?.trim()) return enforceGrounding(remote.trim(), allowedUrls)
-  } catch {
-    // Motore remoto non disponibile → coach locale
+  } catch (e) {
+    // Con Gemini configurato non nascondere il guasto dietro il coach locale.
+    if (wantGemini) {
+      return normalizeJwItalian(formatGeminiUserError(e))
+    }
   }
   return normalizeJwItalian(localCoach(prompt, context))
 }
@@ -126,14 +222,25 @@ async function askRemoteAi(
   history: AiMessage[],
   context: string,
 ): Promise<string> {
+  const clippedContext = clipText(context, CONTEXT_CHAR_LIMIT)
   const messages = [
-    { role: 'system', content: SYSTEM_GROUNDING + (context ? `\n\n## Contesto affidabile\n${context}` : '\n\n## Contesto affidabile\nNessun risultato jw.org disponibile: non inventare titoli né link.') },
-    ...history.slice(-8).map((m) => ({ role: m.role, content: m.content })),
+    {
+      role: 'system',
+      content:
+        SYSTEM_GROUNDING +
+        (clippedContext
+          ? `\n\n## Contesto affidabile\n${clippedContext}`
+          : '\n\n## Contesto affidabile\nNessun risultato jw.org disponibile: non inventare titoli né link.'),
+    },
+    ...history.slice(-HISTORY_MSG_LIMIT).map((m) => ({
+      role: m.role,
+      content: clipText(m.content, HISTORY_CHAR_LIMIT),
+    })),
     {
       role: 'user',
       content:
-        prompt +
-        '\n\n(Ricorda: usa solo i risultati jw.org del contesto; terminologia JW corretta; niente nomi inventati.)',
+        clipText(prompt, 4000) +
+        '\n\n(Ricorda: usa solo i risultati jw.org del contesto; terminologia JW corretta; niente nomi inventati. Risposta concisa.)',
     },
   ]
 
@@ -145,9 +252,10 @@ async function askRemoteAi(
       messages,
       provider: extras.provider,
       model: extras.model,
+      // Chiave anche nel body: alcuni ambienti non inoltrano header custom.
+      geminiApiKey: extras.geminiApiKey,
       temperature: 0.25,
-      // Evita risposte tagliate a metà (sintesi lunghe / analisi decisioni).
-      max_tokens: 3500,
+      max_tokens: AI_MAX_OUT_TOKENS,
     }),
   })
 

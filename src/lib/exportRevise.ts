@@ -54,6 +54,7 @@ async function revisePiecesRemote(
         pieces: prepared,
         provider: extras.provider,
         model: extras.model,
+        geminiApiKey: extras.geminiApiKey,
       }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)

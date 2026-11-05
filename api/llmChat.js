@@ -1,16 +1,30 @@
 /**
  * Chat Completions gratuiti: Gemini (chiave free AI Studio) o Pollinations (senza chiave).
- * Usato da /api/ai e /api/export-revise.
+ * Token di output limitati per restare nel piano free.
  */
 
 const POLLINATIONS_URL = 'https://text.pollinations.ai/'
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
+/** Modelli ammessi + alias di fallback se il nome richiesto non è più valido. */
 const GEMINI_MODELS = new Set([
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
   'gemini-2.5-flash',
+  'gemini-2.0-flash-001',
+  'gemini-flash-latest',
 ])
+
+const GEMINI_FALLBACKS = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-001',
+  'gemini-2.0-flash-lite',
+  'gemini-flash-latest',
+]
+
+/** Cap output: tiene basso il consumo token sul free tier. */
+const MAX_OUT_TOKENS = 1536
+const DEFAULT_OUT_TOKENS = 1024
 
 export function resolveProvider(req, body = {}) {
   const raw = String(
@@ -24,8 +38,11 @@ export function resolveProvider(req, body = {}) {
 }
 
 export function resolveGeminiKey(req, body = {}) {
-  const fromHeader = String(req?.headers?.['x-gemini-key'] || '').trim()
-  const fromBody = String(body.geminiApiKey || '').trim()
+  const headers = req?.headers || {}
+  const fromHeader = String(
+    headers['x-gemini-key'] || headers['X-Gemini-Key'] || '',
+  ).trim()
+  const fromBody = String(body.geminiApiKey || body.apiKey || '').trim()
   const fromEnv = String(process.env.GEMINI_API_KEY || '').trim()
   return fromHeader || fromBody || fromEnv || ''
 }
@@ -47,20 +64,28 @@ function extractOpenAiStyleContent(payload) {
 }
 
 function extractGeminiContent(payload) {
-  if (payload == null) return ''
+  if (payload == null) return { text: '', finishReason: '', blockReason: '' }
+  let data = payload
   if (typeof payload === 'string') {
     try {
-      return extractGeminiContent(JSON.parse(payload))
+      data = JSON.parse(payload)
     } catch {
-      return payload
+      return { text: payload.trim(), finishReason: '', blockReason: '' }
     }
   }
-  const parts = payload?.candidates?.[0]?.content?.parts
-  if (!Array.isArray(parts)) return ''
-  return parts
-    .map((p) => (typeof p?.text === 'string' ? p.text : ''))
-    .join('')
-    .trim()
+  const cand = data?.candidates?.[0]
+  const parts = cand?.content?.parts
+  const text = Array.isArray(parts)
+    ? parts
+        .map((p) => (typeof p?.text === 'string' ? p.text : ''))
+        .join('')
+        .trim()
+    : ''
+  const finishReason = String(cand?.finishReason || '')
+  const blockReason = String(
+    data?.promptFeedback?.blockReason || data?.promptFeedback?.blockReasonMessage || '',
+  )
+  return { text, finishReason, blockReason }
 }
 
 function toGeminiBody(messages, temperature, maxTokens) {
@@ -85,6 +110,9 @@ function toGeminiBody(messages, temperature, maxTokens) {
   if (contents.length && contents[0].role !== 'user') {
     contents.unshift({ role: 'user', parts: [{ text: '(continua)' }] })
   }
+  if (!contents.length) {
+    contents.push({ role: 'user', parts: [{ text: 'Rispondi in italiano, in modo breve.' }] })
+  }
   const body = {
     contents,
     generationConfig: {
@@ -98,12 +126,20 @@ function toGeminiBody(messages, temperature, maxTokens) {
   return body
 }
 
-async function chatGemini({ messages, temperature, maxTokens, model, apiKey }) {
-  const resolved = GEMINI_MODELS.has(model) ? model : 'gemini-2.0-flash'
-  const url = `${GEMINI_BASE}/${resolved}:generateContent?key=${encodeURIComponent(apiKey)}`
+function modelCandidates(requested) {
+  const first = GEMINI_MODELS.has(requested) ? requested : 'gemini-2.0-flash'
+  const list = [first, ...GEMINI_FALLBACKS.filter((m) => m !== first)]
+  return [...new Set(list)]
+}
+
+async function chatGeminiOnce({ messages, temperature, maxTokens, model, apiKey }) {
+  const url = `${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`
   const upstream = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
     body: JSON.stringify(toGeminiBody(messages, temperature, maxTokens)),
   })
   const raw = await upstream.text()
@@ -120,19 +156,48 @@ async function chatGemini({ messages, temperature, maxTokens, model, apiKey }) {
       engine: 'gemini',
       text: `Gemini: ${detail}`,
       raw,
+      model,
     }
   }
-  const content = extractGeminiContent(raw)
-  if (!content.trim()) {
+  const { text, finishReason, blockReason } = extractGeminiContent(raw)
+  if (!text) {
+    const why =
+      blockReason ||
+      (finishReason && finishReason !== 'STOP' ? finishReason : '') ||
+      'risposta vuota'
     return {
       ok: false,
       status: 502,
       engine: 'gemini',
-      text: 'Gemini ha restituito una risposta vuota.',
+      text: `Gemini: nessuna risposta utilizzabile (${why}).`,
       raw,
+      model,
     }
   }
-  return { ok: true, status: 200, engine: 'gemini', text: content, raw, model: resolved }
+  return { ok: true, status: 200, engine: 'gemini', text, raw, model }
+}
+
+async function chatGemini(opts) {
+  const models = modelCandidates(String(opts.model || '').trim())
+  let last = null
+  for (const model of models) {
+    const result = await chatGeminiOnce({ ...opts, model })
+    last = result
+    if (result.ok) return result
+    // Riprova solo se modello assente / non supportato
+    const msg = String(result.text || '')
+    const retryable =
+      result.status === 404 ||
+      /not found|is not found|not supported|invalid model/i.test(msg)
+    if (!retryable) return result
+  }
+  return last || {
+    ok: false,
+    status: 502,
+    engine: 'gemini',
+    text: 'Gemini non disponibile.',
+    raw: '',
+  }
 }
 
 async function chatPollinations({ messages, temperature, maxTokens }) {
@@ -141,7 +206,6 @@ async function chatPollinations({ messages, temperature, maxTokens }) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       messages,
-      // Nome modello del servizio gratuito Pollinations (non è OpenAI a pagamento)
       model: 'openai',
       temperature,
       seed: Date.now() % 100000,
@@ -169,6 +233,11 @@ async function chatPollinations({ messages, temperature, maxTokens }) {
   }
 }
 
+function clampOutTokens(n) {
+  if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) return DEFAULT_OUT_TOKENS
+  return Math.min(Math.floor(n), MAX_OUT_TOKENS)
+}
+
 /**
  * @param {{
  *   messages: Array<{ role: string, content: string }>,
@@ -189,11 +258,7 @@ export async function chatCompletion(opts) {
     typeof opts.temperature === 'number' && Number.isFinite(opts.temperature)
       ? opts.temperature
       : 0.25
-  const maxTokens =
-    typeof opts.max_tokens === 'number' && opts.max_tokens > 0
-      ? Math.min(Math.floor(opts.max_tokens), 8192)
-      : 3500
-
+  const maxTokens = clampOutTokens(opts.max_tokens)
   const provider = String(opts.provider || 'free').toLowerCase()
   const geminiKey = String(opts.geminiApiKey || '').trim()
   const model = String(opts.model || '').trim()
@@ -232,7 +297,13 @@ export async function chatCompletion(opts) {
     })
     if (gem.ok) return gem
     const fallback = await chatPollinations({ messages, temperature, maxTokens })
-    if (fallback.ok) return fallback
+    if (fallback.ok) {
+      return {
+        ...fallback,
+        text: `${fallback.text}`,
+        note: `gemini_failed:${String(gem.text || '').slice(0, 120)}`,
+      }
+    }
     return gem
   }
 
