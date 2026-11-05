@@ -406,6 +406,14 @@ export interface CloudSyncSettings {
   syncKey: string
 }
 
+/**
+ * Motore AI:
+ * - free: gratuito (Gemini se c’è chiave AI Studio, altrimenti Pollinations senza chiave)
+ * - gemini: Google Gemini gratuito (richiede chiave free)
+ * - openai: API OpenAI a pagamento (crediti), non incluso in ChatGPT Plus
+ */
+export type AiProviderPref = 'free' | 'gemini' | 'openai'
+
 /** ChatGPT / OpenAI per Assistente, Quaderno, Decisioni, Discorso, export… */
 export type OpenAiModelPref =
   | 'gpt-4o-mini'
@@ -414,11 +422,19 @@ export type OpenAiModelPref =
   | 'gpt-4.1'
   | 'o4-mini'
 
+export type GeminiModelPref = 'gemini-2.0-flash' | 'gemini-2.0-flash-lite' | 'gemini-2.5-flash'
+
 export interface OpenAiSettings {
-  /** Chiave personale (sk-…). Opzionale se il server ha OPENAI_API_KEY. */
+  /** free = consigliato; openai solo con crediti API. */
+  provider?: AiProviderPref
+  /** Chiave OpenAI (sk-…). Serve solo se provider = openai. */
   apiKey: string
   /** Modello ChatGPT. Default: gpt-4o-mini. */
   model: OpenAiModelPref
+  /** Chiave gratuita Google AI Studio (Gemini). Usata con provider free/gemini. */
+  geminiApiKey?: string
+  /** Modello Gemini. Default: gemini-2.0-flash. */
+  geminiModel?: GeminiModelPref
 }
 
 export type NarrationVoicePref =

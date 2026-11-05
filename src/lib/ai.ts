@@ -1,6 +1,14 @@
 import { DECISION_STEPS, STUDY_STEPS } from './studyMethod'
 import { JW_ITALIAN_TERM_HINT, normalizeJwItalian } from './jwItalianTerms'
-import type { AiMessage, DecisionItem, JwResult, OpenAiModelPref, StudyTopic } from '../types'
+import type {
+  AiMessage,
+  AiProviderPref,
+  DecisionItem,
+  GeminiModelPref,
+  JwResult,
+  OpenAiModelPref,
+  StudyTopic,
+} from '../types'
 import { uid } from './id'
 import { useAppStore } from '../store/useAppStore'
 
@@ -12,22 +20,67 @@ export const OPENAI_MODEL_OPTIONS: Array<{ id: OpenAiModelPref; label: string }>
   { id: 'o4-mini', label: 'o4-mini (ragionamento)' },
 ]
 
-/** Header + campi body per passare la chiave OpenAI al proxy /api/*. */
+export const GEMINI_MODEL_OPTIONS: Array<{ id: GeminiModelPref; label: string }> = [
+  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (consigliato, gratuito)' },
+  { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite (più veloce)' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+]
+
+export const AI_PROVIDER_OPTIONS: Array<{ id: AiProviderPref; label: string }> = [
+  { id: 'free', label: 'Gratuito (consigliato)' },
+  { id: 'gemini', label: 'Google Gemini (gratuito con chiave)' },
+  { id: 'openai', label: 'OpenAI / ChatGPT API (a pagamento)' },
+]
+
+/** Header + body per il proxy /api/* in base al provider scelto. */
 export function openAiRequestExtras(): {
   headers: Record<string, string>
+  provider: AiProviderPref
   apiKey?: string
-  model: OpenAiModelPref
+  geminiApiKey?: string
+  model: string
 } {
   const cfg = useAppStore.getState().settings.openAi
-  const apiKey = (cfg?.apiKey || '').trim()
-  const model = (cfg?.model || 'gpt-4o-mini') as OpenAiModelPref
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (apiKey) headers['x-openai-key'] = apiKey
-  return { headers, apiKey: apiKey || undefined, model }
+  const provider = (cfg?.provider || 'free') as AiProviderPref
+  const openAiKey = (cfg?.apiKey || '').trim()
+  const geminiApiKey = (cfg?.geminiApiKey || '').trim()
+  const openAiModel = (cfg?.model || 'gpt-4o-mini') as OpenAiModelPref
+  const geminiModel = (cfg?.geminiModel || 'gemini-2.0-flash') as GeminiModelPref
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-ai-provider': provider,
+  }
+
+  if (provider === 'openai' && openAiKey) {
+    headers['x-openai-key'] = openAiKey
+  }
+  if ((provider === 'free' || provider === 'gemini') && geminiApiKey) {
+    headers['x-gemini-key'] = geminiApiKey
+  }
+
+  const model =
+    provider === 'openai' ? openAiModel : provider === 'gemini' || provider === 'free'
+      ? geminiModel
+      : 'openai'
+
+  return {
+    headers,
+    provider,
+    apiKey: provider === 'openai' ? openAiKey || undefined : undefined,
+    geminiApiKey:
+      provider === 'free' || provider === 'gemini' ? geminiApiKey || undefined : undefined,
+    model,
+  }
 }
 
 export function hasOpenAiKeyConfigured(): boolean {
-  return Boolean((useAppStore.getState().settings.openAi?.apiKey || '').trim())
+  const cfg = useAppStore.getState().settings.openAi
+  return (cfg?.provider || 'free') === 'openai' && Boolean((cfg?.apiKey || '').trim())
+}
+
+export function getAiProvider(): AiProviderPref {
+  return (useAppStore.getState().settings.openAi?.provider || 'free') as AiProviderPref
 }
 
 const SYSTEM_GROUNDING = `Sei un assistente per lo studio personale dei Testimoni di Geova.
@@ -75,7 +128,8 @@ export async function askAi(params: {
     const remote = await askRemoteAi(prompt, history, context)
     if (remote?.trim()) return enforceGrounding(remote.trim(), allowedUrls)
   } catch (e) {
-    // Con chiave OpenAI configurata, non nascondere l’errore dietro il coach locale.
+    // Solo con OpenAI a pagamento mostriamo l’errore dedicato (crediti/chiave).
+    // Con motore gratuito passiamo al coach locale senza bloccare l’uso.
     if (hasOpenAiKeyConfigured()) {
       return normalizeJwItalian(formatOpenAiUserError(e))
     }
@@ -157,7 +211,8 @@ async function askRemoteAi(
     headers: extras.headers,
     body: JSON.stringify({
       messages,
-      model: extras.apiKey ? extras.model : 'openai',
+      provider: extras.provider,
+      model: extras.model,
       temperature: 0.25,
       // Evita risposte tagliate a metà (sintesi lunghe / analisi decisioni).
       max_tokens: 3500,

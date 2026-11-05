@@ -1,4 +1,9 @@
-import { chatCompletion, resolveOpenAiKey } from './openaiChat.js'
+import {
+  chatCompletion,
+  resolveGeminiKey,
+  resolveOpenAiKey,
+  resolveProvider,
+} from './openaiChat.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -13,12 +18,15 @@ export default async function handler(req, res) {
       return
     }
 
+    const provider = resolveProvider(req, body)
     const result = await chatCompletion({
       messages,
       temperature: body.temperature,
       max_tokens: body.max_tokens,
       model: body.model,
+      provider,
       apiKey: resolveOpenAiKey(req, body),
+      geminiApiKey: resolveGeminiKey(req, body),
     })
 
     if (!result.ok) {
@@ -26,7 +34,6 @@ export default async function handler(req, res) {
       return
     }
 
-    // Formato compatibile con il client (choices[].message.content) + metadati utili
     res.status(200).json({
       engine: result.engine,
       model: result.model,

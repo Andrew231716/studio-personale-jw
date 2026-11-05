@@ -52,7 +52,8 @@ async function revisePiecesRemote(
         kind,
         language,
         pieces: prepared,
-        model: extras.apiKey ? extras.model : undefined,
+        provider: extras.provider,
+        model: extras.model,
       }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)

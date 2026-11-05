@@ -72,12 +72,15 @@ function ensureCloudSyncSettings(settings: AppSettings): NonNullable<AppSettings
 
 function snapshotFromStore(): ICloudSnapshot {
   const s = useAppStore.getState()
-  // Non sincronizzare la chiave OpenAI sul cloud (resta solo sul dispositivo).
+  // Non sincronizzare le chiavi AI sul cloud (restano solo sul dispositivo).
   const settings: AppSettings = {
     ...s.settings,
     openAi: {
+      provider: s.settings.openAi?.provider || 'free',
       apiKey: '',
       model: s.settings.openAi?.model || 'gpt-4o-mini',
+      geminiApiKey: '',
+      geminiModel: s.settings.openAi?.geminiModel || 'gemini-2.0-flash',
     },
   }
   return {

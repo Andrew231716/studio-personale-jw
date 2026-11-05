@@ -3,7 +3,12 @@
  * Non inventa contenuti; corregge solo forma e chiarezza.
  */
 
-import { chatCompletion, resolveOpenAiKey } from './openaiChat.js'
+import {
+  chatCompletion,
+  resolveGeminiKey,
+  resolveOpenAiKey,
+  resolveProvider,
+} from './openaiChat.js'
 
 const MAX_PIECES = 40
 const MAX_CHARS_TOTAL = 14000
@@ -102,7 +107,9 @@ ${payload}`
     temperature: 0.15,
     max_tokens: 4000,
     model: opts?.model,
+    provider: opts?.provider || 'free',
     apiKey: opts?.apiKey,
+    geminiApiKey: opts?.geminiApiKey,
   })
 
   if (!result.ok) throw new Error(result.text || `AI HTTP ${result.status}`)
@@ -133,11 +140,18 @@ export default async function handler(req, res) {
     const local = localRevisePieces(pieces)
     let engine = 'local'
     let revised = local
+    const provider = resolveProvider(req, body)
     const apiKey = resolveOpenAiKey(req, body)
+    const geminiApiKey = resolveGeminiKey(req, body)
     const model = String(body.model || '').trim() || undefined
 
     try {
-      const aiRaw = await reviseWithAi(kind, language, local, { apiKey, model })
+      const aiRaw = await reviseWithAi(kind, language, local, {
+        provider,
+        apiKey,
+        geminiApiKey,
+        model,
+      })
       const parsed = parseAiPieces(aiRaw, null)
       if (parsed && parsed.length) {
         const byId = new Map(parsed.map((p) => [p.id, p.text]))
