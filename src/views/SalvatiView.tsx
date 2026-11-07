@@ -134,7 +134,7 @@ export function SalvatiView() {
             </div>
           )}
           {savedResources.map((r) => (
-            <div className="list-item" key={r.id}>
+            <div className="list-item" key={r.id} id={`studio-search-materiale-${r.id}`} tabIndex={-1}>
               <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
                 <label className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
                   <input
@@ -264,7 +264,7 @@ export function SalvatiView() {
             <div className="empty">Nessuna ricerca salvata.</div>
           )}
           {savedSearches.map((s) => (
-            <div className="list-item" key={s.id}>
+            <div className="list-item" key={s.id} id={`studio-search-ricerca-${s.id}`} tabIndex={-1}>
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <strong>«{s.query}»</strong>
                 <button

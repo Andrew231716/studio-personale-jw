@@ -13,7 +13,8 @@ import { SectionProgress } from '../components/SectionProgress'
 import {
   BIBLE_KIND_LABELS,
   BIBLE_READING_SUGGESTIONS,
-  buildBibleReadingPlan,
+  createBibleReadingPlan,
+  enrichBibleReadingPlan,
   filterCatalog,
   searchBibleTopic,
   type BibleCatalogEntry,
@@ -36,7 +37,8 @@ export function LettureBibbiaView() {
   const [kind, setKind] = useState<BibleReadingKind>('personaggio')
   const [catalogFilter, setCatalogFilter] = useState('')
   const [query, setQuery] = useState('Abramo')
-  const [busy, setBusy] = useState(false)
+  const [loadingPlan, setLoadingPlan] = useState<{ id: string; phase: 'fonti' | 'riflessioni' } | null>(null)
+  const busy = loadingPlan !== null
   const [searchBusy, setSearchBusy] = useState(false)
   const [error, setError] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -54,25 +56,38 @@ export function LettureBibbiaView() {
   async function generate(q = query, entry?: BibleCatalogEntry) {
     const text = (entry?.label || q).trim()
     if (!text || busy) return
-    setBusy(true)
     setError('')
+    const base = createBibleReadingPlan({ kind, query: text, language, entry })
+    pushBiblePlan(base)
+    setActiveId(base.id)
+    setQuery(base.query)
+    setTab('piano')
+    if (!navigator.onLine) return
+
+    setLoadingPlan({ id: base.id, phase: 'fonti' })
+    let generatedText = base.plan
+    const currentPlan = () => useAppStore.getState().bibleReadingPlans.find((item) => item.id === base.id)
     try {
-      const plan = await buildBibleReadingPlan({
-        kind,
-        query: entry?.query || text,
-        language,
-        entry,
+      const enrichment = await enrichBibleReadingPlan(base, entry?.query || text, language, (sources) => {
+        const current = currentPlan()
+        if (current) {
+          const keepText = current.plan !== generatedText
+          updateBiblePlan(base.id, { ...sources, plan: keepText ? current.plan : sources.plan })
+          generatedText = sources.plan
+        }
+        setLoadingPlan({ id: base.id, phase: 'riflessioni' })
       })
-      // Se generato da entry, usa label come query leggibile
-      if (entry) plan.query = entry.label
-      pushBiblePlan(plan)
-      setActiveId(plan.id)
-      setQuery(entry?.label || text)
-      setTab('piano')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Impossibile preparare la proposta')
+      const current = currentPlan()
+      if (enrichment && current) {
+        updateBiblePlan(base.id, {
+          title: current.title === base.title ? enrichment.title : current.title,
+          plan: current.plan === generatedText ? enrichment.plan : current.plan,
+        })
+      }
+    } catch {
+      setError('Approfondimento AI non disponibile. Il percorso di lettura è già salvato.')
     } finally {
-      setBusy(false)
+      setLoadingPlan(null)
     }
   }
 
@@ -400,6 +415,11 @@ export function LettureBibbiaView() {
               <div className="stack">
                 <div className="section-head">
                   <div>
+                    {loadingPlan?.id === active.id && (
+                      <p className="muted" role="status">
+                        {loadingPlan.phase === 'fonti' ? 'Cerco fonti su jw.org…' : 'Preparo gli spunti di riflessione…'}
+                      </p>
+                    )}
                     <span className="badge">{BIBLE_KIND_LABELS[active.kind]}</span>
                     <h3 style={{ margin: '0.4rem 0 0' }}>{active.title}</h3>
                     {active.blurb && <p className="muted">{active.blurb}</p>}
@@ -530,7 +550,9 @@ export function LettureBibbiaView() {
                 </div>
               ))}
               {!active?.resources.length && (
-                <div className="empty">I materiali del percorso attivo compariranno qui.</div>
+                <div className="empty">
+                  {loadingPlan?.id === active?.id && loadingPlan ? 'Ricerca in corso…' : 'Nessuna fonte aggiuntiva per questo percorso.'}
+                </div>
               )}
             </div>
 

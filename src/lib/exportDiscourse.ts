@@ -1,5 +1,3 @@
-import { jsPDF } from 'jspdf'
-import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import {
   fetchScriptureVerse,
@@ -45,6 +43,7 @@ export function downloadDiscourseText(note: DiscourseNote): void {
 }
 
 export async function exportDiscoursePdf(note: DiscourseNote): Promise<void> {
+  const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const margin = 22
   const width = 210 - margin * 2
@@ -192,6 +191,7 @@ export async function exportDiscourseEpub(
   const style = epubWolCss()
   const script = epubWolScript()
 
+  const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
   zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' })
   zip.folder('META-INF')?.file(

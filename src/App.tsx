@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import {
   BookMarked,
   BookOpenText,
@@ -26,7 +26,6 @@ import { ArgomentiView } from './views/ArgomentiView'
 import { SessioneView } from './views/SessioneView'
 import { StudioView } from './views/StudioView'
 import { DiarioView } from './views/DiarioView'
-import { PdfJwpubView } from './views/PdfJwpubView'
 import { VideoStudioView } from './views/VideoStudioView'
 import { SalvatiView } from './views/SalvatiView'
 import { LettureBibbiaView } from './views/LettureBibbiaView'
@@ -40,6 +39,20 @@ import { AssistenteView } from './views/AssistenteView'
 import { ImpostazioniView } from './views/ImpostazioniView'
 import { BrandLogo } from './components/BrandLogo'
 import { InAppReminders } from './components/InAppReminders'
+import { StudySearch } from './components/StudySearch'
+import type { StudySearchResult } from './lib/studySearch'
+
+const PdfJwpubView = lazy(() =>
+  import('./views/PdfJwpubView')
+    .then((module) => ({ default: module.PdfJwpubView }))
+    .catch(() => ({
+      default: () => (
+        <p className="panel" role="status">
+          Convertitore non disponibile. Quando sei online, ricarica la pagina per aprirlo.
+        </p>
+      ),
+    })),
+)
 
 const ICONS: Record<AppView, typeof Home> = {
   home: Home,
@@ -83,6 +96,26 @@ export default function App() {
   const setView = useAppStore((s) => s.setView)
   const settings = useAppStore((s) => s.settings)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [searchTarget, setSearchTarget] = useState<{ id: string; view: AppView } | null>(null)
+
+  useEffect(() => {
+    if (!searchTarget || view !== searchTarget.view) return
+    const element = document.getElementById(searchTarget.id)
+    if (element instanceof HTMLDetailsElement) element.open = true
+    element?.focus()
+    element?.scrollIntoView({ block: 'start' })
+  }, [searchTarget, view])
+
+  function openStudyResult(result: StudySearchResult) {
+    const nextView = result.kind === 'quaderno' ? 'studio' : result.kind === 'sessione' ? 'diario' : 'salvati'
+    if (result.kind === 'quaderno') {
+      const state = useAppStore.getState()
+      const topic = state.topics.find((item) => item.id === result.id)
+      if (topic && topic.status !== 'completato') state.setActiveTopic(topic.id)
+    }
+    setView(nextView)
+    setSearchTarget({ view: nextView, id: `studio-search-${result.kind}-${result.id}` })
+  }
 
   useEffect(() => {
     applyTheme(settings.theme)
@@ -171,8 +204,8 @@ export default function App() {
   const moreActive = moreMobile.includes(view)
 
   useEffect(() => {
-    if (!navItems.includes(view) && navItems[0]) setView(navItems[0])
-  }, [navItems, view, setView])
+    if (!navItems.includes(view) && navItems[0] && searchTarget?.view !== view) setView(navItems[0])
+  }, [navItems, view, setView, searchTarget])
 
   function renderNavButton(key: AppView) {
     const Icon = ICONS[key]
@@ -181,7 +214,7 @@ export default function App() {
         key={key}
         type="button"
         className={view === key ? 'active' : ''}
-        onClick={() => setView(key)}
+        onClick={() => { setSearchTarget(null); setView(key) }}
       >
         <Icon size={17} strokeWidth={2.1} />
         {VIEW_LABELS[key]}
@@ -231,6 +264,7 @@ export default function App() {
                     type="button"
                     className={view === key ? 'active' : ''}
                     onClick={() => {
+                      setSearchTarget(null)
                       setView(key)
                       setMoreOpen(false)
                     }}
@@ -244,19 +278,24 @@ export default function App() {
           </div>
         )}
 
-        <div className="sidebar-foot">Contenuti da jw.org · salvati in locale</div>
+        <div className="sidebar-foot">Contenuti da jw.org · {settings.cloudSync?.enabled && settings.cloudSync.consent ? 'salvataggio locale e cloud' : 'salvataggio locale'}</div>
       </aside>
       <main className="main">
         <div className="main-inner">
           <OnlineStatus />
           <PwaInstallHint />
           <InAppReminders />
+          <StudySearch onOpenResult={openStudyResult} />
           {view === 'home' && <HomeView />}
           {view === 'argomenti' && <ArgomentiView />}
           {view === 'sessione' && <SessioneView />}
           {view === 'studio' && <StudioView />}
-          {view === 'diario' && <DiarioView />}
-          {view === 'pdfJwpub' && <PdfJwpubView />}
+          {view === 'diario' && <DiarioView key={searchTarget?.view === 'diario' ? searchTarget.id : undefined} />}
+          {view === 'pdfJwpub' && (
+            <Suspense fallback={<p role="status">Caricamento del convertitore…</p>}>
+              <PdfJwpubView />
+            </Suspense>
+          )}
           {view === 'videoStudio' && <VideoStudioView />}
           {view === 'salvati' && <SalvatiView />}
           {view === 'lettureBibbia' && <LettureBibbiaView />}

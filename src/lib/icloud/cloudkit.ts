@@ -113,6 +113,8 @@ export async function fetchICloudSnapshot(
   return parsed
 }
 
+export class ICloudConflictError extends Error {}
+
 export async function saveICloudSnapshot(
   config: ICloudConfig,
   snapshot: ICloudSnapshot,
@@ -131,25 +133,8 @@ export async function saveICloudSnapshot(
   })
   const record = response.records[0]
   if (!record || record.serverErrorCode) {
-    // Conflitto: ricarica change tag e riprova una volta
     if (record?.serverErrorCode === 'CONFLICT' || record?.serverErrorCode === 'ATOMIC_ERROR') {
-      await fetchICloudSnapshot(config)
-      const retry = await container.privateCloudDatabase.saveRecords({
-        recordName: ICLOUD_RECORD_NAME,
-        recordType: ICLOUD_RECORD_TYPE,
-        recordChangeTag: changeTag,
-        fields: {
-          payload: { value: payload },
-          revision: { value: Date.now() },
-          updatedAt: { value: snapshot.updatedAt },
-        },
-      })
-      const saved = retry.records[0]
-      if (!saved || saved.serverErrorCode) {
-        throw new Error(saved?.reason || saved?.serverErrorCode || 'Salvataggio iCloud non riuscito')
-      }
-      changeTag = saved.recordChangeTag
-      return
+      throw new ICloudConflictError('I dati iCloud sono cambiati su un altro dispositivo')
     }
     throw new Error(record?.reason || record?.serverErrorCode || 'Salvataggio iCloud non riuscito')
   }

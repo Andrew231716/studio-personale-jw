@@ -232,7 +232,7 @@ export function DiarioView() {
                 : undefined
               const practiced = isPracticeDone(s.topicId, s.practice)
               return (
-                <article key={s.id} className="list-item">
+                <article key={s.id} id={`studio-search-sessione-${s.id}`} tabIndex={-1} className="list-item">
                   <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
                     <strong>{s.topicTitle}</strong>
                     <span className="badge">{s.minutesSpent} min</span>

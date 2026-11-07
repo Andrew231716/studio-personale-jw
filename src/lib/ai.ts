@@ -178,14 +178,18 @@ export async function askAi(params: {
   history?: AiMessage[]
   context?: string
   allowedUrls?: string[]
+  signal?: AbortSignal
+  requireRemote?: boolean
 }): Promise<string> {
   const { prompt, history = [], context = '', allowedUrls = [] } = params
   const wantGemini =
     hasGeminiKeyConfigured() || readAiSettings().provider === 'gemini'
   try {
-    const remote = await askRemoteAi(prompt, history, context)
+    const remote = await askRemoteAi(prompt, history, context, params.signal)
     if (remote?.trim()) return enforceGrounding(remote.trim(), allowedUrls)
+    if (params.requireRemote) throw new Error('Risposta AI vuota')
   } catch (e) {
+    if (params.requireRemote) throw e
     // Con Gemini configurato non nascondere il guasto dietro il coach locale.
     if (wantGemini) {
       return normalizeJwItalian(formatGeminiUserError(e))
@@ -198,6 +202,7 @@ async function askRemoteAi(
   prompt: string,
   history: AiMessage[],
   context: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const clippedContext = clipText(context, CONTEXT_CHAR_LIMIT)
   const messages = [
@@ -224,6 +229,7 @@ async function askRemoteAi(
   const extras = aiRequestExtras()
   const res = await fetch('/api/ai', {
     method: 'POST',
+    signal,
     headers: extras.headers,
     body: JSON.stringify({
       messages,

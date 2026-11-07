@@ -4,7 +4,7 @@ import {
   adoptSyncKey,
   getCloudSyncState,
   isValidSyncKey,
-  startCloudSync,
+  enableCloudSync,
   subscribeCloudSync,
   syncCloudNow,
 } from '../lib/cloudSync'
@@ -48,7 +48,7 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
 
   const key = cloudSync?.syncKey || ''
   const hasSavedKey = isValidSyncKey(key)
-  const enabled = cloudSync?.enabled !== false
+  const enabled = cloudSync?.enabled === true && cloudSync.consent === true
 
   async function copyKey() {
     if (!key) return
@@ -61,18 +61,12 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
     }
   }
 
-  async function runSync() {
-    if (!hasSavedKey) {
-      setMessage('Prima collega o genera una chiave sync.')
-      setShowChangeKey(true)
-      return
-    }
+  async function runSync(activate = false) {
     setBusy(true)
     setMessage('')
     try {
-      // Assicura che resti abilitata e salvata
-      updateSettings({ cloudSync: { enabled: true, syncKey: key } })
-      await syncCloudNow()
+      if (activate) await enableCloudSync()
+      else await syncCloudNow()
       setMessage('Dati aggiornati tra i dispositivi.')
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Sync non riuscita')
@@ -89,8 +83,7 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
       await adoptSyncKey(adoptKey)
       setAdoptKey('')
       setShowChangeKey(false)
-      setMessage('Chiave salvata su questo dispositivo. Tocca Sincronizza quando vuoi.')
-      await startCloudSync()
+      setMessage('Dispositivo collegato e dati sincronizzati.')
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Collegamento non riuscito')
     } finally {
@@ -106,19 +99,17 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
           <div>
             <strong>Sync cloud</strong>
             <p className="muted" style={{ margin: '0.15rem 0 0' }}>
-              {hasSavedKey
-                ? `Chiave salvata · ${statusLabel(sync.status, sync.lastError)}`
-                : 'Nessuna chiave salvata'}
+              {enabled ? statusLabel(sync.status, sync.lastError) : 'Disattivata · dati su questo dispositivo'}
             </p>
           </div>
           <button
             className="btn"
             type="button"
-            disabled={busy || !hasSavedKey || !enabled}
-            onClick={() => void runSync()}
+            disabled={busy}
+            onClick={() => enabled ? void runSync() : useAppStore.getState().setView('impostazioni')}
           >
             <RefreshCw size={16} />
-            {busy ? 'Sync…' : 'Sincronizza'}
+            {busy ? 'Sync…' : enabled ? 'Sincronizza' : 'Impostazioni cloud'}
           </button>
         </div>
         {message && (
@@ -137,11 +128,12 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
           <p className="section-kicker">Cloud</p>
           <h2>Sincronizzazione tra dispositivi</h2>
         </div>
-        <span className="badge">{statusLabel(sync.status, sync.lastError)}</span>
+        <span className="badge">{enabled ? statusLabel(sync.status, sync.lastError) : 'Disattivata'}</span>
       </div>
       <p className="lede">
-        Inserisci una volta la chiave di backup: resta salvata qui. Poi basta toccare
-        <strong> Sincronizza</strong> per aggiornare i dati da un dispositivo all’altro.
+        Se attivi il cloud, l’app salva online appunti, diario, chat AI, bozze, materiali
+        e impostazioni di studio per ritrovarli sugli altri dispositivi. Conserva la chiave
+        di sincronizzazione in un posto sicuro.
       </p>
 
       {hasSavedKey ? (
@@ -170,34 +162,29 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
             </div>
           </div>
 
-          <div className="field" style={{ marginTop: '0.85rem' }}>
-            <label className="row" style={{ gap: '0.5rem' }}>
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(e) =>
-                  updateSettings({
-                    cloudSync: {
-                      enabled: e.target.checked,
-                      syncKey: key,
-                    },
-                  })
-                }
-              />
-              Sync automatica attiva
-            </label>
+          <div className="row" style={{ marginTop: '0.85rem', flexWrap: 'wrap' }}>
+            <button
+              className="btn"
+              type="button"
+              disabled={busy}
+              onClick={() => void runSync(!enabled)}
+            >
+              <RefreshCw size={16} />
+              {busy ? 'Sincronizzazione…' : enabled ? 'Sincronizza' : 'Attiva sincronizzazione cloud'}
+            </button>
+            {enabled && (
+              <button
+                className="btn secondary"
+                type="button"
+                onClick={() => {
+                  updateSettings({ cloudSync: { enabled: false, consent: true, syncKey: key } })
+                  setMessage('Sincronizzazione disattivata su questo dispositivo.')
+                }}
+              >
+                Disattiva
+              </button>
+            )}
           </div>
-
-          <button
-            className="btn"
-            type="button"
-            style={{ width: '100%', marginTop: '0.35rem' }}
-            disabled={busy || !enabled}
-            onClick={() => void runSync()}
-          >
-            <RefreshCw size={16} />
-            {busy ? 'Sincronizzazione…' : 'Sincronizza'}
-          </button>
 
           {sync.lastSyncedAt && (
             <p className="muted" style={{ margin: '0.55rem 0 0' }}>
@@ -217,18 +204,14 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
       ) : (
         <div className="sync-saved">
           <p style={{ margin: 0 }}>
-            Nessuna chiave ancora. Generane una nuova (si crea automaticamente) oppure collega
-            quella di un altro dispositivo.
+            Puoi creare una nuova chiave oppure collegare quella di un altro dispositivo.
           </p>
           <button
             className="btn"
             type="button"
             style={{ marginTop: '0.75rem' }}
             disabled={busy}
-            onClick={() => {
-              setShowChangeKey(true)
-              void startCloudSync().then(() => setSync(getCloudSyncState()))
-            }}
+            onClick={() => void runSync(true)}
           >
             <Cloud size={16} /> Attiva sync su questo dispositivo
           </button>
@@ -241,6 +224,7 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
             <label htmlFor="adopt-key">Incolla la chiave di backup (JWS-…)</label>
             <input
               id="adopt-key"
+              type="password"
               placeholder="JWS-…"
               value={adoptKey}
               onChange={(e) => setAdoptKey(e.target.value)}

@@ -14,9 +14,15 @@ import type {
   StudyTopic,
 } from '../../types'
 
+export interface SyncMetadata {
+  deleted?: Record<string, string>
+  draftChangedAt?: string
+}
+
 /** Snapshot sincronizzato nel database privato iCloud (CloudKit). */
 export interface ICloudSnapshot {
   version: 1
+  syncMetadata?: SyncMetadata
   updatedAt: string
   settings: AppSettings
   topics: StudyTopic[]

@@ -1,3 +1,4 @@
+import { repairBiblePlanTitle } from './biblePlanTitle'
 import type { AppSettings } from '../types'
 import {
   mergeAppSettings,
@@ -5,7 +6,8 @@ import {
   normalizeTopicTerms,
   useAppStore,
 } from '../store/useAppStore'
-import { mergeSnapshots } from './icloud/merge'
+import { mergeSnapshots, SYNC_COLLECTIONS } from './icloud/merge'
+import { readApiJson } from './apiJson'
 import type { ICloudSnapshot } from './icloud/types'
 
 export type CloudSyncStatus = 'idle' | 'syncing' | 'ready' | 'error' | 'offline'
@@ -56,25 +58,13 @@ export function isValidSyncKey(key: string): boolean {
   return /^JWS-[a-f0-9]{12}-[a-f0-9]{24,64}$/i.test(String(key || '').trim())
 }
 
-function ensureCloudSyncSettings(settings: AppSettings): NonNullable<AppSettings['cloudSync']> {
-  const current = settings.cloudSync
-  if (current?.syncKey && isValidSyncKey(current.syncKey)) {
-    return {
-      enabled: current.enabled !== false,
-      syncKey: current.syncKey,
-    }
-  }
-  return {
-    enabled: true,
-    syncKey: generateSyncKey(),
-  }
-}
-
 function snapshotFromStore(): ICloudSnapshot {
   const s = useAppStore.getState()
   // Non sincronizzare le chiavi AI sul cloud (restano solo sul dispositivo).
   const settings: AppSettings = {
     ...s.settings,
+    cloudSync: undefined,
+    iCloud: undefined,
     ai: {
       provider: s.settings.ai?.provider || 'free',
       geminiApiKey: '',
@@ -86,6 +76,7 @@ function snapshotFromStore(): ICloudSnapshot {
     version: 1,
     updatedAt: new Date().toISOString(),
     settings,
+    syncMetadata: s.syncMetadata,
     topics: s.topics,
     decisions: s.decisions,
     activeTopicId: s.activeTopicId,
@@ -109,7 +100,12 @@ function applySnapshot(snapshot: ICloudSnapshot) {
   try {
     const cur = useAppStore.getState()
     useAppStore.setState({
-      settings: mergeAppSettings(cur.settings, snapshot.settings),
+      settings: {
+        ...mergeAppSettings(cur.settings, snapshot.settings),
+        cloudSync: cur.settings.cloudSync,
+        iCloud: cur.settings.iCloud,
+      },
+      syncMetadata: snapshot.syncMetadata,
       topics: (snapshot.topics || []).map(normalizeTopicTerms),
       decisions: (snapshot.decisions || []).map(normalizeDecisionTerms),
       activeTopicId: snapshot.activeTopicId,
@@ -120,146 +116,127 @@ function applySnapshot(snapshot: ICloudSnapshot) {
       schedules: snapshot.schedules,
       savedResources: snapshot.savedResources || [],
       savedSearches: snapshot.savedSearches || [],
-      bibleReadingPlans: snapshot.bibleReadingPlans || [],
+      bibleReadingPlans: (snapshot.bibleReadingPlans || []).map(repairBiblePlanTitle),
       ministryNotes: snapshot.ministryNotes || [],
       discourseNotes: snapshot.discourseNotes || [],
       activeDiscourseId: snapshot.activeDiscourseId ?? null,
       savedVideoTranscripts: snapshot.savedVideoTranscripts || [],
     })
   } finally {
-    queueMicrotask(() => {
-      applyingRemote = false
-    })
+    applyingRemote = false
   }
 }
 
-async function pull(key: string): Promise<ICloudSnapshot | null> {
-  const { readApiJson } = await import('./apiJson')
-  const res = await fetch(`/api/sync?key=${encodeURIComponent(key)}`)
-  if (res.status === 404) return null
-  if (res.status === 501) {
-    throw new Error(
-      'Sync cloud non disponibile in locale (vite/preview). Usa il deploy Vercel o configura /api/sync.',
-    )
-  }
-  const data = await readApiJson<{ error?: string; snapshot?: ICloudSnapshot }>(
-    res,
-    'Sync cloud non riuscita',
-  )
-  return data.snapshot as ICloudSnapshot
+function currentKey(): string | undefined {
+  const cfg = useAppStore.getState().settings.cloudSync
+  return cfg?.enabled && cfg.consent && isValidSyncKey(cfg.syncKey) ? cfg.syncKey : undefined
 }
 
-async function push(key: string, snapshot: ICloudSnapshot): Promise<string> {
-  const { readApiJson } = await import('./apiJson')
-  const res = await fetch('/api/sync', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, snapshot }),
+function syncRequest(key: string, options?: { snapshot: ICloudSnapshot; revision: string | null }) {
+  return fetch('/api/sync', {
+    method: options ? 'PUT' : 'GET',
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      Authorization: `Bearer ${key}`,
+      ...(options ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: options ? JSON.stringify(options) : undefined,
   })
-  if (res.status === 501) {
-    throw new Error(
-      'Sync cloud non disponibile in locale (vite/preview). Usa il deploy Vercel o configura /api/sync.',
-    )
-  }
-  const data = await readApiJson<{ error?: string; updatedAt?: string }>(
-    res,
-    'Invio cloud non riuscito',
-  )
-  return String(data.updatedAt || snapshot.updatedAt)
 }
 
-async function pullAndMerge(key: string) {
-  setStatus('syncing')
-  try {
-    const remote = await pull(key)
-    const local = snapshotFromStore()
-    if (!remote) {
-      lastSyncedAt = await push(key, local)
-    } else {
-      const merged = mergeSnapshots(local, remote)
-      // Evita di riscrivere la chiave sync locale con una vuota dal remoto
-      const localKey = useAppStore.getState().settings.cloudSync?.syncKey
-      if (localKey && merged.settings.cloudSync) {
-        merged.settings = {
-          ...merged.settings,
-          cloudSync: { ...merged.settings.cloudSync, syncKey: localKey, enabled: true },
-        }
-      }
-      applySnapshot(merged)
-      lastSyncedAt = await push(key, merged)
+async function pull(key: string) {
+  const res = await syncRequest(key)
+  if (res.status === 404) return null
+  return readApiJson<{ snapshot: ICloudSnapshot; updatedAt: string }>(res, 'Lettura cloud non riuscita')
+}
+
+let pending: Promise<void> = Promise.resolve()
+
+function sync(key: string): Promise<void> {
+  const task = pending.then(async () => {
+    if (key !== currentKey()) return
+    setStatus('syncing')
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const remote = await pull(key)
+      if (key !== currentKey()) return
+      const local = snapshotFromStore()
+      const merged = remote ? mergeSnapshots(local, remote.snapshot) : local
+      if (remote) applySnapshot(merged)
+      // Usa le impostazioni sanificate del dispositivo dopo l’eventuale unione.
+      const snapshot = remote ? snapshotFromStore() : merged
+      const res = await syncRequest(key, { snapshot, revision: remote?.updatedAt ?? null })
+      if (key !== currentKey()) return
+      if (res.status === 409) continue
+      const result = await readApiJson<{ updatedAt: string }>(res, 'Invio cloud non riuscito')
+      lastSyncedAt = result.updatedAt
+      setStatus('ready')
+      return
     }
-    setStatus('ready')
-  } catch (e) {
+    throw new Error('I dati sono cambiati su un altro dispositivo. Tocca Sincronizza per riprovare.')
+  }).catch((error: unknown) => {
+    if (key !== currentKey()) return
     setStatus(
       typeof navigator !== 'undefined' && !navigator.onLine ? 'offline' : 'error',
-      e instanceof Error ? e.message : 'Sync non riuscita',
+      error instanceof Error ? error.message : 'Sync non riuscita',
     )
-  }
+    throw error
+  })
+  pending = task.catch(() => {})
+  return task
 }
 
-async function pushNow(key: string) {
-  if (applyingRemote) return
-  setStatus('syncing')
-  try {
-    lastSyncedAt = await push(key, snapshotFromStore())
-    setStatus('ready')
-  } catch (e) {
-    setStatus('error', e instanceof Error ? e.message : 'Invio cloud non riuscito')
-  }
+function syncInBackground() {
+  const key = currentKey()
+  if (key) void sync(key).catch(() => {})
 }
 
-function schedulePush(key: string) {
-  if (pushTimer) clearTimeout(pushTimer)
-  pushTimer = setTimeout(() => {
-    void pushNow(key)
-  }, 1400)
-}
-
-/** Avvia sync automatica: crea la chiave se manca. */
-export async function startCloudSync(): Promise<void> {
-  const state = useAppStore.getState()
-  const cloudSync = ensureCloudSyncSettings(state.settings)!
-  if (!state.settings.cloudSync?.syncKey || state.settings.cloudSync.syncKey !== cloudSync.syncKey) {
-    useAppStore.getState().updateSettings({ cloudSync })
-  }
-  if (cloudSync.enabled === false) {
-    setStatus('idle')
-    return
-  }
-
-  const key = cloudSync.syncKey
-  await pullAndMerge(key)
-
-  if (!started) {
-    started = true
-    useAppStore.subscribe(() => {
-      if (applyingRemote) return
-      const cfg = useAppStore.getState().settings.cloudSync
-      if (!cfg?.enabled || !cfg.syncKey) return
-      schedulePush(cfg.syncKey)
-    })
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState !== 'visible') return
-      const cfg = useAppStore.getState().settings.cloudSync
-      if (!cfg?.enabled || !cfg.syncKey) return
-      void pullAndMerge(cfg.syncKey)
-    })
-  }
+/** Ascolta i salvataggi locali dopo l’avvio, anche se il cloud è ancora disattivato. */
+export function startCloudSync(): void {
+  if (started) return
+  started = true
+  useAppStore.subscribe((state, previous) => {
+    if (applyingRemote) return
+    const key = currentKey()
+    if (!key) {
+      if (pushTimer) clearTimeout(pushTimer)
+      if (status !== 'idle') setStatus('idle')
+      return
+    }
+    if (
+      state.settings === previous.settings &&
+      state.sessionDraft === previous.sessionDraft &&
+      !SYNC_COLLECTIONS.some((name) => state[name] !== previous[name])
+    ) return
+    if (pushTimer) clearTimeout(pushTimer)
+    pushTimer = setTimeout(syncInBackground, 1400)
+  })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') syncInBackground()
+  })
+  window.addEventListener('online', syncInBackground)
+  syncInBackground()
 }
 
 export async function syncCloudNow(): Promise<void> {
-  const cfg = ensureCloudSyncSettings(useAppStore.getState().settings)!
-  useAppStore.getState().updateSettings({ cloudSync: cfg })
-  if (cfg.enabled === false) return
-  await pullAndMerge(cfg.syncKey)
+  const key = currentKey()
+  if (!key) return
+  if (pushTimer) clearTimeout(pushTimer)
+  await sync(key)
 }
 
-/** Collega questo dispositivo a una chiave già usata su un altro. */
+export async function enableCloudSync(): Promise<void> {
+  const saved = useAppStore.getState().settings.cloudSync?.syncKey || ''
+  const key = isValidSyncKey(saved) ? saved : generateSyncKey()
+  useAppStore.getState().updateSettings({ cloudSync: { enabled: true, consent: true, syncKey: key } })
+  await syncCloudNow()
+}
+
+/** Verifica la chiave di un altro dispositivo prima di collegare i dati locali. */
 export async function adoptSyncKey(rawKey: string): Promise<void> {
   const key = String(rawKey || '').trim()
   if (!isValidSyncKey(key)) throw new Error('Chiave non valida. Formato: JWS-xxxxxxxxxxxx-…')
-  useAppStore.getState().updateSettings({
-    cloudSync: { enabled: true, syncKey: key },
-  })
-  await pullAndMerge(key)
+  if (!(await pull(key))) throw new Error('Nessun dato cloud per questa chiave. Sincronizza prima l’altro dispositivo.')
+  useAppStore.getState().updateSettings({ cloudSync: { enabled: true, consent: true, syncKey: key } })
+  await syncCloudNow()
 }

@@ -1,3 +1,5 @@
+import { repairBiblePlanTitle } from './biblePlanTitle'
+import { trackSyncChanges } from './icloud/merge'
 import {
   mergeAppSettings,
   normalizeDecisionTerms,
@@ -111,12 +113,18 @@ export function parseBackup(raw: string): StudioBackup {
   return obj as unknown as StudioBackup
 }
 
+function backupCloudSettings(current: AppSettings, incoming?: AppSettings) {
+  const local = current.cloudSync
+  const key = incoming?.cloudSync?.syncKey || ''
+  return local?.syncKey || !isValidSyncKey(key) ? local : { enabled: false, syncKey: key }
+}
+
 /** Sostituisce i dati locali con quelli del backup (dopo conferma utente). */
 export function applyBackup(backup: StudioBackup): void {
   const d = backup.data
   const cur = useAppStore.getState()
-  useAppStore.setState({
-    settings: mergeAppSettings(cur.settings, d.settings),
+  const patch = {
+    settings: { ...mergeAppSettings(cur.settings, d.settings), cloudSync: backupCloudSettings(cur.settings, d.settings) },
     topics: (Array.isArray(d.topics) ? d.topics : []).map(normalizeTopicTerms),
     decisions: (Array.isArray(d.decisions) ? d.decisions : []).map(normalizeDecisionTerms),
     activeTopicId: d.activeTopicId ?? null,
@@ -127,14 +135,15 @@ export function applyBackup(backup: StudioBackup): void {
     schedules: Array.isArray(d.schedules) ? d.schedules : [],
     savedResources: Array.isArray(d.savedResources) ? d.savedResources : [],
     savedSearches: Array.isArray(d.savedSearches) ? d.savedSearches : [],
-    bibleReadingPlans: Array.isArray(d.bibleReadingPlans) ? d.bibleReadingPlans : [],
+    bibleReadingPlans: Array.isArray(d.bibleReadingPlans) ? d.bibleReadingPlans.map(repairBiblePlanTitle) : [],
     ministryNotes: Array.isArray(d.ministryNotes) ? d.ministryNotes : [],
     discourseNotes: Array.isArray(d.discourseNotes) ? d.discourseNotes : [],
     activeDiscourseId: d.activeDiscourseId ?? null,
     savedVideoTranscripts: Array.isArray(d.savedVideoTranscripts)
       ? d.savedVideoTranscripts
       : [],
-  })
+  }
+  useAppStore.setState({ ...patch, syncMetadata: trackSyncChanges(cur, patch) })
 }
 
 function stampOf(item: { updatedAt?: string; createdAt?: string; savedAt?: string }): number {
@@ -163,23 +172,10 @@ function mergeById<
 export function mergeBackup(backup: StudioBackup): void {
   const d = backup.data
   const cur = useAppStore.getState()
-  const baseCloud = cur.settings.cloudSync || { enabled: false, syncKey: '' }
-  const incomingCloud = d.settings?.cloudSync
-  const cloudSync =
-    incomingCloud && isValidSyncKey(incomingCloud.syncKey || '')
-      ? {
-          enabled: incomingCloud.enabled ?? baseCloud.enabled,
-          syncKey: incomingCloud.syncKey || baseCloud.syncKey,
-        }
-      : {
-          enabled: incomingCloud?.enabled ?? baseCloud.enabled,
-          syncKey: baseCloud.syncKey || incomingCloud?.syncKey || '',
-        }
-
-  const settings: AppSettings = mergeAppSettings(cur.settings, {
-    ...(d.settings || {}),
-    cloudSync,
-  })
+  const settings: AppSettings = {
+    ...mergeAppSettings(cur.settings, d.settings),
+    cloudSync: backupCloudSettings(cur.settings, d.settings),
+  }
 
   const topics = mergeById(cur.topics, Array.isArray(d.topics) ? d.topics : []).map(
     normalizeTopicTerms,
@@ -210,7 +206,7 @@ export function mergeBackup(backup: StudioBackup): void {
   ).slice(0, 100)
   const bibleReadingPlans = mergeById(
     cur.bibleReadingPlans,
-    Array.isArray(d.bibleReadingPlans) ? d.bibleReadingPlans : [],
+    Array.isArray(d.bibleReadingPlans) ? d.bibleReadingPlans.map(repairBiblePlanTitle) : [],
   ).slice(0, 50)
   const ministryNotes = mergeById(
     cur.ministryNotes,

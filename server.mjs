@@ -115,13 +115,6 @@ app.get('/api/tts', async (req, res) => {
   }
 })
 
-app.options('/api/sync', (_req, res) => {
-  res.set('Access-Control-Allow-Origin', '*')
-  res.set('Access-Control-Allow-Methods', 'GET,PUT,OPTIONS')
-  res.set('Access-Control-Allow-Headers', 'Content-Type')
-  res.status(204).end()
-})
-
 app.get('/api/sync', async (req, res) => {
   try {
     const { default: handler } = await import('./api/sync.js')

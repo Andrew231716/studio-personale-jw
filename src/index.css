@@ -2474,3 +2474,33 @@ img {
   line-height: 1.55;
   font-size: 0.98rem;
 }
+
+.study-search {
+  margin-bottom: 1rem;
+}
+
+.study-search-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.65rem;
+}
+
+.study-search-result {
+  text-align: start;
+  color: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.study-search-result:hover {
+  border-color: var(--primary);
+}
+
+[id^='studio-search-'] {
+  scroll-margin-top: 1rem;
+}
+
+[id^='studio-search-']:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}

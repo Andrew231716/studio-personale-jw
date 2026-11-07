@@ -255,7 +255,7 @@ export function StudioView() {
             const questions = t.questions.filter((q) => q.question.trim() || q.answer.trim())
             const practices = t.practices.filter((p) => p.action.trim())
             return (
-              <details key={t.id} className="decision-fold archive-topic-fold">
+              <details key={t.id} id={`studio-search-quaderno-${t.id}`} tabIndex={-1} className="decision-fold archive-topic-fold">
                 <summary className="decision-fold-summary">
                   <span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     <span>{t.title}</span>
@@ -425,7 +425,7 @@ export function StudioView() {
     <div className="stack">
       <StudyFlowGuide current="studio" />
       <SectionProgress section="studio" />
-      <section className="panel">
+      <section id={`studio-search-quaderno-${topic.id}`} tabIndex={-1} className="panel">
         <div className="section-head">
           <div style={{ flex: 1, minWidth: 0 }}>
             <p className="section-kicker">3 · Quaderno</p>

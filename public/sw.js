@@ -1,5 +1,5 @@
 /* JW Studio — service worker: shell + asset build + capitoli Bibbia già letti */
-const SHELL = 'jw-studio-shell-v2'
+const SHELL = 'jw-studio-shell-v3'
 const BIBLE = 'jw-studio-bible-v1'
 
 self.addEventListener('install', (event) => {
@@ -37,7 +37,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((k) => k !== SHELL && k !== BIBLE)
+          .filter((k) => k.startsWith('jw-studio-shell-') && k !== SHELL)
           .map((k) => caches.delete(k)),
       ),
     ).then(() => self.clients.claim()),
@@ -85,9 +85,10 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
-        .then((res) => {
-          const copy = res.clone()
-          caches.open(SHELL).then((c) => c.put('/index.html', copy))
+        .then(async (res) => {
+          if (!res.ok) return (await caches.match('/index.html')) || res
+          const cache = await caches.open(SHELL)
+          await cache.put('/index.html', res.clone()).catch(() => {})
           return res
         })
         .catch(() =>
@@ -101,7 +102,8 @@ self.addEventListener('fetch', (event) => {
     caches.match(req).then((cached) => {
       if (cached) return cached
       return fetch(req).then((res) => {
-        if (!res.ok || res.type === 'opaque') return res
+        if (!res.ok || res.type === 'opaque' || res.redirected ||
+          (url.pathname.startsWith('/assets/') && res.headers.get('Content-Type')?.includes('text/html'))) return res
         const copy = res.clone()
         caches.open(SHELL).then((c) => c.put(req, copy))
         return res

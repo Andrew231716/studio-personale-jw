@@ -7,21 +7,33 @@ function swManifestPlugin(): Plugin {
     name: 'sw-manifest',
     apply: 'build',
     generateBundle(_options, bundle) {
-      const assets = Object.keys(bundle)
-        .filter((f) => !f.endsWith('.map'))
-        .map((f) => `/${f.replace(/^\/+/, '')}`)
+      const assets = new Set<string>()
+      function addStaticImports(name: string) {
+        if (assets.has(name)) return
+        assets.add(name)
+        const chunk = bundle[name]
+        if (chunk?.type !== 'chunk') return
+        chunk.imports.filter((path) => path in bundle).forEach(addStaticImports)
+        chunk.viteMetadata?.importedCss.forEach(addStaticImports)
+        chunk.viteMetadata?.importedAssets.forEach(addStaticImports)
+      }
+      for (const item of Object.values(bundle)) {
+        if (item.type === 'chunk' && item.isEntry) addStaticImports(item.fileName)
+      }
       const list = [
         '/',
         '/index.html',
         '/favicon.svg',
         '/logo.svg',
+        '/jw-studio-logo.jpg',
+        '/jw-studio-icon-512.png',
         '/icon-192.png',
         '/apple-touch-icon.png',
         '/manifest.webmanifest',
         '/sw.js',
         '/fonts/manrope-latin.woff2',
         '/fonts/fraunces-latin.woff2',
-        ...assets,
+        ...Array.from(assets, (name) => `/${name}`),
       ]
       this.emitFile({
         type: 'asset',

@@ -1,3 +1,4 @@
+import { readApiJson } from './apiJson'
 import { askAi } from './ai'
 import { fetchMediaByLank, searchJw, searchJwDeep } from './jwApi'
 import { uid } from './id'
@@ -392,7 +393,6 @@ async function resolveViaPageApi(
   if (docid) params.set('docid', docid)
   else params.set('url', input)
   try {
-    const { readApiJson } = await import('./apiJson')
     const res = await fetch(`/api/jw-resolve?${params.toString()}`)
     const data = await readApiJson<{
       title?: string

@@ -1,3 +1,4 @@
+import { readApiJson } from './apiJson'
 import type { ContentKind, JwDeepSearchResult, JwResult } from '../types'
 import { bibleOpenUrl, parseScriptureLabel } from './bibleRefs'
 import {
@@ -16,15 +17,20 @@ import { formatTranscriptWithTimestamps, parseVtt, type VttCue } from './vtt'
 
 let cachedToken = ''
 let tokenFetchedAt = 0
+let tokenRequest: Promise<string> | undefined
 
 async function getToken(): Promise<string> {
   const fresh = Date.now() - tokenFetchedAt < 50 * 60 * 1000
   if (cachedToken && fresh) return cachedToken
-  const res = await fetch('/api/jw-token')
-  if (!res.ok) throw new Error('Impossibile ottenere il token di ricerca jw.org')
-  cachedToken = (await res.text()).trim()
-  tokenFetchedAt = Date.now()
-  return cachedToken
+  tokenRequest ??= fetch('/api/jw-token', { signal: AbortSignal.timeout(8_000) })
+    .then(async (res) => {
+      if (!res.ok) throw new Error('Impossibile ottenere il token di ricerca jw.org')
+      cachedToken = (await res.text()).trim()
+      tokenFetchedAt = Date.now()
+      return cachedToken
+    })
+    .finally(() => { tokenRequest = undefined })
+  return tokenRequest
 }
 
 function mapKindLegacy(subtype?: string, layoutHints: string[] = []): ContentKind {
@@ -140,6 +146,7 @@ export async function searchJw(
   const url = `/api/jw-search?language=${encodeURIComponent(language)}&filter=${encodeURIComponent(filter)}&q=${encodeURIComponent(q)}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(8_000),
   })
   if (!res.ok) throw new Error(`Ricerca jw.org non riuscita (${res.status})`)
   const data = (await res.json()) as Record<string, unknown>
@@ -373,7 +380,6 @@ export async function fetchLatestVideos(language = 'I'): Promise<LatestMediaItem
   const res = await fetch(
     `/api/jw-media?language=${encodeURIComponent(language)}&category=LatestVideos`,
   )
-  const { readApiJson } = await import('./apiJson')
   const data = await readApiJson<{ category?: { media?: Record<string, unknown>[] } }>(
     res,
     'Impossibile caricare i video recenti da jw.org',
@@ -400,7 +406,6 @@ export async function fetchMediaCategory(
   const res = await fetch(
     `/api/jw-media?language=${encodeURIComponent(language)}&category=${encodeURIComponent(category)}&detailed=1`,
   )
-  const { readApiJson } = await import('./apiJson')
   const data = await readApiJson<{ category?: { media?: Record<string, unknown>[] } }>(
     res,
     `Impossibile caricare la categoria video (${category})`,

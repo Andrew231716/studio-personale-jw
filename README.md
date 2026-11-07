@@ -14,7 +14,7 @@ App web per programmare lo studio personale, approfondire argomenti, riflettere 
 - **Apertura in JW Library**: link di condivisione `finder?srcid=jwlshare` per articoli e video
 - **Impostazioni**: colori, font, densità, hero, ordine sezioni, funzionalità on/off
 
-I dati restano nel browser (`localStorage`). L’app non è affiliata a jw.org.
+L’app salva i dati nel browser. In Impostazioni puoi attivare la sincronizzazione cloud con una chiave per usarli anche su altri dispositivi. L’app non è affiliata a jw.org.
 
 ## Avvio
 
@@ -34,7 +34,7 @@ Apri `http://localhost:5173` (dev) o `http://localhost:4173` (start).
 
 ## Deploy su Vercel
 
-Supabase **non è necessario**: argomenti, decisioni e chat restano nel browser (`localStorage`).
+La modalità locale funziona senza Supabase. La sincronizzazione con chiave JWS richiede la tabella `jw_studio_snapshots` e le variabili server `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE`.
 
 1. Crea un token su [vercel.com/account/tokens](https://vercel.com/account/tokens)
 2. Dalla cartella del progetto:

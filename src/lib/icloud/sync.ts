@@ -1,3 +1,4 @@
+import { repairBiblePlanTitle } from '../biblePlanTitle'
 import type { AppSettings } from '../../types'
 import {
   mergeAppSettings,
@@ -10,6 +11,7 @@ import {
   describeUser,
   fetchICloudSnapshot,
   isICloudConfigured,
+  ICloudConflictError,
   saveICloudSnapshot,
   setupICloudAuth,
 } from './cloudkit'
@@ -70,7 +72,14 @@ function snapshotFromStore(): ICloudSnapshot {
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
-    settings: s.settings,
+    settings: {
+      ...s.settings,
+      cloudSync: undefined,
+      iCloud: undefined,
+      openAi: undefined,
+      ai: { provider: s.settings.ai?.provider, geminiModel: s.settings.ai?.geminiModel },
+    },
+    syncMetadata: s.syncMetadata,
     topics: s.topics,
     decisions: s.decisions,
     activeTopicId: s.activeTopicId,
@@ -94,7 +103,15 @@ function applySnapshot(snapshot: ICloudSnapshot) {
   try {
     const cur = useAppStore.getState()
     useAppStore.setState({
-      settings: mergeAppSettings(cur.settings, snapshot.settings),
+      settings: {
+        ...mergeAppSettings(cur.settings, { ...snapshot.settings, openAi: undefined, ai: {
+          provider: snapshot.settings.ai?.provider,
+          geminiModel: snapshot.settings.ai?.geminiModel,
+        } }),
+        cloudSync: cur.settings.cloudSync,
+        iCloud: cur.settings.iCloud,
+      },
+      syncMetadata: snapshot.syncMetadata,
       topics: (snapshot.topics || []).map(normalizeTopicTerms),
       decisions: (snapshot.decisions || []).map(normalizeDecisionTerms),
       activeTopicId: snapshot.activeTopicId,
@@ -105,7 +122,7 @@ function applySnapshot(snapshot: ICloudSnapshot) {
       schedules: snapshot.schedules,
       savedResources: snapshot.savedResources || [],
       savedSearches: snapshot.savedSearches || [],
-      bibleReadingPlans: snapshot.bibleReadingPlans || [],
+      bibleReadingPlans: (snapshot.bibleReadingPlans || []).map(repairBiblePlanTitle),
       ministryNotes: snapshot.ministryNotes || [],
       discourseNotes: snapshot.discourseNotes || [],
       activeDiscourseId: snapshot.activeDiscourseId ?? null,
@@ -118,47 +135,49 @@ function applySnapshot(snapshot: ICloudSnapshot) {
   }
 }
 
-async function pushNow(config: ICloudConfig) {
-  if (!isICloudConfigured(config) || applyingRemote) return
-  if (status === 'signed_out' || status === 'unconfigured') return
-  setStatus('syncing')
-  try {
-    const snapshot = snapshotFromStore()
-    await saveICloudSnapshot(config, snapshot)
-    lastSyncedAt = snapshot.updatedAt
-    setStatus('ready')
-  } catch (e) {
-    setStatus('error', e instanceof Error ? e.message : 'Sync iCloud non riuscita')
+let pending: Promise<void> = Promise.resolve()
+
+function sync(config: ICloudConfig): Promise<void> {
+  const current = () => {
+    const active = resolveICloudConfig(useAppStore.getState().settings)
+    return status !== 'signed_out' && isICloudConfigured(active) &&
+      active.containerId === config.containerId && active.apiToken === config.apiToken &&
+      active.environment === config.environment
   }
+  pending = pending.then(async () => {
+    if (!current()) return
+    setStatus('syncing')
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const remote = await fetchICloudSnapshot(config)
+      if (!current()) return
+      if (remote) applySnapshot(mergeSnapshots(snapshotFromStore(), remote))
+      const snapshot = snapshotFromStore()
+      try {
+        await saveICloudSnapshot(config, snapshot)
+      } catch (error) {
+        if (error instanceof ICloudConflictError && attempt < 2) continue
+        throw error
+      }
+      if (!current()) return
+      lastSyncedAt = snapshot.updatedAt
+      setStatus('ready')
+      return
+    }
+  }).catch((error: unknown) => {
+    if (current()) setStatus('error', error instanceof Error ? error.message : 'Sync iCloud non riuscita')
+  })
+  return pending
 }
 
 function schedulePush(config: ICloudConfig) {
   if (pushTimer) clearTimeout(pushTimer)
-  pushTimer = setTimeout(() => {
-    void pushNow(config)
-  }, 1600)
+  pushTimer = setTimeout(() => { void sync(config) }, 1600)
 }
 
-async function pullAndMerge(config: ICloudConfig, user: CloudKitUserIdentity) {
-  setStatus('syncing')
+function pullAndMerge(config: ICloudConfig, user: CloudKitUserIdentity) {
   userLabel = describeUser(user)
-  emit()
-  try {
-    const remote = await fetchICloudSnapshot(config)
-    const local = snapshotFromStore()
-    if (!remote) {
-      await saveICloudSnapshot(config, local)
-      lastSyncedAt = local.updatedAt
-    } else {
-      const merged = mergeSnapshots(local, remote)
-      applySnapshot(merged)
-      await saveICloudSnapshot(config, merged)
-      lastSyncedAt = merged.updatedAt
-    }
-    setStatus('ready')
-  } catch (e) {
-    setStatus('error', e instanceof Error ? e.message : 'Lettura iCloud non riuscita')
-  }
+  setStatus('ready')
+  return sync(config)
 }
 
 function bindAuthHooks(config: ICloudConfig) {

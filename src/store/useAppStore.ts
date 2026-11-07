@@ -1,3 +1,6 @@
+import { repairBiblePlanTitle } from '../lib/biblePlanTitle'
+import { trackSyncChanges } from '../lib/icloud/merge'
+import type { SyncMetadata } from '../lib/icloud/types'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
@@ -99,7 +102,7 @@ const defaultSettings: AppSettings = {
         : 'development',
   },
   cloudSync: {
-    enabled: true,
+    enabled: false,
     syncKey: '',
   },
   ai: {
@@ -130,6 +133,7 @@ function emptyDraft(topicId: string | null = null): StudySessionDraft {
 }
 
 interface AppState {
+  syncMetadata?: SyncMetadata
   view: AppView
   settings: AppSettings
   topics: StudyTopic[]
@@ -371,9 +375,22 @@ function seedTopic(title: string, interest = ''): StudyTopic {
   }
 }
 
+type AppWrite = (patch: Partial<AppState> | ((state: AppState) => Partial<AppState>)) => void
+
+function trackWrites(initialize: (set: AppWrite, get: () => AppState) => AppState) {
+  return (write: AppWrite, get: () => AppState) => initialize((patch) =>
+    write((state) => {
+      const changes = typeof patch === 'function' ? patch(state) : patch
+      const syncMetadata = trackSyncChanges(state, changes)
+      return syncMetadata === state.syncMetadata ? changes : { ...changes, syncMetadata }
+    }),
+    get,
+  )
+}
+
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    trackWrites((set, get) => ({
       view: 'home',
       settings: defaultSettings,
       topics: [],
@@ -667,7 +684,7 @@ export const useAppStore = create<AppState>()(
       updateSessionLog: (id, patch) =>
         set((s) => ({
           sessionLogs: s.sessionLogs.map((log) =>
-            log.id === id ? { ...log, ...patch } : log,
+            log.id === id ? { ...log, ...patch, updatedAt: new Date().toISOString() } : log,
           ),
         })),
       removeSessionLog: (id) =>
@@ -707,7 +724,7 @@ export const useAppStore = create<AppState>()(
       updateSchedule: (id, patch) =>
         set((s) => ({
           schedules: s.schedules
-            .map((ev) => (ev.id === id ? { ...ev, ...patch } : ev))
+            .map((ev) => ev.id === id ? { ...ev, ...patch, updatedAt: new Date().toISOString() } : ev)
             .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
         })),
       removeSchedule: (id) =>
@@ -902,7 +919,7 @@ export const useAppStore = create<AppState>()(
         set((s) => ({
           savedVideoTranscripts: s.savedVideoTranscripts.filter((t) => t.id !== id),
         })),
-    }),
+    })),
     {
       name: 'studio-personale-jw-v1',
       merge: (persisted, current) => {
@@ -930,6 +947,8 @@ export const useAppStore = create<AppState>()(
             cloudSync: {
               ...current.settings.cloudSync!,
               ...(p.settings?.cloudSync || {}),
+              enabled: p.settings?.cloudSync?.enabled === true &&
+                p.settings.cloudSync.consent === true,
             },
             ai: (() => {
               const fromNew = p.settings?.ai
@@ -1004,7 +1023,7 @@ export const useAppStore = create<AppState>()(
           schedules: p.schedules || [],
           savedResources: p.savedResources || [],
           savedSearches: p.savedSearches || [],
-          bibleReadingPlans: p.bibleReadingPlans || [],
+          bibleReadingPlans: (p.bibleReadingPlans || []).map(repairBiblePlanTitle),
           ministryNotes: p.ministryNotes || [],
           discourseNotes: p.discourseNotes || [],
           activeDiscourseId: p.activeDiscourseId ?? null,
@@ -1023,6 +1042,7 @@ export const useAppStore = create<AppState>()(
         }
       },
       partialize: (s) => ({
+        syncMetadata: s.syncMetadata,
         view: s.view,
         settings: s.settings,
         topics: s.topics,

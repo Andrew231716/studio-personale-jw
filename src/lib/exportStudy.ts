@@ -1,5 +1,4 @@
-import { jsPDF } from 'jspdf'
-import JSZip from 'jszip'
+import type { jsPDF } from 'jspdf'
 import { saveAs } from 'file-saver'
 import {
   buildSummaryBlocks,
@@ -141,6 +140,7 @@ function writeBlock(doc: PdfDoc, block: SummaryBlock, y: number): number {
 }
 
 export async function exportSummaryPdf(summary: StudySummary): Promise<void> {
+  const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' }) as PdfDoc
   doc.__pageNo = 1
   let y = MARGIN + 2
@@ -231,6 +231,7 @@ function epubEscape(s: string): string {
 }
 
 export async function exportSummaryEpub(summary: StudySummary): Promise<void> {
+  const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
   const title = `${summary.heading || 'Riepilogo JW Studio'} — ${summary.range.label}`
   const htmlBody = summaryToHtml(summary)

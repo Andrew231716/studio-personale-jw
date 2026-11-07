@@ -1,4 +1,5 @@
 import { askAi } from './ai'
+import { readBiblePlanTitle } from './biblePlanTitle'
 import {
   BIBLE_BOOKS,
   bibleCode,
@@ -237,32 +238,71 @@ export async function searchBibleTopic(params: {
   }
 }
 
-export async function buildBibleReadingPlan(params: {
+function readingGuide(scriptures: BibleScriptureRef[], language: string): string {
+  return language === 'E'
+    ? 'Read the linked scriptures. What do they teach me about Jehovah? What can I apply?'
+    : [
+        scriptures.length ? 'Leggi le scritture indicate:' : 'Scegli una scrittura per iniziare.',
+        ...scriptures.slice(0, 6).map((ref) => `• ${ref.label}`),
+        '',
+        'Cosa imparo su Geova? Cosa posso applicare?',
+      ].join('\n')
+}
+
+export function createBibleReadingPlan(params: {
   kind: BibleReadingKind
   query: string
-  language?: string
+  language: string
   entry?: BibleCatalogEntry
-}): Promise<BibleReadingPlan> {
-  const language = params.language || 'I'
-  const query = params.query.trim()
-  const entry =
-    params.entry ||
-    BIBLE_READING_SUGGESTIONS[params.kind].find(
-      (e) => e.label.toLowerCase() === query.toLowerCase() || e.query === query,
-    )
+}): BibleReadingPlan {
+  const { kind, query, language } = params
+  const entry = params.entry || BIBLE_READING_SUGGESTIONS[kind].find(
+    (item) => item.label.toLowerCase() === query.toLowerCase() || item.query === query,
+  )
+  const scriptures = scripturesFromCatalog(entry)
+  if (kind === 'libro' && !scriptures.length) {
+    const book = BIBLE_BOOKS.find((item) => item.name.toLowerCase() === query.toLowerCase())
+    if (book) scriptures.push({
+      id: uid('scr'),
+      label: `${book.name} (apri il libro)`,
+      bible: bibleCode(book.num, 1, 1),
+      url: bookOpenUrl(book.num, language),
+    })
+  }
+  const now = new Date().toISOString()
+  return {
+    id: uid('bible'),
+    title: readBiblePlanTitle('', entry?.label || query),
+    kind,
+    query: entry?.label || query,
+    plan: readingGuide(scriptures, language),
+    resources: [],
+    scriptures,
+    reflections: [],
+    blurb: entry?.blurb,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
 
+export async function enrichBibleReadingPlan(
+  base: BibleReadingPlan,
+  query: string,
+  language: string,
+  onSources: (patch: Pick<BibleReadingPlan, 'resources' | 'scriptures' | 'plan'>) => void,
+): Promise<Pick<BibleReadingPlan, 'title' | 'plan'> | undefined> {
   const [deep, bibleHits] = await Promise.all([
     searchJwDeep(`${query} Bibbia lettura`, {
       language,
       filters: ['publications', 'indexes', 'videos', 'bible'],
-      maxQueries: 4,
-      perSection: 5,
+      maxQueries: 3,
+      perSection: 4,
     }),
     searchJw(query, { language, filter: 'bible' }).catch(() => [] as JwResult[]),
   ])
 
   const resources = resultsToResources(deep.flat)
-  const catalogScriptures = scripturesFromCatalog(entry)
+  const catalogScriptures = base.scriptures || []
   const searchScriptures = scripturesFromBibleResults(
     [...bibleHits, ...deep.flat],
     language,
@@ -274,18 +314,8 @@ export async function buildBibleReadingPlan(params: {
   }
   const scriptures = Array.from(scriptureMap.values()).slice(0, 14)
 
-  // Se è un libro biblico, garantisci il link al libro
-  if (params.kind === 'libro') {
-    const book = BIBLE_BOOKS.find((b) => b.name.toLowerCase() === query.toLowerCase())
-    if (book && !scriptures.some((x) => x.bible?.startsWith(String(book.num)))) {
-      scriptures.unshift({
-        id: uid('scr'),
-        label: `${book.name} (apri il libro)`,
-        bible: bibleCode(book.num, 1, 1),
-        url: bookOpenUrl(book.num, language),
-      })
-    }
-  }
+  onSources({ resources, scriptures, plan: readingGuide(scriptures, language) })
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return
 
   const sourceBlock = deep.sections
     .map(
@@ -304,54 +334,23 @@ export async function buildBibleReadingPlan(params: {
     .map((x) => `- ${x.label}${x.bible ? ` [bible=${x.bible}]` : ''}`)
     .join('\n')
 
-  const kindLabel = BIBLE_KIND_LABELS[params.kind]
-  const prompt = `Propomi un percorso di lettura della Bibbia su “${query}” (categoria: ${kindLabel}).
-${entry?.blurb ? `Contesto catalogo: ${entry.blurb}` : ''}
-Struttura la risposta così:
-1. Titolo del percorso
-2. Perché vale la pena leggerlo (2-3 frasi)
-3. Passi di lettura consigliati (usa scritture TNM italiana; preferisci quelle elencate sotto se pertinenti)
-4. Domande di riflessione (3-5) da annotare nel piano di studio
-5. Come collegarlo agli articoli/video jw.org elencati (cita solo quei titoli)
+  const kindLabel = BIBLE_KIND_LABELS[base.kind]
+  const prompt = `Proponi un percorso di lettura della Bibbia su “${base.query}” (categoria: ${kindLabel}).
+${base.blurb ? `Contesto catalogo: ${base.blurb}` : ''}
+Inizia con “Titolo: ” seguito dal titolo effettivo sulla stessa riga.
+Poi spiega perché leggerlo, indica passi di lettura e 3 domande di riflessione.
+Collega solo articoli/video jw.org forniti nel contesto.
 Non inventare link. Usa solo terminologia jw.org.`
 
-  let plan = ''
-  try {
-    plan = await askAi({
-      prompt,
-      context: `Categoria: ${kindLabel}\nQuery: ${query}\n\nScritture:\n${scriptureBlock || '—'}\n\nFonti jw.org:\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org.'}`,
-      allowedUrls: [
-        ...resources.map((r) => r.url),
-        ...scriptures.map((x) => x.url).filter(Boolean) as string[],
-      ],
-    })
-  } catch {
-    plan = [
-      `Percorso di lettura: ${query}`,
-      entry?.blurb || '',
-      '',
-      'Scritture da aprire su jw.org / JW Library:',
-      ...scriptures.slice(0, 6).map((x) => `• ${x.label}`),
-      '',
-      'Annota: Cosa imparo su Geova? Cosa posso applicare?',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  }
-
-  const titleMatch = plan.match(/^(?:1\.\s*)?(?:Titolo[^:\n]*:\s*)?(.+)$/m)
-  const now = new Date().toISOString()
-  return {
-    id: uid('bible'),
-    title: (titleMatch?.[1] || `Lettura: ${query}`).replace(/\*\*/g, '').trim().slice(0, 120),
-    kind: params.kind,
-    query,
-    plan,
-    resources,
-    scriptures,
-    reflections: [],
-    blurb: entry?.blurb,
-    createdAt: now,
-    updatedAt: now,
-  }
+  const plan = await askAi({
+    prompt,
+    context: `Categoria: ${kindLabel}\nQuery: ${base.query}\n\nScritture:\n${scriptureBlock || '—'}\n\nFonti jw.org:\n${sourceBlock || 'Nessuna fonte: invita a cercare su jw.org.'}`,
+    allowedUrls: [
+      ...resources.map((resource) => resource.url),
+      ...scriptures.flatMap((ref) => ref.url ? [ref.url] : []),
+    ],
+    signal: AbortSignal.timeout(20_000),
+    requireRemote: true,
+  })
+  return { title: readBiblePlanTitle(plan, base.query), plan }
 }

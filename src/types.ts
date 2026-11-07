@@ -352,6 +352,7 @@ export interface StudySessionLog {
   topicId: string | null
   topicTitle: string
   completedAt: string
+  updatedAt?: string
   goal: string
   highlight: string
   keyVerse: string
@@ -376,6 +377,7 @@ export interface ScheduledStudy {
   reminderMinutes: number
   notes: string
   createdAt: string
+  updatedAt?: string
 }
 
 export interface ThemeConfig {
@@ -403,6 +405,7 @@ export interface ICloudSettings {
 /** Sync cloud tra dispositivi (chiave JWS-…), gestita dal server. */
 export interface CloudSyncSettings {
   enabled: boolean
+  consent?: boolean
   syncKey: string
 }
 
