@@ -313,6 +313,7 @@ export function VideoStudioView() {
         transcript: filtered.transcript,
       })
       setGuide(built)
+      if (built.localReason) setError(`Guida preparata in locale. ${built.localReason}`)
       setPhase('guide')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Guida non generata')

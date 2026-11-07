@@ -303,14 +303,15 @@ Regole:
       const core = polished.replace(/\n\n—\nNota:[\s\S]*$/, '').trim()
       // Se l’AI taglia a metà, meglio un testo completo locale che un pezzo spezzato.
       if (polished.includes('risultava incompleta') || looksTruncated(core)) {
-        return buildLocalSituationPoint(decision, linkedTopics)
+        return `Bozza locale. La risposta AI era incompleta.\n\n${buildLocalSituationPoint(decision, linkedTopics)}`
       }
       return polished
     }
-  } catch {
-    /* fallback locale */
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Motore AI non disponibile.'
+    return `Bozza locale. ${detail}\n\n${buildLocalSituationPoint(decision, linkedTopics)}`
   }
-  return buildLocalSituationPoint(decision, linkedTopics)
+  return `Bozza locale. La risposta AI era vuota.\n\n${buildLocalSituationPoint(decision, linkedTopics)}`
 }
 
 export async function generateNextStepsAndConsequences(params: {
@@ -342,14 +343,15 @@ Regole:
       const polished = polishAiDecisionText(answer)
       const core = polished.replace(/\n\n—\nNota:[\s\S]*$/, '').trim()
       if (polished.includes('risultava incompleta') || looksTruncated(core)) {
-        return buildLocalNextSteps(decision, linkedTopics)
+        return `Bozza locale. La risposta AI era incompleta.\n\n${buildLocalNextSteps(decision, linkedTopics)}`
       }
       return polished
     }
-  } catch {
-    /* fallback locale */
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Motore AI non disponibile.'
+    return `Bozza locale. ${detail}\n\n${buildLocalNextSteps(decision, linkedTopics)}`
   }
-  return buildLocalNextSteps(decision, linkedTopics)
+  return `Bozza locale. La risposta AI era vuota.\n\n${buildLocalNextSteps(decision, linkedTopics)}`
 }
 
 export function canGenerateFollowUp(decision: DecisionItem | null | undefined): boolean {

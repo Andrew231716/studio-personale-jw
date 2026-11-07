@@ -17,7 +17,7 @@ import {
   getCachedVerseCount,
   getOfflineBibleStats,
 } from '../lib/bibleText'
-import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS, probeAiEngine } from '../lib/ai'
+import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS, probeAiEngine, supportedGeminiModel } from '../lib/ai'
 import { NARRATION_VOICES } from '../lib/speechNarration'
 import type {
   AiProviderPref,
@@ -207,8 +207,8 @@ export function ImpostazioniView() {
       <section className="panel">
         <h2>Motore AI</h2>
         <p className="lede">
-          Motore <strong>gratuito</strong> per Assistente, Quaderno, Decisioni, Discorso, Ministero
-          e export. Nessun account OpenAI o ChatGPT Plus.
+          Motore AI per Assistente, Argomenti, Quaderno, Decisioni, Letture Bibbia, Video Studio,
+          Discorso, Ministero ed esportazioni.
         </p>
         <div className="field">
           <label htmlFor="ai-provider">Provider</label>
@@ -220,7 +220,7 @@ export function ImpostazioniView() {
                 ai: {
                   provider: e.target.value as AiProviderPref,
                   geminiApiKey: settings.ai?.geminiApiKey || '',
-                  geminiModel: settings.ai?.geminiModel || 'gemini-2.0-flash-lite',
+                  geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
                 },
                 openAi: undefined,
               })
@@ -247,7 +247,7 @@ export function ImpostazioniView() {
                 ai: {
                   provider: settings.ai?.provider || 'free',
                   geminiApiKey: e.target.value,
-                  geminiModel: settings.ai?.geminiModel || 'gemini-2.0-flash-lite',
+                  geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
                 },
                 openAi: undefined,
               })
@@ -258,7 +258,7 @@ export function ImpostazioniView() {
           <label htmlFor="gemini-model">Modello Gemini</label>
           <select
             id="gemini-model"
-            value={settings.ai?.geminiModel || 'gemini-2.0-flash-lite'}
+            value={supportedGeminiModel(settings.ai?.geminiModel)}
             onChange={(e) =>
               updateSettings({
                 ai: {
@@ -278,13 +278,12 @@ export function ImpostazioniView() {
           </select>
         </div>
         <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-          Senza chiave Gemini l’app usa comunque un motore gratuito (senza registrazione). Con una
-          chiave free da{' '}
+          Senza chiave l’app usa un motore gratuito con un limite condiviso. Per usare la tua quota
+          Gemini, crea una chiave da{' '}
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
             Google AI Studio
           </a>{' '}
-          la qualità è più stabile. L’AI usa sempre pochi token (risposte corte, contesto
-          ridotto).
+          e incollala qui. Usa un progetto sul piano gratuito se vuoi evitare addebiti.
         </p>
         <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
           <button

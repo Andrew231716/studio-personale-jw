@@ -10,6 +10,7 @@ import {
 import type { PracticeItem, ReflectionPoint, StudyQuestion } from '../types'
 
 export interface VideoStudyGuide {
+  localReason?: string
   title: string
   summary: string
   objectives: string[]
@@ -65,17 +66,14 @@ export async function buildVideoStudyGuide(params: {
 }): Promise<VideoStudyGuide> {
   const videoTitle = params.videoTitle.trim() || 'Video JW'
   const transcript = params.transcript
-  const clipped = transcript.slice(0, 12000)
   try {
     const raw = await askAi({
       prompt: `${GUIDE_PROMPT}
 
 VIDEO (usa questo come TITOLO): «${videoTitle}»
 
-## Trascrizione
-${clipped}
-
 Rispondi ORA solo nel formato richiesto.`,
+      context: `## Trascrizione\n${transcript}`,
     })
     const parsed = parseGuideResponse(raw, videoTitle, transcript)
     if (
@@ -85,10 +83,16 @@ Rispondi ORA solo nel formato richiesto.`,
     ) {
       return parsed
     }
-  } catch {
-    /* fallback locale */
+  } catch (error) {
+    return {
+      ...localGuideFromTranscript(videoTitle, transcript),
+      localReason: error instanceof Error ? error.message : 'Motore AI non disponibile.',
+    }
   }
-  return localGuideFromTranscript(videoTitle, transcript)
+  return {
+    ...localGuideFromTranscript(videoTitle, transcript),
+    localReason: 'La risposta AI era incompleta.',
+  }
 }
 
 export function parseGuideResponse(

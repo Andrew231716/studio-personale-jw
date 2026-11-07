@@ -6,22 +6,9 @@
 const POLLINATIONS_URL = 'https://text.pollinations.ai/'
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 
-/** Modelli ammessi + alias di fallback se il nome richiesto non è più valido. */
-const GEMINI_MODELS = new Set([
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.5-flash',
-  'gemini-2.0-flash-001',
-  'gemini-flash-latest',
-])
-
-const GEMINI_FALLBACKS = [
-  'gemini-2.0-flash-lite',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-001',
-  'gemini-flash-latest',
-  'gemini-2.5-flash',
-]
+const DEFAULT_GEMINI_MODEL = 'gemini-3.1-flash-lite'
+const GEMINI_MODELS = new Set([DEFAULT_GEMINI_MODEL, 'gemini-2.5-flash'])
+const REQUEST_TIMEOUT = 42_000
 
 /** Cap output: sempre pochi token (free tier / risparmio). */
 const MAX_OUT_TOKENS = 768
@@ -49,44 +36,20 @@ export function resolveGeminiKey(req, body = {}) {
 }
 
 function extractOpenAiStyleContent(payload) {
-  if (payload == null) return ''
-  if (typeof payload === 'string') {
-    try {
-      return extractOpenAiStyleContent(JSON.parse(payload))
-    } catch {
-      return payload
-    }
-  }
   const choice = payload?.choices?.[0]
-  const msg = choice?.message?.content ?? choice?.text
-  if (typeof msg === 'string' && msg.trim()) return msg
-  if (typeof payload?.content === 'string') return payload.content
-  return ''
+  const text = choice?.message?.content ?? choice?.text ?? payload?.content
+  return typeof text === 'string' ? text.trim() : ''
 }
 
-function extractGeminiContent(payload) {
-  if (payload == null) return { text: '', finishReason: '', blockReason: '' }
-  let data = payload
-  if (typeof payload === 'string') {
-    try {
-      data = JSON.parse(payload)
-    } catch {
-      return { text: payload.trim(), finishReason: '', blockReason: '' }
-    }
-  }
-  const cand = data?.candidates?.[0]
-  const parts = cand?.content?.parts
-  const text = Array.isArray(parts)
-    ? parts
-        .map((p) => (typeof p?.text === 'string' ? p.text : ''))
-        .join('')
-        .trim()
-    : ''
-  const finishReason = String(cand?.finishReason || '')
-  const blockReason = String(
-    data?.promptFeedback?.blockReason || data?.promptFeedback?.blockReasonMessage || '',
-  )
-  return { text, finishReason, blockReason }
+function failure(engine, status, text) {
+  return { ok: false, engine, status, text }
+}
+
+function connectionFailure(engine, error) {
+  const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
+  return failure(engine, timedOut ? 504 : 502, timedOut
+    ? 'Il motore AI ha impiegato troppo tempo. Riprova tra poco.'
+    : 'Connessione al motore AI non riuscita. Riprova tra poco.')
 }
 
 function toGeminiBody(messages, temperature, maxTokens) {
@@ -127,150 +90,91 @@ function toGeminiBody(messages, temperature, maxTokens) {
   return body
 }
 
-function modelCandidates(requested) {
-  const first = GEMINI_MODELS.has(requested) ? requested : 'gemini-2.0-flash-lite'
-  const list = [first, ...GEMINI_FALLBACKS.filter((m) => m !== first)]
-  return [...new Set(list)]
-}
+async function chatGemini({ messages, temperature, maxTokens, model, apiKey }) {
+  const engine = 'gemini'
+  const selectedModel = GEMINI_MODELS.has(model) ? model : DEFAULT_GEMINI_MODEL
+  const body = toGeminiBody(messages, temperature, maxTokens)
+  body.generationConfig.thinkingConfig = selectedModel === 'gemini-2.5-flash'
+    ? { thinkingBudget: 0 }
+    : { thinkingLevel: 'minimal' }
 
-async function chatGeminiOnce({ messages, temperature, maxTokens, model, apiKey }) {
-  const url = `${GEMINI_BASE}/${model}:generateContent?key=${encodeURIComponent(apiKey)}`
-  const upstream = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-    },
-    body: JSON.stringify(toGeminiBody(messages, temperature, maxTokens)),
-  })
-  const raw = await upstream.text()
-  if (!upstream.ok) {
-    let detail = raw.slice(0, 400)
-    try {
-      detail = JSON.parse(raw)?.error?.message || detail
-    } catch {
-      /* plain */
+  try {
+    const upstream = await fetch(`${GEMINI_BASE}/${selectedModel}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    })
+    const data = await upstream.json().catch(() => null)
+    if (!upstream.ok) {
+      const invalidKey = upstream.status === 401 || upstream.status === 403
+        || data?.error?.details?.some?.((detail) => detail?.reason === 'API_KEY_INVALID')
+      if (invalidKey) {
+        return failure(engine, upstream.status, 'Gemini ha rifiutato la chiave. Controllala in Impostazioni → Motore AI.')
+      }
+      if (upstream.status === 429) {
+        return failure(engine, 429, 'Limite Gemini raggiunto. Controlla la quota in Google AI Studio o riprova più tardi.')
+      }
+      if (upstream.status === 404) {
+        return failure(engine, 502, 'Modello Gemini non disponibile. Seleziona Gemini 3.1 Flash-Lite in Impostazioni → Motore AI.')
+      }
+      return failure(engine, 502, 'Gemini non ha accettato la richiesta. Riprova tra poco.')
     }
-    return {
-      ok: false,
-      status: upstream.status,
-      engine: 'gemini',
-      text: `Gemini: ${detail}`,
-      raw,
-      model,
-    }
-  }
-  const { text, finishReason, blockReason } = extractGeminiContent(raw)
-  if (!text) {
-    const why =
-      blockReason ||
-      (finishReason && finishReason !== 'STOP' ? finishReason : '') ||
-      'risposta vuota'
-    return {
-      ok: false,
-      status: 502,
-      engine: 'gemini',
-      text: `Gemini: nessuna risposta utilizzabile (${why}).`,
-      raw,
-      model,
-    }
-  }
-  return { ok: true, status: 200, engine: 'gemini', text, raw, model }
-}
 
-function isGeminiModelMissing(result) {
-  const msg = String(result?.text || '')
-  return (
-    result?.status === 404 ||
-    /not found|is not found|not supported|invalid model/i.test(msg)
-  )
-}
-
-/** Saturazione / limiti temporanei: conviene altro modello o motore di riserva. */
-function isGeminiTemporarilyBusy(result) {
-  const msg = String(result?.text || '')
-  return (
-    result?.status === 429 ||
-    result?.status === 503 ||
-    /high demand|spikes in demand|try again later|unavailable|overloaded|resource.?exhausted|quota|rate.?limit|temporarily/i.test(
-      msg,
-    )
-  )
-}
-
-async function chatGemini(opts) {
-  const models = modelCandidates(String(opts.model || '').trim())
-  let last = null
-  for (const model of models) {
-    const result = await chatGeminiOnce({ ...opts, model })
-    last = result
-    if (result.ok) return result
-    // Altro modello se assente o saturo
-    if (isGeminiModelMissing(result) || isGeminiTemporarilyBusy(result)) continue
-    return result
-  }
-  return last || {
-    ok: false,
-    status: 502,
-    engine: 'gemini',
-    text: 'Gemini non disponibile.',
-    raw: '',
-  }
-}
-
-async function withPollinationsFallback(gem, { messages, temperature, maxTokens }) {
-  if (gem?.ok) return gem
-  const fallback = await chatPollinations({ messages, temperature, maxTokens })
-  if (fallback.ok) {
-    return {
-      ...fallback,
-      note: `gemini_failed:${String(gem?.text || '').slice(0, 160)}`,
+    const candidate = data?.candidates?.[0]
+    const parts = candidate?.content?.parts
+    const text = Array.isArray(parts)
+      ? parts.filter((part) => !part?.thought && typeof part?.text === 'string').map((part) => part.text).join('').trim()
+      : ''
+    if (!text || candidate.finishReason === 'MAX_TOKENS') {
+      return failure(engine, 502, 'Gemini non ha restituito una risposta completa. Riprova con una richiesta più breve.')
     }
+    return { ok: true, status: 200, engine, text, model: selectedModel }
+  } catch (error) {
+    return connectionFailure(engine, error)
   }
-  // Se Gemini è solo saturo, messaggio più chiaro
-  if (isGeminiTemporarilyBusy(gem)) {
-    return {
-      ok: false,
-      status: gem.status || 503,
-      engine: 'gemini',
-      text:
-        'Gemini: alta domanda sul modello in questo momento. Riprova tra poco (il motore di riserva non ha risposto).',
-      raw: gem.raw || '',
-    }
-  }
-  return gem
 }
 
 async function chatPollinations({ messages, temperature, maxTokens }) {
-  const upstream = await fetch(POLLINATIONS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages,
-      model: 'openai',
-      temperature,
-      seed: Date.now() % 100000,
-      max_tokens: maxTokens,
-    }),
-  })
-  const raw = await upstream.text()
-  if (!upstream.ok) {
-    return {
-      ok: false,
-      status: upstream.status,
-      engine: 'pollinations',
-      text: raw.slice(0, 400) || `AI HTTP ${upstream.status}`,
-      raw,
+  const engine = 'pollinations'
+  const apiKey = String(process.env.POLLINATIONS_API_KEY || '').trim()
+  const url = apiKey ? 'https://gen.pollinations.ai/v1/chat/completions' : POLLINATIONS_URL
+  const headers = { 'Content-Type': 'application/json' }
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+
+  try {
+    const upstream = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ messages, model: 'openai', temperature, max_tokens: maxTokens }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    })
+    if (upstream.status === 402 || upstream.status === 429) {
+      return apiKey
+        ? failure(engine, 429, 'Limite del motore AI raggiunto. Riprova più tardi.')
+        : failure(engine, 429, 'Il motore gratuito ha raggiunto il limite condiviso. Riprova fra circa un minuto oppure configura Gemini in Impostazioni → Motore AI.')
     }
-  }
-  const content = extractOpenAiStyleContent(raw) || raw
-  return {
-    ok: Boolean(String(content).trim()),
-    status: upstream.status,
-    engine: 'pollinations',
-    text: content,
-    raw,
-    model: 'pollinations',
+    if (!upstream.ok) {
+      return failure(engine, 502, 'Il motore gratuito non è disponibile. Riprova tra poco oppure configura Gemini in Impostazioni → Motore AI.')
+    }
+
+    const raw = (await upstream.text()).trim()
+    let content = ''
+    if (!apiKey && !/^[<{]/.test(raw) && !upstream.headers.get('content-type')?.includes('text/html')) {
+      content = raw
+    } else {
+      const data = JSON.parse(raw)
+      content = extractOpenAiStyleContent(data)
+      if (!apiKey && !data?.error && (data?.pieces || Array.isArray(data))) content ||= raw
+      if (data?.choices?.[0]?.finish_reason === 'length') content = ''
+    }
+    if (!content || /^\s*<(!doctype|html|head|body)\b/i.test(content)) {
+      return failure(engine, 502, 'Il motore gratuito ha restituito una risposta inutilizzabile. Riprova tra poco.')
+    }
+    return { ok: true, status: 200, engine, text: content, model: 'openai' }
+  } catch (error) {
+    if (error instanceof SyntaxError) return failure(engine, 502, 'Il motore gratuito ha restituito una risposta inutilizzabile. Riprova tra poco.')
+    return connectionFailure(engine, error)
   }
 }
 
@@ -304,42 +208,11 @@ export async function chatCompletion(opts) {
   const geminiKey = String(opts.geminiApiKey || '').trim()
   const model = String(opts.model || '').trim()
 
-  if (provider === 'gemini') {
+  if (provider === 'gemini' || (provider === 'free' && geminiKey)) {
     if (!geminiKey) {
-      return {
-        ok: false,
-        status: 400,
-        engine: 'gemini',
-        text: 'Provider Gemini selezionato ma manca la chiave API gratuita.',
-        raw: '',
-      }
+      return failure('gemini', 400, 'Inserisci la chiave Gemini in Impostazioni → Motore AI.')
     }
-    const gem = await chatGemini({
-      messages,
-      temperature,
-      maxTokens,
-      model,
-      apiKey: geminiKey,
-    })
-    // Alta domanda / modelli assenti → riserva automatica
-    return withPollinationsFallback(gem, { messages, temperature, maxTokens })
+    return chatGemini({ messages, temperature, maxTokens, model, apiKey: geminiKey })
   }
-
-  if (provider === 'pollinations') {
-    return chatPollinations({ messages, temperature, maxTokens })
-  }
-
-  // free (default): Gemini se c’è chiave, altrimenti Pollinations
-  if (geminiKey) {
-    const gem = await chatGemini({
-      messages,
-      temperature,
-      maxTokens,
-      model: model || 'gemini-2.0-flash-lite',
-      apiKey: geminiKey,
-    })
-    return withPollinationsFallback(gem, { messages, temperature, maxTokens })
-  }
-
   return chatPollinations({ messages, temperature, maxTokens })
 }

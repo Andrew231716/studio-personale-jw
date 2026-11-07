@@ -574,8 +574,10 @@ Rispondi breve.`,
         allowedUrls: resources.map((r) => r.url),
       }),
     )
-  } catch {
+  } catch (error) {
     content = [
+      `Bozza locale. ${error instanceof Error ? error.message : "Motore AI non disponibile."}`,
+      "",
       `Tema: ${labelTopic}`,
       '',
       'Consulta su jw.org / JW Library:',

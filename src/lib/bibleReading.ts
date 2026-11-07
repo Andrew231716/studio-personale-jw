@@ -297,7 +297,7 @@ export async function enrichBibleReadingPlan(
       filters: ['publications', 'indexes', 'videos', 'bible'],
       maxQueries: 3,
       perSection: 4,
-    }),
+    }).catch(() => ({ sections: [], flat: [] as JwResult[] })),
     searchJw(query, { language, filter: 'bible' }).catch(() => [] as JwResult[]),
   ])
 
@@ -315,8 +315,6 @@ export async function enrichBibleReadingPlan(
   const scriptures = Array.from(scriptureMap.values()).slice(0, 14)
 
   onSources({ resources, scriptures, plan: readingGuide(scriptures, language) })
-  if (typeof navigator !== 'undefined' && !navigator.onLine) return
-
   const sourceBlock = deep.sections
     .map(
       (sec) =>
@@ -349,8 +347,6 @@ Non inventare link. Usa solo terminologia jw.org.`
       ...resources.map((resource) => resource.url),
       ...scriptures.flatMap((ref) => ref.url ? [ref.url] : []),
     ],
-    signal: AbortSignal.timeout(55_000),
-    requireRemote: true,
   })
   return { title: readBiblePlanTitle(plan, base.query), plan }
 }

@@ -15,6 +15,7 @@ import type {
 } from '../types'
 
 export interface StudyStructure {
+  localReason?: string
   title?: string
   summary?: string
   objectives: string[]
@@ -106,10 +107,13 @@ Usa il titolo del materiale come TITOLO se è già chiaro.`,
     })
     const parsed = filterGenericStructure(parseStudyStructure(raw, title), title, notes)
     if (hasUsefulStructure(parsed)) return parsed
-  } catch {
-    /* fallback */
+  } catch (error) {
+    return {
+      ...localStructureFromSource(title, notes),
+      localReason: error instanceof Error ? error.message : 'Motore AI non disponibile.',
+    }
   }
-  return localStructureFromSource(title, notes)
+  return { ...localStructureFromSource(title, notes), localReason: 'La risposta AI era incompleta.' }
 }
 
 /** Elabora una sezione del Quaderno in modo strutturato, ancorato al contenuto esistente. */
@@ -198,8 +202,11 @@ Migliora e completa rispetto a ciò che c’è già; non ripetere bozze vuote o 
       }
     }
     return cleaned
-  } catch {
-    return localElaborateFallback(topic, kind)
+  } catch (error) {
+    return {
+      ...localElaborateFallback(topic, kind),
+      localReason: error instanceof Error ? error.message : 'Motore AI non disponibile.',
+    }
   }
 }
 

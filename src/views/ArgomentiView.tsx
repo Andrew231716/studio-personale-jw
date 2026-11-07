@@ -291,7 +291,9 @@ export function ArgomentiView() {
                   const latest = useAppStore.getState().topics.find((t) => t.id === id)
                   if (!latest) return
                   updateTopic(id, mergeStudyStructureIntoTopic(latest, structure))
-                  setStructureMsg(`«${res.title}»: struttura AI basata sul contenuto.`)
+                  setStructureMsg(structure.localReason
+                    ? `Argomento creato con una bozza locale. ${structure.localReason}`
+                    : `«${res.title}»: struttura AI basata sul contenuto.`)
                 } catch (e) {
                   setStructureMsg(
                     e instanceof Error

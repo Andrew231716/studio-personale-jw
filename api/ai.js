@@ -24,7 +24,8 @@ export default async function handler(req, res) {
     })
 
     if (!result.ok) {
-      res.status(result.status || 502).send(result.text || 'AI non disponibile')
+      res.status(result.status || 502).setHeader('Content-Type', 'text/plain; charset=utf-8')
+      res.send(result.text || 'AI non disponibile')
       return
     }
 
@@ -34,6 +35,10 @@ export default async function handler(req, res) {
       choices: [{ message: { role: 'assistant', content: result.text } }],
     })
   } catch (error) {
-    res.status(502).send(String(error))
+    if (error instanceof SyntaxError) {
+      res.status(400).send('Richiesta AI non valida')
+      return
+    }
+    res.status(502).send('Servizio AI non disponibile. Riprova tra poco.')
   }
 }

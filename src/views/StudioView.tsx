@@ -116,12 +116,14 @@ export function StudioView() {
       pushAiMessage(
         createMessage(
           'assistant',
-          `Ho aggiornato «${topic.title}» con punti ancorati al tuo materiale (${kind}), usando terminologia jw.org.`,
+          structure.localReason
+            ? `Bozza locale per «${topic.title}» (${kind}).`
+            : `Ho aggiornato «${topic.title}» con punti ancorati al tuo materiale (${kind}).`,
         ),
       )
       setArchiveMsg(
-        kind === 'tutto'
-          ? 'Struttura AI inserita: obiettivi, riflessioni, domande e pratiche basati sul tuo contenuto.'
+        structure.localReason
+          ? `Bozza locale inserita nel Quaderno. ${structure.localReason}`
           : 'Elaborazione AI inserita nel Quaderno, basata sul materiale e sulle note.',
       )
     } catch (e) {
@@ -156,7 +158,9 @@ export function StudioView() {
       const latest = useAppStore.getState().topics.find((t) => t.id === topic.id) || topic
       updateTopic(topic.id, mergeStudyStructureIntoTopic(latest, structure))
       setArchiveMsg(
-        `«${res.title}»: struttura AI creata sul contenuto del materiale (non generica).`,
+        structure.localReason
+          ? `Materiale aggiunto con una bozza locale. ${structure.localReason}`
+          : `«${res.title}»: struttura AI creata sul contenuto del materiale.`,
       )
     } catch (e) {
       setArchiveMsg(

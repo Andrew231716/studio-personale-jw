@@ -21,7 +21,7 @@ import {
 } from '../lib/bibleReading'
 import { uid } from '../lib/id'
 import { useAppStore } from '../store/useAppStore'
-import type { BibleReadingKind, BibleScriptureRef, StudyResource } from '../types'
+import type { BibleReadingKind, BibleReadingPlan, BibleScriptureRef, StudyResource } from '../types'
 
 export function LettureBibbiaView() {
   const language = useAppStore((s) => s.settings.language)
@@ -41,6 +41,7 @@ export function LettureBibbiaView() {
   const busy = loadingPlan !== null
   const [searchBusy, setSearchBusy] = useState(false)
   const [error, setError] = useState('')
+  const [enrichmentError, setEnrichmentError] = useState<{ id: string; message: string } | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [reflectionDraft, setReflectionDraft] = useState('')
   const [searchVerses, setSearchVerses] = useState<BibleScriptureRef[]>([])
@@ -62,30 +63,53 @@ export function LettureBibbiaView() {
     setActiveId(base.id)
     setQuery(base.query)
     setTab('piano')
-    if (!navigator.onLine) return
+    await enrichPlan(base, entry?.query || text)
+  }
 
+  async function enrichPlan(base: BibleReadingPlan, searchQuery: string, retry = false) {
+    if (busy) return
+    setEnrichmentError(null)
+    if (!navigator.onLine) {
+      setEnrichmentError({ id: base.id, message: 'Connessione assente. Riprova quando torni online.' })
+      return
+    }
     setLoadingPlan({ id: base.id, phase: 'fonti' })
     let generatedText = base.plan
     const currentPlan = () => useAppStore.getState().bibleReadingPlans.find((item) => item.id === base.id)
     try {
-      const enrichment = await enrichBibleReadingPlan(base, entry?.query || text, language, (sources) => {
+      const enrichment = await enrichBibleReadingPlan(base, searchQuery, language, (sources) => {
         const current = currentPlan()
         if (current) {
-          const keepText = current.plan !== generatedText
-          updateBiblePlan(base.id, { ...sources, plan: keepText ? current.plan : sources.plan })
-          generatedText = sources.plan
+          const keepText = retry || current.plan !== generatedText
+          const resources = [...current.resources]
+          for (const resource of sources.resources) {
+            if (!resources.some((item) => item.url === resource.url)) resources.push(resource)
+          }
+          updateBiblePlan(base.id, {
+            resources,
+            scriptures: sources.scriptures,
+            plan: keepText ? current.plan : sources.plan,
+          })
+          if (!keepText) generatedText = sources.plan
         }
         setLoadingPlan({ id: base.id, phase: 'riflessioni' })
       })
       const current = currentPlan()
       if (enrichment && current) {
+        const keepText = retry || current.plan !== generatedText
         updateBiblePlan(base.id, {
-          title: current.title === base.title ? enrichment.title : current.title,
-          plan: current.plan === generatedText ? enrichment.plan : current.plan,
+          title: !retry && current.title === base.title ? enrichment.title : current.title,
+          plan: keepText && current.plan.trim()
+            ? `${current.plan}\n\nApprofondimento AI\n${enrichment.plan}`
+            : enrichment.plan,
+          aiEnriched: true,
         })
       }
-    } catch {
-      setError('Approfondimento AI non disponibile. Il percorso di lettura è già salvato.')
+    } catch (error) {
+      setEnrichmentError({
+        id: base.id,
+        message: error instanceof Error ? error.message : 'Approfondimento AI non riuscito. Riprova tra poco.',
+      })
     } finally {
       setLoadingPlan(null)
     }
@@ -425,6 +449,26 @@ export function LettureBibbiaView() {
                     {active.blurb && <p className="muted">{active.blurb}</p>}
                   </div>
                 </div>
+                {enrichmentError?.id === active.id && (
+                  <p className="muted" role="alert">{enrichmentError.message} Il percorso rimane salvato.</p>
+                )}
+                {!active.aiEnriched && (
+                  <div className="row">
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      disabled={busy}
+                      onClick={() => void enrichPlan(active, active.query, true)}
+                    >
+                      {enrichmentError?.id === active.id ? 'Riprova approfondimento AI' : 'Aggiungi approfondimento AI'}
+                    </button>
+                    {enrichmentError?.id === active.id && (
+                      <button type="button" className="btn secondary" onClick={() => setView('impostazioni')}>
+                        Impostazioni AI
+                      </button>
+                    )}
+                  </div>
+                )}
                 <ExpandableField
                   label="Titolo percorso"
                   value={active.title}

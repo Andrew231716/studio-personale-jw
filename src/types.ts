@@ -284,6 +284,7 @@ export interface BibleReadingPlan {
   kind: BibleReadingKind
   query: string
   plan: string
+  aiEnriched?: boolean
   resources: StudyResource[]
   scriptures?: BibleScriptureRef[]
   reflections?: BibleReflection[]
@@ -416,14 +417,14 @@ export interface CloudSyncSettings {
  */
 export type AiProviderPref = 'free' | 'gemini'
 
-export type GeminiModelPref = 'gemini-2.0-flash' | 'gemini-2.0-flash-lite' | 'gemini-2.5-flash'
+export type GeminiModelPref = 'gemini-3.1-flash-lite' | 'gemini-2.0-flash' | 'gemini-2.0-flash-lite' | 'gemini-2.5-flash'
 
 /** Impostazioni AI (solo motori gratuiti). */
 export interface AiSettings {
   provider?: AiProviderPref
   /** Chiave gratuita Google AI Studio (Gemini). */
   geminiApiKey?: string
-  /** Modello Gemini. Default: gemini-2.0-flash-lite. */
+  /** Modello Gemini. Default: gemini-3.1-flash-lite. */
   geminiModel?: GeminiModelPref
 }
 

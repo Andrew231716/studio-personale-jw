@@ -48,13 +48,13 @@ async function revisePiecesRemote(
     const res = await fetch('/api/export-revise', {
       method: 'POST',
       headers: extras.headers,
+      signal: AbortSignal.timeout(50_000),
       body: JSON.stringify({
         kind,
         language,
         pieces: prepared,
         provider: extras.provider,
         model: extras.model,
-        geminiApiKey: extras.geminiApiKey,
       }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
