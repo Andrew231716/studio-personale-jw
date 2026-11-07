@@ -1,7 +1,7 @@
-import type { SavedResource, SavedSearch, StudySessionLog, StudyTopic } from '../types'
+import type { BibleReadingPlan, SavedResource, SavedSearch, StudySessionLog, StudyTopic } from '../types'
 import { findScriptureRefsInText } from './bibleText'
 
-export type StudySearchKind = 'quaderno' | 'sessione' | 'materiale' | 'ricerca'
+export type StudySearchKind = 'quaderno' | 'sessione' | 'materiale' | 'ricerca' | 'lettura'
 export type StudySearchResult = {
   id: string
   kind: StudySearchKind
@@ -15,8 +15,24 @@ export function indexStudies(data: {
   sessions: StudySessionLog[]
   resources: SavedResource[]
   searches: SavedSearch[]
+  readings?: BibleReadingPlan[]
 }): StudySearchResult[] {
   return [
+    ...(data.readings || []).map((plan): StudySearchResult => ({
+      id: plan.id,
+      kind: 'lettura',
+      title: plan.title,
+      date: plan.updatedAt || plan.createdAt,
+      texts: [
+        plan.query,
+        plan.blurb || '',
+        ...(plan.scriptures || []).flatMap((ref) => [ref.label, ref.bible || '']),
+        ...Object.entries(plan.studyProgress?.answers || {}).flat(),
+        plan.studyProgress?.action || '',
+        ...(plan.reflections || []).map((note) => note.text),
+        plan.plan,
+      ],
+    })),
     ...data.topics.map((topic): StudySearchResult => ({
       id: topic.id,
       kind: 'quaderno',

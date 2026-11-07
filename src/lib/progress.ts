@@ -99,3 +99,7 @@ export const SESSION_STEPS = [
     hint: 'Rivedi cosa hai imparato e ringrazia Geova.',
   },
 ] as const
+
+export function sessionStepIndexes(mode?: 'rapida' | 'completa'): number[] {
+  return mode === 'rapida' ? [2, 4, 6] : SESSION_STEPS.map((_, index) => index)
+}

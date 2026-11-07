@@ -72,8 +72,12 @@ const ICONS: Record<AppView, typeof Home> = {
   impostazioni: Settings2,
 }
 
-/** Quante voci principali mostrare nella barra mobile (il resto va in Altro). */
-const MOBILE_PRIMARY_COUNT = 5
+const STUDY_NAV: AppView[] = ['sessione', 'lettureBibbia', 'argomenti']
+const TOOL_GROUPS: { label: string; views: AppView[] }[] = [
+  { label: 'I tuoi studi', views: ['diario', 'salvati'] },
+  { label: 'Preparazione', views: ['ministero', 'discorso', 'decisioni', 'obiettiviDecisioni'] },
+  { label: 'Strumenti', views: ['videoStudio', 'pdfJwpub', 'assistente', 'impostazioni'] },
+]
 
 function applyTheme(theme: ReturnType<typeof useAppStore.getState>['settings']['theme']) {
   const root = document.documentElement
@@ -95,11 +99,12 @@ export default function App() {
   const view = useAppStore((s) => s.view)
   const setView = useAppStore((s) => s.setView)
   const settings = useAppStore((s) => s.settings)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [mobileMenu, setMobileMenu] = useState<'study' | 'more' | null>(null)
+  const openBibleReadingPlan = useAppStore((s) => s.openBibleReadingPlan)
   const [searchTarget, setSearchTarget] = useState<{ id: string; view: AppView } | null>(null)
 
   useEffect(() => {
-    if (!searchTarget || view !== searchTarget.view) return
+    if (!searchTarget || view !== searchTarget.view || view === 'lettureBibbia') return
     const element = document.getElementById(searchTarget.id)
     if (element instanceof HTMLDetailsElement) element.open = true
     element?.focus()
@@ -107,6 +112,11 @@ export default function App() {
   }, [searchTarget, view])
 
   function openStudyResult(result: StudySearchResult) {
+    if (result.kind === 'lettura') {
+      setSearchTarget({ view: 'lettureBibbia', id: 'reading-plan' })
+      openBibleReadingPlan(result.id)
+      return
+    }
     const nextView = result.kind === 'quaderno' ? 'studio' : result.kind === 'sessione' ? 'diario' : 'salvati'
     if (result.kind === 'quaderno') {
       const state = useAppStore.getState()
@@ -132,12 +142,12 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    setMoreOpen(false)
+    setMobileMenu(null)
   }, [view])
 
   // Focus trap leggero sul pannello «Altro» (mobile)
   useEffect(() => {
-    if (!moreOpen) return
+    if (!mobileMenu) return
     const panel = document.getElementById('nav-more-panel')
     if (!panel) return
     const focusables = panel.querySelectorAll<HTMLElement>(
@@ -148,7 +158,8 @@ export default function App() {
     first?.focus()
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
-        setMoreOpen(false)
+        setMobileMenu(null)
+        document.getElementById(mobileMenu === 'study' ? 'mobile-nav-study' : 'mobile-nav-more')?.focus()
         return
       }
       if (e.key !== 'Tab' || focusables.length === 0) return
@@ -162,7 +173,7 @@ export default function App() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [moreOpen])
+  }, [mobileMenu])
 
   const navItems = useMemo(
     () =>
@@ -188,20 +199,14 @@ export default function App() {
     [settings.navOrder, settings.features],
   )
 
-  // Mobile: rispetta navOrder; Home resta prima se abilitata; Impostazioni resta in Altro.
-  const primaryMobile = useMemo(() => {
-    const withoutSettings = navItems.filter((k) => k !== 'impostazioni')
-    const home = withoutSettings.includes('home') ? (['home'] as AppView[]) : []
-    const rest = withoutSettings.filter((k) => k !== 'home')
-    return [...home, ...rest].slice(0, MOBILE_PRIMARY_COUNT)
-  }, [navItems])
-
-  const moreMobile = useMemo(
-    () => navItems.filter((k) => !primaryMobile.includes(k)),
-    [navItems, primaryMobile],
-  )
-
-  const moreActive = moreMobile.includes(view)
+  const studyItems = navItems.filter((key) => STUDY_NAV.includes(key))
+  const moreGroups = TOOL_GROUPS.map(({ label, views }) => ({
+    label,
+    views: navItems.filter((key) => views.includes(key)),
+  })).filter((group) => group.views.length)
+  const activeGroups = mobileMenu === 'study'
+    ? [{ label: 'Studia', views: studyItems }]
+    : moreGroups
 
   useEffect(() => {
     if (!navItems.includes(view) && navItems[0] && searchTarget?.view !== view) setView(navItems[0])
@@ -214,7 +219,13 @@ export default function App() {
         key={key}
         type="button"
         className={view === key ? 'active' : ''}
-        onClick={() => { setSearchTarget(null); setView(key) }}
+        aria-current={view === key ? 'page' : undefined}
+        onClick={() => {
+          setSearchTarget(null)
+          setMobileMenu(null)
+          setView(key)
+          window.scrollTo(0, 0)
+        }}
       >
         <Icon size={17} strokeWidth={2.1} />
         {VIEW_LABELS[key]}
@@ -235,46 +246,42 @@ export default function App() {
           {navItems.map((key) => renderNavButton(key))}
         </nav>
 
-        {/* Mobile: Home + percorso studio + Altro (in alto) */}
         <nav className="nav nav-mobile" aria-label="Sezioni principali">
-          {primaryMobile.map((key) => renderNavButton(key))}
-          {moreMobile.length > 0 && (
+          {navItems.includes('home') && renderNavButton('home')}
+          {studyItems.length > 0 && (
             <button
               type="button"
-              className={moreOpen || moreActive ? 'active' : ''}
-              aria-expanded={moreOpen}
-              aria-controls="nav-more-panel"
-              onClick={() => setMoreOpen((v) => !v)}
+              id="mobile-nav-study"
+              className={mobileMenu === 'study' || studyItems.includes(view) ? 'active' : ''}
+              aria-expanded={mobileMenu === 'study'}
+              aria-controls={mobileMenu === 'study' ? 'nav-more-panel' : undefined}
+              onClick={() => setMobileMenu((menu) => menu === 'study' ? null : 'study')}
             >
-              {moreOpen ? <X size={17} strokeWidth={2.1} /> : <Ellipsis size={17} strokeWidth={2.1} />}
-              Altro
+              <BookOpenText size={17} strokeWidth={2.1} /> Studia
             </button>
           )}
+          {navItems.includes('studio') && renderNavButton('studio')}
+          <button
+            type="button"
+            id="mobile-nav-more"
+            className={mobileMenu === 'more' || moreGroups.some((group) => group.views.includes(view)) ? 'active' : ''}
+            aria-expanded={mobileMenu === 'more'}
+            aria-controls={mobileMenu === 'more' ? 'nav-more-panel' : undefined}
+            onClick={() => setMobileMenu((menu) => menu === 'more' ? null : 'more')}
+          >
+            {mobileMenu === 'more' ? <X size={17} strokeWidth={2.1} /> : <Ellipsis size={17} strokeWidth={2.1} />}
+            Altro
+          </button>
         </nav>
 
-        {moreOpen && moreMobile.length > 0 && (
-          <div id="nav-more-panel" className="nav-more-panel" role="dialog" aria-label="Altre sezioni">
-            <p className="nav-more-title">Altre sezioni</p>
-            <div className="nav-more-grid">
-              {moreMobile.map((key) => {
-                const Icon = ICONS[key]
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    className={view === key ? 'active' : ''}
-                    onClick={() => {
-                      setSearchTarget(null)
-                      setView(key)
-                      setMoreOpen(false)
-                    }}
-                  >
-                    <Icon size={16} strokeWidth={2.1} />
-                    {VIEW_LABELS[key]}
-                  </button>
-                )
-              })}
-            </div>
+        {mobileMenu && (
+          <div id="nav-more-panel" className="nav-more-panel" role="dialog" aria-label={mobileMenu === 'study' ? 'Studia' : 'Altre sezioni'}>
+            {activeGroups.map((group) => (
+              <div key={group.label} className="nav-more-group">
+                <p className="nav-more-title">{group.label}</p>
+                <div className="nav-more-grid">{group.views.map(renderNavButton)}</div>
+              </div>
+            ))}
           </div>
         )}
 

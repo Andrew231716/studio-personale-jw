@@ -344,8 +344,9 @@ export function DecisioniView() {
             Collega argomenti di studio, scritture e video di jw.org per soppesare meglio la scelta.
           </p>
           <div className="field">
-            <label>Nuova decisione</label>
+            <label htmlFor="decision-new">Quale scelta vuoi valutare?</label>
             <input
+              id="decision-new"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Es. Accettare un nuovo impegno"
@@ -365,13 +366,14 @@ export function DecisioniView() {
           <button
             className="btn"
             type="button"
+            disabled={!title.trim()}
             onClick={() => {
               if (!title.trim()) return
               addDecision(title, scale)
               setTitle('')
             }}
           >
-            Crea
+            Inizia a valutare
           </button>
           <div className="list" style={{ marginTop: '1rem' }}>
             {decisions.map((d) => (

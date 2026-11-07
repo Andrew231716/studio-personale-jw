@@ -4,6 +4,7 @@ import { findStudies, indexStudies, type StudySearchKind, type StudySearchResult
 import { useAppStore } from '../store/useAppStore'
 
 const LABELS: Record<StudySearchKind, string> = {
+  lettura: 'Percorso biblico',
   quaderno: 'Argomento del Quaderno',
   sessione: 'Sessione del Diario',
   materiale: 'Materiale da studiare',
@@ -12,6 +13,7 @@ const LABELS: Record<StudySearchKind, string> = {
 const PAGE_SIZE = 30
 
 export function StudySearch({ onOpenResult }: { onOpenResult: (result: StudySearchResult) => void }) {
+  const readings = useAppStore((state) => state.bibleReadingPlans)
   const topics = useAppStore((state) => state.topics)
   const sessions = useAppStore((state) => state.sessionLogs)
   const resources = useAppStore((state) => state.savedResources)
@@ -25,8 +27,8 @@ export function StudySearch({ onOpenResult }: { onOpenResult: (result: StudySear
   const deferredQuery = useDeferredValue(query)
   const focusQuery = useCallback((node: HTMLInputElement | null) => { node?.focus() }, [])
   const index = useMemo(
-    () => open ? indexStudies({ topics, sessions, resources, searches }) : [],
-    [open, topics, sessions, resources, searches],
+    () => open ? indexStudies({ topics, sessions, resources, searches, readings }) : [],
+    [open, topics, sessions, resources, searches, readings],
   )
   const datesInvalid = Boolean(from && to && from > to)
   const results = useMemo(

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   BookmarkPlus,
   BookMarked,
@@ -20,7 +20,7 @@ import {
   searchBibleTopic,
   type BibleCatalogEntry,
 } from '../lib/bibleReading'
-import { buildBibleReadingGuide } from '../lib/bibleReadingGuide'
+import { buildBibleReadingGuide, findReadingNotebook, getBibleReadingStatus, sortBibleReadingPlans } from '../lib/bibleReadingGuide'
 import { uid } from '../lib/id'
 import { useAppStore } from '../store/useAppStore'
 import type { BibleReadingKind, BibleReadingPlan, BibleScriptureRef, StudyResource } from '../types'
@@ -28,6 +28,8 @@ import type { BibleReadingKind, BibleReadingPlan, BibleScriptureRef, StudyResour
 export function LettureBibbiaView() {
   const language = useAppStore((s) => s.settings.language)
   const plans = useAppStore((s) => s.bibleReadingPlans)
+  const target = useAppStore((s) => s.bibleReadingTarget)
+  const orderedPlans = useMemo(() => sortBibleReadingPlans(plans), [plans])
   const pushBiblePlan = useAppStore((s) => s.pushBibleReadingPlan)
   const updateBiblePlan = useAppStore((s) => s.updateBibleReadingPlan)
   const removeBiblePlan = useAppStore((s) => s.removeBibleReadingPlan)
@@ -44,14 +46,37 @@ export function LettureBibbiaView() {
   const [searchBusy, setSearchBusy] = useState(false)
   const [error, setError] = useState('')
   const [enrichmentError, setEnrichmentError] = useState<{ id: string; message: string } | null>(null)
-  const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeId, setActiveId] = useState<string | null>(target?.id || orderedPlans[0]?.id || null)
+  const [handledRequest, setHandledRequest] = useState(target?.request)
   const [reflectionDraft, setReflectionDraft] = useState('')
   const [searchVerses, setSearchVerses] = useState<BibleScriptureRef[]>([])
   const [searchResources, setSearchResources] = useState<StudyResource[]>([])
-  const [tab, setTab] = useState<'catalogo' | 'ricerca' | 'piano'>('catalogo')
+  const [tab, setTab] = useState<'catalogo' | 'ricerca' | 'piano'>(orderedPlans.length ? 'piano' : 'catalogo')
 
-  const active = plans.find((p) => p.id === activeId) || plans[0] || null
+  if (target && target.request !== handledRequest) {
+    setHandledRequest(target.request)
+    setActiveId(target.id)
+    setTab('piano')
+    setReflectionDraft('')
+  }
+
+  const active = plans.find((p) => p.id === activeId) || orderedPlans[0] || null
   const guide = active ? buildBibleReadingGuide(active) : null
+  const status = active ? getBibleReadingStatus(active) : null
+  const linkedTopic = useAppStore((s) => active ? findReadingNotebook(active, s.topics) : undefined)
+  const openNotebookTopic = useAppStore((s) => s.openNotebookTopic)
+
+  useEffect(() => {
+    if (!target) return
+    const plan = useAppStore.getState().bibleReadingPlans.find((item) => item.id === target.id)
+    if (plan) {
+      const next = getBibleReadingStatus(plan).next
+      const element = document.getElementById(next || 'reading-plan')
+      element?.focus({ preventScroll: true })
+      element?.scrollIntoView({ block: 'start' })
+    }
+    useAppStore.setState({ bibleReadingTarget: null })
+  }, [target])
   const catalog = useMemo(
     () => filterCatalog(kind, catalogFilter),
     [kind, catalogFilter],
@@ -161,6 +186,11 @@ export function LettureBibbiaView() {
 
   function savePlanAsStudy() {
     if (!active || !guide) return
+    if (linkedTopic) {
+      if (active.notebookTopicId !== linkedTopic.id) updateBiblePlan(active.id, { notebookTopicId: linkedTopic.id })
+      openNotebookTopic(linkedTopic.id)
+      return
+    }
     const guidedReflections = Object.entries(active.studyProgress?.answers || {})
       .filter(([, response]) => response.trim())
       .map(([prompt, response]) => ({ id: uid('ref'), prompt, response: response.trim() }))
@@ -185,6 +215,7 @@ export function LettureBibbiaView() {
       active.title,
       `Percorso di lettura (${BIBLE_KIND_LABELS[active.kind]}): ${active.query}`,
     )
+    updateBiblePlan(active.id, { notebookTopicId: id })
     updateTopic(id, {
       interest,
       resources: active.resources,
@@ -201,6 +232,7 @@ export function LettureBibbiaView() {
           response: r.text,
         })),
       ],
+      ...(action ? { practices: [{ id: uid('practice'), action, tried: Boolean(active.studyProgress?.actionDone), outcome: '' }] } : {}),
       status: 'da_iniziare',
     })
     setView('studio')
@@ -445,7 +477,7 @@ export function LettureBibbiaView() {
 
       {tab === 'piano' && (
         <div className="split split-main-first">
-          <section className="panel">
+          <section className="panel study-jump" id="reading-plan" tabIndex={-1}>
             {active ? (
               <div className="stack">
                 <div className="section-head">
@@ -479,6 +511,24 @@ export function LettureBibbiaView() {
                       </button>
                     )}
                   </div>
+                )}
+                {orderedPlans.length > 1 && (
+                  <div className="field">
+                    <label htmlFor="reading-saved">Percorsi salvati</label>
+                    <select id="reading-saved" value={active.id} onChange={(event) => {
+                      setActiveId(event.target.value)
+                      setReflectionDraft('')
+                    }}>
+                      {orderedPlans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>{plan.title}{getBibleReadingStatus(plan).next ? '' : ' · Completato'}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {status?.next && (
+                  <a className="btn secondary" href={`#${status.next}`}>
+                    {status.label}
+                  </a>
                 )}
                 {guide && (
                   <BibleReadingGuide
@@ -570,7 +620,7 @@ export function LettureBibbiaView() {
                 <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
                   <button className="btn" type="button" onClick={savePlanAsStudy}>
                     <span className="row" style={{ gap: 6 }}>
-                      <NotebookPen size={14} /> Salva come piano di studio
+                      <NotebookPen size={14} /> {linkedTopic ? 'Apri nel Quaderno' : 'Salva nel Quaderno'}
                     </span>
                   </button>
                   {active.resources[0] && (
@@ -631,7 +681,7 @@ export function LettureBibbiaView() {
             <h3 style={{ marginTop: '1.25rem' }}>Percorsi salvati ({plans.length})</h3>
             <div className="list">
               {plans.length === 0 && <div className="empty">Nessun percorso ancora.</div>}
-              {plans.map((p) => (
+              {orderedPlans.map((p) => (
                 <div
                   className={`list-item ${active?.id === p.id ? 'active' : ''}`}
                   key={p.id}
@@ -639,7 +689,9 @@ export function LettureBibbiaView() {
                   tabIndex={0}
                   onClick={() => {
                     setActiveId(p.id)
+                    setReflectionDraft('')
                     setTab('piano')
+                    document.getElementById('reading-plan')?.scrollIntoView({ block: 'start' })
                   }}
                   onKeyDown={(e) => e.key === 'Enter' && setActiveId(p.id)}
                 >

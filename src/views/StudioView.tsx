@@ -9,6 +9,7 @@ import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import { createMessage } from '../lib/ai'
 import { exportSummaryEpub, exportSummaryPdf } from '../lib/exportStudy'
 import { reviseSummaryForExport } from '../lib/exportRevise'
+import { findReadingNotebook } from '../lib/bibleReadingGuide'
 import { uid } from '../lib/id'
 import {
   activeTopics,
@@ -28,6 +29,9 @@ import type { StudyResource, StudyTopic } from '../types'
 
 export function StudioView() {
   const topics = useAppStore((s) => s.topics)
+  const readingPlans = useAppStore((s) => s.bibleReadingPlans)
+  const openBibleReadingPlan = useAppStore((s) => s.openBibleReadingPlan)
+  const archiveTarget = useAppStore((s) => s.notebookArchiveTarget)
   const activeTopicId = useAppStore((s) => s.activeTopicId)
   const setActiveTopic = useAppStore((s) => s.setActiveTopic)
   const updateTopic = useAppStore((s) => s.updateTopic)
@@ -69,7 +73,17 @@ export function StudioView() {
     () => (topic ? sessionLogs.filter((s) => s.topicId === topic.id) : []),
     [sessionLogs, topic],
   )
+  const originalReading = topic && readingPlans.find((plan) => findReadingNotebook(plan, topics)?.id === topic.id)
   const hasUpcoming = topicHasUpcomingSchedule(topic?.id, schedules)
+
+  useEffect(() => {
+    if (!archiveTarget) return
+    const section = document.getElementById(`studio-search-quaderno-${archiveTarget}`)
+    if (section instanceof HTMLDetailsElement) section.open = true
+    section?.focus({ preventScroll: true })
+    section?.scrollIntoView({ block: 'start' })
+    useAppStore.setState({ notebookArchiveTarget: null })
+  }, [archiveTarget])
 
   function deleteTopicById(target: StudyTopic) {
     if (
@@ -253,13 +267,14 @@ export function StudioView() {
         </div>
         <div className="stack" style={{ marginTop: '0.85rem', gap: '0.65rem' }}>
           {closedList.map((t) => {
+            const reading = readingPlans.find((plan) => findReadingNotebook(plan, topics)?.id === t.id)
             const sessions = sessionLogs.filter((s) => s.topicId === t.id).length
             const objectives = t.objectives.filter((o) => o.trim())
             const reflections = t.reflections.filter((r) => r.prompt.trim() || r.response.trim())
             const questions = t.questions.filter((q) => q.question.trim() || q.answer.trim())
             const practices = t.practices.filter((p) => p.action.trim())
             return (
-              <details key={t.id} id={`studio-search-quaderno-${t.id}`} tabIndex={-1} className="decision-fold archive-topic-fold">
+              <details key={t.id} id={`studio-search-quaderno-${t.id}`} tabIndex={-1} className="decision-fold archive-topic-fold study-jump">
                 <summary className="decision-fold-summary">
                   <span className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                     <span>{t.title}</span>
@@ -273,6 +288,11 @@ export function StudioView() {
                 </summary>
                 <div className="decision-fold-body archive-topic-body">
                   <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: '0.75rem' }}>
+                    {reading && (
+                      <button className="btn secondary small" type="button" onClick={() => openBibleReadingPlan(reading.id)}>
+                        Torna al percorso biblico
+                      </button>
+                    )}
                     <button
                       className="btn accent small"
                       type="button"
@@ -511,48 +531,58 @@ export function StudioView() {
           <button className="btn accent" type="button" onClick={() => startSession(topic.id)}>
             <PlayCircle size={16} /> Sessione guidata
           </button>
-          <button
-            className="btn secondary"
-            type="button"
-            disabled={aiBusy}
-            onClick={() => void helpElaborate('tutto')}
-          >
-            {aiBusyKind === 'tutto' ? 'Elaboro…' : 'AI: struttura sul contenuto'}
-          </button>
-          <button className="btn secondary" type="button" onClick={() => setView('diario')}>
-            <BookMarked size={16} /> Diario
-            {topicSessions.length > 0 ? ` (${topicSessions.length})` : ''}
-          </button>
-          <button
-            className="btn secondary"
-            type="button"
-            disabled={!!exportBusy}
-            onClick={() => void exportTopic('pdf')}
-          >
-            <FileText size={16} /> {exportBusy === 'pdf' ? 'PDF…' : 'Esporta PDF'}
-          </button>
-          <button
-            className="btn secondary"
-            type="button"
-            disabled={!!exportBusy}
-            onClick={() => void exportTopic('epub')}
-          >
-            <BookMarked size={16} /> {exportBusy === 'epub' ? 'EPUB…' : 'Esporta EPUB'}
-          </button>
-          <button
-            className="btn secondary"
-            type="button"
-            disabled={hasUpcoming}
-            title={
-              hasUpcoming
-                ? 'Hai altri giorni programmati: togli gli eventi o lascialo attivo'
-                : undefined
-            }
-            onClick={completeAndArchive}
-          >
-            <Archive size={16} /> Completa e archivia
-          </button>
+          {originalReading && (
+            <button className="btn secondary" type="button" onClick={() => openBibleReadingPlan(originalReading.id)}>
+              <BookMarked size={16} /> Torna al percorso biblico
+            </button>
+          )}
         </div>
+        <details className="study-options">
+          <summary>AI, esportazione e altre azioni</summary>
+          <div className="row study-actions">
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={aiBusy}
+              onClick={() => void helpElaborate('tutto')}
+            >
+              {aiBusyKind === 'tutto' ? 'Elaboro…' : 'AI: struttura sul contenuto'}
+            </button>
+            <button className="btn secondary" type="button" onClick={() => setView('diario')}>
+              <BookMarked size={16} /> Diario
+              {topicSessions.length > 0 ? ` (${topicSessions.length})` : ''}
+            </button>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={!!exportBusy}
+              onClick={() => void exportTopic('pdf')}
+            >
+              <FileText size={16} /> {exportBusy === 'pdf' ? 'PDF…' : 'Esporta PDF'}
+            </button>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={!!exportBusy}
+              onClick={() => void exportTopic('epub')}
+            >
+              <BookMarked size={16} /> {exportBusy === 'epub' ? 'EPUB…' : 'Esporta EPUB'}
+            </button>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={hasUpcoming}
+              title={
+                hasUpcoming
+                  ? 'Hai altri giorni programmati: togli gli eventi o lascialo attivo'
+                  : undefined
+              }
+              onClick={completeAndArchive}
+            >
+              <Archive size={16} /> Completa e archivia
+            </button>
+          </div>
+        </details>
         {hasUpcoming && (
           <p className="muted" style={{ margin: '0.45rem 0 0' }}>
             Hai altri studi programmati per questo argomento: resta attivo finché non li
@@ -565,7 +595,12 @@ export function StudioView() {
           </p>
         )}
 
-        <div style={{ marginTop: '0.85rem' }}>
+        <nav className="chip-row" aria-label="Vai a una parte del Quaderno">
+          <a className="chip" href="#notebook-notes">Appunti</a>
+          <a className="chip" href="#notebook-resources">Scritture e materiali</a>
+          <a className="chip" href="#notebook-practice">Azioni da provare</a>
+        </nav>
+        <div className="study-jump" id="notebook-notes" style={{ marginTop: '0.85rem' }}>
           <ExpandableField
             label="Perché mi interessa / note"
             value={topic.interest}
@@ -730,7 +765,7 @@ export function StudioView() {
           </div>
         </section>
 
-        <section className="panel">
+        <section className="panel study-jump" id="notebook-resources">
           <div className="section-head">
             <h3>Materiale jw.org</h3>
           </div>
@@ -934,7 +969,7 @@ export function StudioView() {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel study-jump" id="notebook-practice">
         <div className="section-head">
           <h3>Cose pratiche da provare</h3>
           <button

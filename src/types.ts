@@ -293,6 +293,7 @@ export interface BibleReadingPlan {
   plan: string
   aiEnriched?: boolean
   studyProgress?: BibleReadingProgress
+  notebookTopicId?: string
   resources: StudyResource[]
   scriptures?: BibleScriptureRef[]
   reflections?: BibleReflection[]
@@ -337,6 +338,7 @@ export interface FeatureFlags {
 }
 
 export interface StudySessionDraft {
+  mode?: 'rapida' | 'completa'
   topicId: string | null
   step: number
   prayer: string

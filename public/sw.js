@@ -1,5 +1,5 @@
 /* JW Studio — service worker: shell + asset build + capitoli Bibbia già letti */
-const SHELL = 'jw-studio-shell-v5'
+const SHELL = 'jw-studio-shell-v6'
 const BIBLE = 'jw-studio-bible-v1'
 
 self.addEventListener('install', (event) => {

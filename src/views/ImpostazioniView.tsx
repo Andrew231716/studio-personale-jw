@@ -165,526 +165,8 @@ export function ImpostazioniView() {
   return (
     <div className="stack">
       <CloudSyncPanel />
-      <ICloudSyncPanel />
-
       <section className="panel">
-        <h2>Identità dell’app</h2>
-        <div className="grid-2">
-          <div className="field">
-            <label>Nome brand</label>
-            <input
-              value={settings.brandName}
-              onChange={(e) => updateSettings({ brandName: e.target.value })}
-            />
-          </div>
-          <div className="field">
-            <label>Lingua jw.org</label>
-            <select
-              value={settings.language}
-              onChange={(e) => updateSettings({ language: e.target.value as 'I' | 'E' })}
-            >
-              <option value="I">Italiano</option>
-              <option value="E">English</option>
-            </select>
-          </div>
-        </div>
-        <div className="field">
-          <label>Tagline</label>
-          <input
-            value={settings.tagline}
-            onChange={(e) => updateSettings({ tagline: e.target.value })}
-          />
-        </div>
-        <div className="field">
-          <label>Note sul metodo di studio</label>
-          <textarea
-            value={settings.studyMethodNotes}
-            onChange={(e) => updateSettings({ studyMethodNotes: e.target.value })}
-          />
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Motore AI</h2>
-        <p className="lede">
-          Motore AI per Assistente, Argomenti, Quaderno, Decisioni, Letture Bibbia, Video Studio,
-          Discorso, Ministero ed esportazioni.
-        </p>
-        <div className="field">
-          <label htmlFor="ai-provider">Provider</label>
-          <select
-            id="ai-provider"
-            value={settings.ai?.provider || 'free'}
-            onChange={(e) =>
-              updateSettings({
-                ai: {
-                  provider: e.target.value as AiProviderPref,
-                  geminiApiKey: settings.ai?.geminiApiKey || '',
-                  geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
-                },
-                openAi: undefined,
-              })
-            }
-          >
-            {AI_PROVIDER_OPTIONS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="gemini-key">Chiave Gemini (opzionale, gratuita)</label>
-          <input
-            id="gemini-key"
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder="AIza…"
-            value={settings.ai?.geminiApiKey || ''}
-            onChange={(e) =>
-              updateSettings({
-                ai: {
-                  provider: settings.ai?.provider || 'free',
-                  geminiApiKey: e.target.value,
-                  geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
-                },
-                openAi: undefined,
-              })
-            }
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="gemini-model">Modello Gemini</label>
-          <select
-            id="gemini-model"
-            value={supportedGeminiModel(settings.ai?.geminiModel)}
-            onChange={(e) =>
-              updateSettings({
-                ai: {
-                  provider: settings.ai?.provider || 'free',
-                  geminiApiKey: settings.ai?.geminiApiKey || '',
-                  geminiModel: e.target.value as GeminiModelPref,
-                },
-                openAi: undefined,
-              })
-            }
-          >
-            {GEMINI_MODEL_OPTIONS.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-          Senza chiave l’app usa un motore gratuito con un limite condiviso. Per usare la tua quota
-          Gemini, crea una chiave da{' '}
-          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
-            Google AI Studio
-          </a>{' '}
-          e incollala qui. Usa un progetto sul piano gratuito se vuoi evitare addebiti.
-        </p>
-        <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
-          <button
-            className="btn secondary"
-            type="button"
-            disabled={aiProbeBusy}
-            onClick={() => {
-              setAiProbeBusy(true)
-              setAiProbeMsg('')
-              void probeAiEngine()
-                .then((r) => {
-                  setAiProbeMsg(
-                    r.ok
-                      ? `OK — motore «${r.engine}»: ${r.text.slice(0, 80)}`
-                      : `Errore — ${r.text.slice(0, 220)}`,
-                  )
-                })
-                .catch((e) => {
-                  setAiProbeMsg(e instanceof Error ? e.message : 'Prova AI non riuscita')
-                })
-                .finally(() => setAiProbeBusy(false))
-            }}
-          >
-            {aiProbeBusy ? 'Verifica…' : 'Prova AI (pochi token)'}
-          </button>
-        </div>
-        {aiProbeMsg ? (
-          <p className="muted" style={{ margin: '0.5rem 0 0' }}>
-            {aiProbeMsg}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="panel">
-        <h2>Voce narrativa</h2>
-        <p className="lede">
-          Ascolta riassunti e analisi con una voce neurale narrativa (non la voce di sistema del
-          dispositivo). Richiede rete; offline usa la migliore voce disponibile sul browser.
-        </p>
-        <div className="grid-2">
-          <div className="field">
-            <label htmlFor="narration-engine">Motore</label>
-            <select
-              id="narration-engine"
-              value={settings.narrationEngine || 'neural'}
-              onChange={(e) =>
-                updateSettings({
-                  narrationEngine: e.target.value as NarrationEnginePref,
-                })
-              }
-            >
-              <option value="neural">Narrativa neurale (consigliata)</option>
-              <option value="device">Solo voce del dispositivo</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="narration-voice">Voce</label>
-            <select
-              id="narration-voice"
-              value={settings.narrationVoice || 'isabella'}
-              onChange={(e) =>
-                updateSettings({
-                  narrationVoice: e.target.value as NarrationVoicePref,
-                })
-              }
-              disabled={(settings.narrationEngine || 'neural') === 'device'}
-            >
-              {NARRATION_VOICES.filter((v) =>
-                settings.language === 'E' ? v.language === 'E' : v.language === 'I',
-              ).map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
-          <NarrateButton
-            text={
-              settings.language === 'E'
-                ? 'This is a warm narrative voice for personal Bible study summaries and reflections.'
-                : 'Questa è una voce narrativa calda e chiara, pensata per ascoltare riassunti e riflessioni dello studio personale.'
-            }
-            label="Prova la voce"
-          />
-        </div>
-      </section>
-
-      <section className="panel">
-        <div className="section-head">
-          <h2>Colori e aspetto</h2>
-          <button className="btn secondary" type="button" onClick={resetTheme}>
-            Ripristina tema
-          </button>
-        </div>
-        <div className="color-grid">
-          {(
-            [
-              ['primary', 'Primario'],
-              ['secondary', 'Secondario'],
-              ['accent', 'Accento'],
-              ['background', 'Sfondo'],
-              ['surface', 'Superficie'],
-              ['text', 'Testo'],
-              ['muted', 'Testo soft'],
-            ] as const
-          ).map(([key, label]) => (
-            <div className="field" key={key}>
-              <label>{label}</label>
-              <input
-                type="color"
-                value={settings.theme[key]}
-                onChange={(e) => updateTheme({ [key]: e.target.value })}
-              />
-            </div>
-          ))}
-        </div>
-        <div className="grid-3" style={{ marginTop: '0.5rem' }}>
-          <div className="field">
-            <label>Raggio angoli ({settings.theme.radius}px)</label>
-            <input
-              type="range"
-              min={0}
-              max={32}
-              value={settings.theme.radius}
-              onChange={(e) => updateTheme({ radius: Number(e.target.value) })}
-            />
-          </div>
-          <div className="field">
-            <label>Densità</label>
-            <select
-              value={settings.theme.density}
-              onChange={(e) =>
-                updateTheme({ density: e.target.value as typeof settings.theme.density })
-              }
-            >
-              <option value="comoda">Comoda</option>
-              <option value="media">Media</option>
-              <option value="compatta">Compatta</option>
-            </select>
-          </div>
-          <div className="field">
-            <label>Stile hero</label>
-            <select
-              value={settings.theme.heroStyle}
-              onChange={(e) =>
-                updateTheme({ heroStyle: e.target.value as typeof settings.theme.heroStyle })
-              }
-            >
-              <option value="pieno">Pieno</option>
-              <option value="morbido">Morbido</option>
-            </select>
-          </div>
-        </div>
-        <div className="grid-2">
-          <div className="field">
-            <label>Font titoli</label>
-            <input
-              value={settings.theme.fontDisplay}
-              onChange={(e) => updateTheme({ fontDisplay: e.target.value })}
-            />
-          </div>
-          <div className="field">
-            <label>Font testo</label>
-            <input
-              value={settings.theme.fontBody}
-              onChange={(e) => updateTheme({ fontBody: e.target.value })}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Funzionalità attive</h2>
-        <div className="grid-2">
-          {FEATURE_KEYS.map((key) => (
-            <label
-              key={key}
-              className="row list-item"
-              style={{ cursor: key === 'impostazioni' ? 'default' : 'pointer' }}
-            >
-              <input
-                type="checkbox"
-                checked={key === 'impostazioni' ? true : settings.features[key]}
-                disabled={key === 'impostazioni'}
-                onChange={(e) => {
-                  if (key === 'impostazioni') return
-                  updateSettings({
-                    features: { ...settings.features, [key]: e.target.checked },
-                  })
-                }}
-              />
-              <span>
-                {featureLabel(key)}
-                {key === 'impostazioni' ? ' (sempre attiva)' : ''}
-              </span>
-            </label>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Struttura navigazione</h2>
-        <p className="muted">Riordina le sezioni dell’app</p>
-        <div className="list">
-          {settings.navOrder.map((view) => (
-            <div className="list-item row" key={view} style={{ justifyContent: 'space-between' }}>
-              <strong>{VIEW_LABELS[view]}</strong>
-              <div className="row">
-                <button className="btn secondary" type="button" onClick={() => moveNav(view, -1)}>
-                  Su
-                </button>
-                <button className="btn secondary" type="button" onClick={() => moveNav(view, 1)}>
-                  Giù
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>Promemoria</h2>
-        <p className="lede">
-          L’app mostra già un avviso interno per studi programmati e obiettivi in scadenza. Puoi
-          anche attivare le notifiche del sistema (quando la scheda è aperta).
-        </p>
-        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <button
-            className="btn accent"
-            type="button"
-            disabled={notifPerm === 'granted' || notifPerm === 'unsupported'}
-            onClick={() => void enableNotifications()}
-          >
-            <Bell size={16} />{' '}
-            {notifPerm === 'granted' ? 'Notifiche attive' : 'Attiva notifiche di sistema'}
-          </button>
-        </div>
-        {notifMsg && (
-          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
-            {notifMsg}
-          </p>
-        )}
-      </section>
-
-      <section className="panel">
-        <h2>Bibbia offline</h2>
-        <p className="lede">
-          Testo TNM (edizione studio) da wol.jw.org, per i popup dei versetti anche senza rete.
-          Puoi scaricare tutta la Bibbia (tutti i libri, capitoli e versetti) oppure un pacchetto
-          ridotto dei libri più usati.
-        </p>
-        <p className="muted">
-          Salvati: {bibleStats.chaptersIndexed} / {bibleStats.totalChapters} capitoli
-          {bibleStats.complete ? ' · completa' : ''} · cache rapida {getCachedChapterCount()} cap. ·{' '}
-          {getCachedVerseCount()} versetti aperti di recente.
-        </p>
-        {fullBusy && (
-          <div className="bible-download-progress" aria-live="polite">
-            <div className="bible-download-bar">
-              <span style={{ width: `${Math.round(fullProgress * 100)}%` }} />
-            </div>
-            <p className="muted" style={{ margin: '0.45rem 0 0' }}>
-              {fullMsg || 'Scarico…'}
-            </p>
-          </div>
-        )}
-        <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
-          <button
-            className="btn accent"
-            type="button"
-            disabled={fullBusy || packBusy || !navigator.onLine}
-            onClick={() => {
-              void (async () => {
-                const ctrl = new AbortController()
-                fullAbortRef.current = ctrl
-                setFullBusy(true)
-                setFullProgress(0)
-                setFullMsg('Collegamento a wol.jw.org…')
-                try {
-                  const result = await downloadFullOfflineBible({
-                    language,
-                    concurrency: 2,
-                    signal: ctrl.signal,
-                    onProgress: (info) => {
-                      setFullProgress(info.ratio)
-                      setFullMsg(
-                        `${Math.round(info.ratio * 100)}% · ${info.done}/${info.total} · ${info.label}`,
-                      )
-                    },
-                  })
-                  await refreshBibleStats()
-                  if (ctrl.signal.aborted) {
-                    setFullMsg(
-                      `Interrotto: ${result.chapters} nuovi, ${result.skipped} già presenti, ${result.failed} errori.`,
-                    )
-                  } else {
-                    setFullMsg(
-                      `Bibbia salvata: ${result.chapters} nuovi capitoli · ${result.skipped} già presenti · ${result.failed} errori · obiettivo ${TOTAL_BIBLE_CHAPTERS} capitoli.`,
-                    )
-                  }
-                } catch (e) {
-                  setFullMsg(e instanceof Error ? e.message : 'Download non riuscito')
-                } finally {
-                  fullAbortRef.current = null
-                  setFullBusy(false)
-                  void refreshBibleStats()
-                }
-              })()
-            }}
-          >
-            <Download size={16} />{' '}
-            {fullBusy
-              ? 'Scarico tutta la Bibbia…'
-              : bibleStats.complete
-                ? 'Aggiorna tutta la Bibbia'
-                : 'Scarica tutta la Bibbia'}
-          </button>
-          {fullBusy && (
-            <button
-              className="btn secondary"
-              type="button"
-              onClick={() => fullAbortRef.current?.abort()}
-            >
-              <Square size={16} /> Interrompi
-            </button>
-          )}
-          <button
-            className="btn secondary"
-            type="button"
-            disabled={packBusy || fullBusy || !navigator.onLine}
-            onClick={() => {
-              void (async () => {
-                setPackBusy(true)
-                setPackMsg('Scarico…')
-                try {
-                  const { chapters } = await downloadOfflineBiblePack({
-                    language,
-                    maxChaptersPerBook: 8,
-                    onProgress: (r, label) =>
-                      setPackMsg(`${Math.round(r * 100)}% · ${label}`),
-                  })
-                  setPackMsg(`Pacchetto frequente: ${chapters} capitoli salvati.`)
-                  await refreshBibleStats()
-                } catch (e) {
-                  setPackMsg(e instanceof Error ? e.message : 'Download non riuscito')
-                } finally {
-                  setPackBusy(false)
-                }
-              })()
-            }}
-          >
-            <BookOpen size={16} /> {packBusy ? 'Scarico…' : 'Solo pacchetto frequente'}
-          </button>
-          <button
-            className="btn ghost"
-            type="button"
-            disabled={fullBusy || packBusy || bibleStats.chaptersIndexed === 0}
-            onClick={() => {
-              if (
-                !window.confirm(
-                  'Eliminare la Bibbia offline salvata su questo dispositivo? I popup richiederanno di nuovo la rete.',
-                )
-              ) {
-                return
-              }
-              void (async () => {
-                await clearOfflineBible(language)
-                setFullMsg('Bibbia offline eliminata.')
-                setPackMsg('')
-                await refreshBibleStats()
-              })()
-            }}
-          >
-            Elimina Bibbia offline
-          </button>
-        </div>
-        {!navigator.onLine && (
-          <p className="network-need-hint" style={{ marginTop: '0.65rem' }}>
-            Serve connessione per scaricare da wol.jw.org / jw.org.
-          </p>
-        )}
-        {!fullBusy && fullMsg && (
-          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
-            {fullMsg}
-          </p>
-        )}
-        {packMsg && (
-          <p className="muted" style={{ margin: '0.65rem 0 0' }}>
-            {packMsg}
-          </p>
-        )}
-        <p className="muted" style={{ margin: '0.75rem 0 0', fontSize: '0.85rem' }}>
-          Fonte: wol.jw.org (Traduzione del Nuovo Mondo, edizione per lo studio). Circa{' '}
-          {TOTAL_BIBLE_CHAPTERS} capitoli; il download completo può richiedere alcuni minuti.
-        </p>
-      </section>
-
-      <section className="panel">
-        <h2>Backup JSON</h2>
+        <h2>Backup degli studi</h2>
         <p className="lede">
           Salva una copia completa dei tuoi studi (argomenti, sessioni, decisioni, salvati,
           impostazioni e chiave sync). Utile come cassaforte o per passare a un altro dispositivo.
@@ -731,40 +213,593 @@ export function ImpostazioniView() {
         )}
       </section>
 
-      <section className="panel">
-        <h2>Dati locali</h2>
-        <p className="muted">
-          Tutto resta nel tuo browser (localStorage). Nessun account richiesto.
-        </p>
-        <button
-          className="btn danger"
-          type="button"
-          onClick={() => {
-            if (
-              !window.confirm(
-                'Cancellare tutti i dati locali di questo dispositivo? L’operazione non si può annullare (usa prima un backup JSON se ti serve).',
-              )
-            ) {
-              return
-            }
-            void (async () => {
-              await clearOfflineBible()
-              localStorage.removeItem('studio-personale-jw-v1')
-              localStorage.removeItem('jw-studio-bible-verse-cache-v2')
-              localStorage.removeItem('jw-studio-bible-chapter-cache-v1')
-              for (const key of Object.keys(localStorage)) {
-                if (key.startsWith('jw-studio-bible-')) localStorage.removeItem(key)
-              }
-              window.location.reload()
-            })()
-          }}
-        >
-          Cancella tutti i dati locali
-        </button>
-        <p className="muted" style={{ margin: '0.55rem 0 0' }}>
-          Include anche IndexedDB e cache della Bibbia offline salvate sul dispositivo.
-        </p>
-      </section>
+      <details className="panel study-options">
+        <summary>Sincronizzazione iCloud</summary>
+        <ICloudSyncPanel />
+      </details>
+
+      <details className="panel study-options">
+        <summary>Personalizzazione</summary>
+        <div className="stack">
+          <section className="study-settings-section">
+            <h2>Identità dell’app</h2>
+            <div className="grid-2">
+              <div className="field">
+                <label>Nome brand</label>
+                <input
+                  value={settings.brandName}
+                  onChange={(e) => updateSettings({ brandName: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Lingua jw.org</label>
+                <select
+                  value={settings.language}
+                  onChange={(e) => updateSettings({ language: e.target.value as 'I' | 'E' })}
+                >
+                  <option value="I">Italiano</option>
+                  <option value="E">English</option>
+                </select>
+              </div>
+            </div>
+            <div className="field">
+              <label>Tagline</label>
+              <input
+                value={settings.tagline}
+                onChange={(e) => updateSettings({ tagline: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label>Note sul metodo di studio</label>
+              <textarea
+                value={settings.studyMethodNotes}
+                onChange={(e) => updateSettings({ studyMethodNotes: e.target.value })}
+              />
+            </div>
+          </section>
+
+        </div>
+      </details>
+
+      <details className="panel study-options">
+        <summary>Motore AI e voce narrativa</summary>
+        <div className="stack">
+          <section className="study-settings-section">
+            <h2>Motore AI</h2>
+            <p className="lede">
+              Motore AI per Assistente, Argomenti, Quaderno, Decisioni, Letture Bibbia, Video Studio,
+              Discorso, Ministero ed esportazioni.
+            </p>
+            <div className="field">
+              <label htmlFor="ai-provider">Provider</label>
+              <select
+                id="ai-provider"
+                value={settings.ai?.provider || 'free'}
+                onChange={(e) =>
+                  updateSettings({
+                    ai: {
+                      provider: e.target.value as AiProviderPref,
+                      geminiApiKey: settings.ai?.geminiApiKey || '',
+                      geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
+                    },
+                    openAi: undefined,
+                  })
+                }
+              >
+                {AI_PROVIDER_OPTIONS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="gemini-key">Chiave Gemini (opzionale, gratuita)</label>
+              <input
+                id="gemini-key"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="AIza…"
+                value={settings.ai?.geminiApiKey || ''}
+                onChange={(e) =>
+                  updateSettings({
+                    ai: {
+                      provider: settings.ai?.provider || 'free',
+                      geminiApiKey: e.target.value,
+                      geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
+                    },
+                    openAi: undefined,
+                  })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="gemini-model">Modello Gemini</label>
+              <select
+                id="gemini-model"
+                value={supportedGeminiModel(settings.ai?.geminiModel)}
+                onChange={(e) =>
+                  updateSettings({
+                    ai: {
+                      provider: settings.ai?.provider || 'free',
+                      geminiApiKey: settings.ai?.geminiApiKey || '',
+                      geminiModel: e.target.value as GeminiModelPref,
+                    },
+                    openAi: undefined,
+                  })
+                }
+              >
+                {GEMINI_MODEL_OPTIONS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+              Senza chiave l’app usa un motore gratuito con un limite condiviso. Per usare la tua quota
+              Gemini, crea una chiave da{' '}
+              <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
+                Google AI Studio
+              </a>{' '}
+              e incollala qui. Usa un progetto sul piano gratuito se vuoi evitare addebiti.
+            </p>
+            <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={aiProbeBusy}
+                onClick={() => {
+                  setAiProbeBusy(true)
+                  setAiProbeMsg('')
+                  void probeAiEngine()
+                    .then((r) => {
+                      setAiProbeMsg(
+                        r.ok
+                          ? `OK — motore «${r.engine}»: ${r.text.slice(0, 80)}`
+                          : `Errore — ${r.text.slice(0, 220)}`,
+                      )
+                    })
+                    .catch((e) => {
+                      setAiProbeMsg(e instanceof Error ? e.message : 'Prova AI non riuscita')
+                    })
+                    .finally(() => setAiProbeBusy(false))
+                }}
+              >
+                {aiProbeBusy ? 'Verifica…' : 'Prova AI (pochi token)'}
+              </button>
+            </div>
+            {aiProbeMsg ? (
+              <p className="muted" style={{ margin: '0.5rem 0 0' }}>
+                {aiProbeMsg}
+              </p>
+            ) : null}
+          </section>
+
+          <section className="study-settings-section">
+            <h2>Voce narrativa</h2>
+            <p className="lede">
+              Ascolta riassunti e analisi con una voce neurale narrativa (non la voce di sistema del
+              dispositivo). Richiede rete; offline usa la migliore voce disponibile sul browser.
+            </p>
+            <div className="grid-2">
+              <div className="field">
+                <label htmlFor="narration-engine">Motore</label>
+                <select
+                  id="narration-engine"
+                  value={settings.narrationEngine || 'neural'}
+                  onChange={(e) =>
+                    updateSettings({
+                      narrationEngine: e.target.value as NarrationEnginePref,
+                    })
+                  }
+                >
+                  <option value="neural">Narrativa neurale (consigliata)</option>
+                  <option value="device">Solo voce del dispositivo</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="narration-voice">Voce</label>
+                <select
+                  id="narration-voice"
+                  value={settings.narrationVoice || 'isabella'}
+                  onChange={(e) =>
+                    updateSettings({
+                      narrationVoice: e.target.value as NarrationVoicePref,
+                    })
+                  }
+                  disabled={(settings.narrationEngine || 'neural') === 'device'}
+                >
+                  {NARRATION_VOICES.filter((v) =>
+                    settings.language === 'E' ? v.language === 'E' : v.language === 'I',
+                  ).map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
+              <NarrateButton
+                text={
+                  settings.language === 'E'
+                    ? 'This is a warm narrative voice for personal Bible study summaries and reflections.'
+                    : 'Questa è una voce narrativa calda e chiara, pensata per ascoltare riassunti e riflessioni dello studio personale.'
+                }
+                label="Prova la voce"
+              />
+            </div>
+          </section>
+
+        </div>
+      </details>
+
+      <details className="panel study-options">
+        <summary>Aspetto e navigazione</summary>
+        <div className="stack">
+          <section className="study-settings-section">
+            <div className="section-head">
+              <h2>Colori e aspetto</h2>
+              <button className="btn secondary" type="button" onClick={resetTheme}>
+                Ripristina tema
+              </button>
+            </div>
+            <div className="color-grid">
+              {(
+                [
+                  ['primary', 'Primario'],
+                  ['secondary', 'Secondario'],
+                  ['accent', 'Accento'],
+                  ['background', 'Sfondo'],
+                  ['surface', 'Superficie'],
+                  ['text', 'Testo'],
+                  ['muted', 'Testo soft'],
+                ] as const
+              ).map(([key, label]) => (
+                <div className="field" key={key}>
+                  <label>{label}</label>
+                  <input
+                    type="color"
+                    value={settings.theme[key]}
+                    onChange={(e) => updateTheme({ [key]: e.target.value })}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="grid-3" style={{ marginTop: '0.5rem' }}>
+              <div className="field">
+                <label>Raggio angoli ({settings.theme.radius}px)</label>
+                <input
+                  type="range"
+                  min={0}
+                  max={32}
+                  value={settings.theme.radius}
+                  onChange={(e) => updateTheme({ radius: Number(e.target.value) })}
+                />
+              </div>
+              <div className="field">
+                <label>Densità</label>
+                <select
+                  value={settings.theme.density}
+                  onChange={(e) =>
+                    updateTheme({ density: e.target.value as typeof settings.theme.density })
+                  }
+                >
+                  <option value="comoda">Comoda</option>
+                  <option value="media">Media</option>
+                  <option value="compatta">Compatta</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Stile hero</label>
+                <select
+                  value={settings.theme.heroStyle}
+                  onChange={(e) =>
+                    updateTheme({ heroStyle: e.target.value as typeof settings.theme.heroStyle })
+                  }
+                >
+                  <option value="pieno">Pieno</option>
+                  <option value="morbido">Morbido</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid-2">
+              <div className="field">
+                <label>Font titoli</label>
+                <input
+                  value={settings.theme.fontDisplay}
+                  onChange={(e) => updateTheme({ fontDisplay: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Font testo</label>
+                <input
+                  value={settings.theme.fontBody}
+                  onChange={(e) => updateTheme({ fontBody: e.target.value })}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="study-settings-section">
+            <h2>Funzionalità attive</h2>
+            <div className="grid-2">
+              {FEATURE_KEYS.map((key) => (
+                <label
+                  key={key}
+                  className="row list-item"
+                  style={{ cursor: key === 'impostazioni' ? 'default' : 'pointer' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={key === 'impostazioni' ? true : settings.features[key]}
+                    disabled={key === 'impostazioni'}
+                    onChange={(e) => {
+                      if (key === 'impostazioni') return
+                      updateSettings({
+                        features: { ...settings.features, [key]: e.target.checked },
+                      })
+                    }}
+                  />
+                  <span>
+                    {featureLabel(key)}
+                    {key === 'impostazioni' ? ' (sempre attiva)' : ''}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="study-settings-section">
+            <h2>Ordine delle sezioni</h2>
+            <p className="muted">Su telefono, Home, Studia, Quaderno e Altro sono fissi. L’ordine vale all’interno dei gruppi.</p>
+            <p className="muted">Riordina le sezioni dell’app</p>
+            <div className="list">
+              {settings.navOrder.map((view) => (
+                <div className="list-item row" key={view} style={{ justifyContent: 'space-between' }}>
+                  <strong>{VIEW_LABELS[view]}</strong>
+                  <div className="row">
+                    <button className="btn secondary" type="button" onClick={() => moveNav(view, -1)}>
+                      Su
+                    </button>
+                    <button className="btn secondary" type="button" onClick={() => moveNav(view, 1)}>
+                      Giù
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+        </div>
+      </details>
+
+      <details className="panel study-options">
+        <summary>Promemoria e Bibbia offline</summary>
+        <div className="stack">
+          <section className="study-settings-section">
+            <h2>Promemoria</h2>
+            <p className="lede">
+              L’app mostra già un avviso interno per studi programmati e obiettivi in scadenza. Puoi
+              anche attivare le notifiche del sistema (quando la scheda è aperta).
+            </p>
+            <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+              <button
+                className="btn accent"
+                type="button"
+                disabled={notifPerm === 'granted' || notifPerm === 'unsupported'}
+                onClick={() => void enableNotifications()}
+              >
+                <Bell size={16} />{' '}
+                {notifPerm === 'granted' ? 'Notifiche attive' : 'Attiva notifiche di sistema'}
+              </button>
+            </div>
+            {notifMsg && (
+              <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+                {notifMsg}
+              </p>
+            )}
+          </section>
+
+          <section className="study-settings-section">
+            <h2>Bibbia offline</h2>
+            <p className="lede">
+              Testo TNM (edizione studio) da wol.jw.org, per i popup dei versetti anche senza rete.
+              Puoi scaricare tutta la Bibbia (tutti i libri, capitoli e versetti) oppure un pacchetto
+              ridotto dei libri più usati.
+            </p>
+            <p className="muted">
+              Salvati: {bibleStats.chaptersIndexed} / {bibleStats.totalChapters} capitoli
+              {bibleStats.complete ? ' · completa' : ''} · cache rapida {getCachedChapterCount()} cap. ·{' '}
+              {getCachedVerseCount()} versetti aperti di recente.
+            </p>
+            {fullBusy && (
+              <div className="bible-download-progress" aria-live="polite">
+                <div className="bible-download-bar">
+                  <span style={{ width: `${Math.round(fullProgress * 100)}%` }} />
+                </div>
+                <p className="muted" style={{ margin: '0.45rem 0 0' }}>
+                  {fullMsg || 'Scarico…'}
+                </p>
+              </div>
+            )}
+            <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
+              <button
+                className="btn accent"
+                type="button"
+                disabled={fullBusy || packBusy || !navigator.onLine}
+                onClick={() => {
+                  void (async () => {
+                    const ctrl = new AbortController()
+                    fullAbortRef.current = ctrl
+                    setFullBusy(true)
+                    setFullProgress(0)
+                    setFullMsg('Collegamento a wol.jw.org…')
+                    try {
+                      const result = await downloadFullOfflineBible({
+                        language,
+                        concurrency: 2,
+                        signal: ctrl.signal,
+                        onProgress: (info) => {
+                          setFullProgress(info.ratio)
+                          setFullMsg(
+                            `${Math.round(info.ratio * 100)}% · ${info.done}/${info.total} · ${info.label}`,
+                          )
+                        },
+                      })
+                      await refreshBibleStats()
+                      if (ctrl.signal.aborted) {
+                        setFullMsg(
+                          `Interrotto: ${result.chapters} nuovi, ${result.skipped} già presenti, ${result.failed} errori.`,
+                        )
+                      } else {
+                        setFullMsg(
+                          `Bibbia salvata: ${result.chapters} nuovi capitoli · ${result.skipped} già presenti · ${result.failed} errori · obiettivo ${TOTAL_BIBLE_CHAPTERS} capitoli.`,
+                        )
+                      }
+                    } catch (e) {
+                      setFullMsg(e instanceof Error ? e.message : 'Download non riuscito')
+                    } finally {
+                      fullAbortRef.current = null
+                      setFullBusy(false)
+                      void refreshBibleStats()
+                    }
+                  })()
+                }}
+              >
+                <Download size={16} />{' '}
+                {fullBusy
+                  ? 'Scarico tutta la Bibbia…'
+                  : bibleStats.complete
+                    ? 'Aggiorna tutta la Bibbia'
+                    : 'Scarica tutta la Bibbia'}
+              </button>
+              {fullBusy && (
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={() => fullAbortRef.current?.abort()}
+                >
+                  <Square size={16} /> Interrompi
+                </button>
+              )}
+              <button
+                className="btn secondary"
+                type="button"
+                disabled={packBusy || fullBusy || !navigator.onLine}
+                onClick={() => {
+                  void (async () => {
+                    setPackBusy(true)
+                    setPackMsg('Scarico…')
+                    try {
+                      const { chapters } = await downloadOfflineBiblePack({
+                        language,
+                        maxChaptersPerBook: 8,
+                        onProgress: (r, label) =>
+                          setPackMsg(`${Math.round(r * 100)}% · ${label}`),
+                      })
+                      setPackMsg(`Pacchetto frequente: ${chapters} capitoli salvati.`)
+                      await refreshBibleStats()
+                    } catch (e) {
+                      setPackMsg(e instanceof Error ? e.message : 'Download non riuscito')
+                    } finally {
+                      setPackBusy(false)
+                    }
+                  })()
+                }}
+              >
+                <BookOpen size={16} /> {packBusy ? 'Scarico…' : 'Solo pacchetto frequente'}
+              </button>
+              <button
+                className="btn ghost"
+                type="button"
+                disabled={fullBusy || packBusy || bibleStats.chaptersIndexed === 0}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      'Eliminare la Bibbia offline salvata su questo dispositivo? I popup richiederanno di nuovo la rete.',
+                    )
+                  ) {
+                    return
+                  }
+                  void (async () => {
+                    await clearOfflineBible(language)
+                    setFullMsg('Bibbia offline eliminata.')
+                    setPackMsg('')
+                    await refreshBibleStats()
+                  })()
+                }}
+              >
+                Elimina Bibbia offline
+              </button>
+            </div>
+            {!navigator.onLine && (
+              <p className="network-need-hint" style={{ marginTop: '0.65rem' }}>
+                Serve connessione per scaricare da wol.jw.org / jw.org.
+              </p>
+            )}
+            {!fullBusy && fullMsg && (
+              <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+                {fullMsg}
+              </p>
+            )}
+            {packMsg && (
+              <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+                {packMsg}
+              </p>
+            )}
+            <p className="muted" style={{ margin: '0.75rem 0 0', fontSize: '0.85rem' }}>
+              Fonte: wol.jw.org (Traduzione del Nuovo Mondo, edizione per lo studio). Circa{' '}
+              {TOTAL_BIBLE_CHAPTERS} capitoli; il download completo può richiedere alcuni minuti.
+            </p>
+          </section>
+
+        </div>
+      </details>
+
+      <details className="panel study-options">
+        <summary>Altre opzioni per i dati</summary>
+        <div className="stack">
+          <section className="study-settings-section">
+            <h2>Dati locali</h2>
+            <p className="muted">
+              Tutto resta nel tuo browser (localStorage). Nessun account richiesto.
+            </p>
+            <button
+              className="btn danger"
+              type="button"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Cancellare tutti i dati locali di questo dispositivo? L’operazione non si può annullare (usa prima un backup JSON se ti serve).',
+                  )
+                ) {
+                  return
+                }
+                void (async () => {
+                  await clearOfflineBible()
+                  localStorage.removeItem('studio-personale-jw-v1')
+                  localStorage.removeItem('jw-studio-bible-verse-cache-v2')
+                  localStorage.removeItem('jw-studio-bible-chapter-cache-v1')
+                  for (const key of Object.keys(localStorage)) {
+                    if (key.startsWith('jw-studio-bible-')) localStorage.removeItem(key)
+                  }
+                  window.location.reload()
+                })()
+              }}
+            >
+              Cancella tutti i dati locali
+            </button>
+            <p className="muted" style={{ margin: '0.55rem 0 0' }}>
+              Include anche IndexedDB e cache della Bibbia offline salvate sul dispositivo.
+            </p>
+          </section>
+
+        </div>
+      </details>
+
     </div>
   )
 }

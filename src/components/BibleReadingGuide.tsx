@@ -36,14 +36,14 @@ export function BibleReadingGuide({ guide, progress, language, onProgress }: Pro
         {intro && <p>{intro}</p>}
       </header>
 
-      <div className="bible-study-stage">
+      <div className="bible-study-stage study-jump" id="reading-stage-reading" tabIndex={-1}>
         <h4>1. Leggi e osserva</h4>
         {readings.length ? (
           <ul className="bible-study-list">
-            {readings.map(({ text, scripture }) => {
+            {readings.map(({ text, scripture }, index) => {
               const checked = completed.includes(text)
               return (
-                <li key={text}>
+                <li key={text} id={`reading-item-${index}`} className="study-jump" tabIndex={-1}>
                   <label className="bible-study-check">
                     <input
                       type="checkbox"
@@ -72,11 +72,11 @@ export function BibleReadingGuide({ guide, progress, language, onProgress }: Pro
         ) : <p className="muted">Scegli un brano collegato al tema e leggilo prima di riflettere.</p>}
       </div>
 
-      <div className="bible-study-stage">
+      <div className="bible-study-stage study-jump" id="reading-stage-reflection" tabIndex={-1}>
         <h4>2. Rifletti e rispondi</h4>
         <div className="stack">
-          {questions.map((question) => (
-            <label className="field" key={question}>
+          {questions.map((question, index) => (
+            <label className="field study-jump" key={question} id={`reading-question-${index}`} tabIndex={-1}>
               <span>{question}</span>
               <textarea
                 rows={2}
@@ -91,7 +91,7 @@ export function BibleReadingGuide({ guide, progress, language, onProgress }: Pro
         </div>
       </div>
 
-      <div className="bible-study-stage">
+      <div className="bible-study-stage study-jump" id="reading-stage-practice" tabIndex={-1}>
         <h4>3. Metti in pratica</h4>
         {practice && (
           <div className="stack bible-study-suggestion">

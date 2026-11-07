@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildBibleReadingGuide } from '../src/lib/bibleReadingGuide.ts'
+import { buildBibleReadingGuide, getBibleReadingStatus } from '../src/lib/bibleReadingGuide.ts'
 import { readBiblePlanTitle, repairBiblePlanTitle } from '../src/lib/biblePlanTitle.ts'
 import { mergeSnapshots, trackSyncChanges } from '../src/lib/icloud/merge.ts'
 import type { ICloudSnapshot } from '../src/lib/icloud/types.ts'
-import { findStudies, type StudySearchResult } from '../src/lib/studySearch.ts'
+import { findStudies, indexStudies, type StudySearchResult } from '../src/lib/studySearch.ts'
 import type { AppSettings, BibleReadingPlan, StudySessionDraft, StudyTopic } from '../src/types.ts'
 
 const oldDate = '2026-11-06T09:00:00.000Z'
@@ -94,4 +94,20 @@ test('un approfondimento già salvato diventa uno studio guidato e conserva i pr
   const offline = buildBibleReadingGuide({ ...plan, plan: 'Leggi le scritture indicate.', aiEnriched: false })
   assert.equal(offline.readings[0].scripture, scripture)
   assert.equal(offline.questions.length, 3)
+})
+
+test('la ricerca ritrova le risposte del percorso originale e il prossimo passo', () => {
+  const reading: BibleReadingPlan = {
+    id: 'lettura-timoteo', title: 'Timoteo', query: 'Timoteo', kind: 'personaggio',
+    createdAt: currentDate, resources: [], scriptures: [{ id: '1', label: '1 Timoteo 4:12' }],
+    plan: 'Domande di riflessione:\n1. Cosa puoi fare?\n2. Quando?',
+    studyProgress: {
+      completedReadings: ['1 Timoteo 4:12'],
+      answers: { 'Cosa puoi fare?': 'Scrivere un messaggio incoraggiante.' },
+    },
+  }
+  assert.equal(getBibleReadingStatus(reading).label, 'Rispondi alla domanda 2')
+  const index = indexStudies({ topics: [], sessions: [], resources: [], searches: [], readings: [reading] })
+  const results = findStudies(index, { query: 'messaggio incoraggiante', kind: 'lettura', from: '', to: '' })
+  assert.equal(results[0]?.id, reading.id)
 })

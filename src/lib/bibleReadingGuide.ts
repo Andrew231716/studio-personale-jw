@@ -1,4 +1,4 @@
-import type { BibleReadingPlan, BibleScriptureRef } from '../types'
+import type { BibleReadingPlan, BibleScriptureRef, StudyTopic } from '../types'
 
 type GuideSection = 'intro' | 'reading' | 'reflection' | 'practice' | 'other'
 
@@ -98,4 +98,35 @@ export function buildBibleReadingGuide(plan: BibleReadingPlan) {
     questions: [...new Set([...questions, ...savedQuestions])],
     practice: sections.practice.map(cleanText).filter(Boolean).join(' '),
   }
+}
+
+export function getBibleReadingStatus(plan: BibleReadingPlan) {
+  const guide = buildBibleReadingGuide(plan)
+  const progress = plan.studyProgress
+  const readingIndex = guide.readings.findIndex(({ text }) => !progress?.completedReadings?.includes(text))
+  if (readingIndex >= 0) return { next: `reading-item-${readingIndex}`, label: `Leggi il brano ${readingIndex + 1}` } as const
+  const questionIndex = guide.questions.findIndex((question) => {
+    const answer = progress?.answers?.[question]
+    return typeof answer !== 'string' || !answer.trim()
+  })
+  if (questionIndex >= 0) return { next: `reading-question-${questionIndex}`, label: `Rispondi alla domanda ${questionIndex + 1}` } as const
+  if (!progress?.action?.trim()) return { next: 'reading-stage-practice', label: 'Scegli un’azione pratica' } as const
+  if (!progress.actionDone) return { next: 'reading-stage-practice', label: 'Metti in pratica la tua azione' } as const
+  return { next: null, label: 'Percorso completato' } as const
+}
+
+export function sortBibleReadingPlans(plans: BibleReadingPlan[]): BibleReadingPlan[] {
+  return plans.map((plan) => ({ plan, done: !getBibleReadingStatus(plan).next }))
+    .sort((a, b) => Number(a.done) - Number(b.done)
+      || (b.plan.updatedAt || b.plan.createdAt).localeCompare(a.plan.updatedAt || a.plan.createdAt))
+    .map(({ plan }) => plan)
+}
+
+export function findReadingNotebook(plan: BibleReadingPlan, topics: StudyTopic[]): StudyTopic | undefined {
+  if (plan.notebookTopicId) return topics.find((topic) => topic.id === plan.notebookTopicId)
+
+  // Le copie create prima del collegamento includevano il testo originale negli appunti.
+  const excerpt = plan.plan.slice(0, 400).trim()
+  if (excerpt.length < 80) return
+  return topics.find((topic) => topic.title === plan.title && topic.interest.includes(excerpt))
 }

@@ -9,6 +9,7 @@ import { SectionProgress } from '../components/SectionProgress'
 import { StudyFlowGuide } from '../components/StudyFlowGuide'
 import {
   SESSION_STEPS,
+  sessionStepIndexes,
   computeStreak,
   dailyEncouragement,
 } from '../lib/progress'
@@ -34,6 +35,7 @@ export function SessioneView() {
   const setView = useAppStore((s) => s.setView)
   const [tick, setTick] = useState(0)
   const [afterChoice, setAfterChoice] = useState('')
+  const [selectedTopicId, setSelectedTopicId] = useState<string>()
 
   const streak = useMemo(() => computeStreak(logs), [logs])
   const lastLog = logs[0]
@@ -220,54 +222,30 @@ export function SessioneView() {
               </span>
             )}
           </div>
-          <h2>Una sessione che ti accompagna</h2>
-          <p className="lede">
-            Otto passi brevi: preghiera, obiettivo, materiale jw.org, meditazione e un’azione concreta.
-          </p>
-          <p className="encourage">{dailyEncouragement()}</p>
-
-          {focusTopic ? (
-            <div className="list-item" style={{ marginTop: '0.5rem' }}>
-              <strong>Continua: {focusTopic.title}</strong>
-              <p className="muted" style={{ margin: 0 }}>
-                {focusTopic.interest || focusTopic.objectives[0]}
-              </p>
-              <button
-                className="btn accent"
-                type="button"
-                onClick={() => startSession(focusTopic.id)}
-              >
-                Inizia questa sessione
-              </button>
-            </div>
-          ) : (
-            <div className="empty">
-              Aggiungi prima un argomento, oppure inizia una sessione libera.
-            </div>
-          )}
-
-          <div className="row" style={{ marginTop: '0.8rem' }}>
-            <button className="btn" type="button" onClick={() => startSession(null)}>
-              Sessione libera
-            </button>
-            {topics.length > 1 && (
-              <select
-                defaultValue=""
-                onChange={(e) => {
-                  if (e.target.value) startSession(e.target.value)
-                }}
-              >
-                <option value="" disabled>
-                  Scegli un altro argomento…
-                </option>
-                {topics.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.title}
-                  </option>
-                ))}
-              </select>
-            )}
+          <h2>Inizia a studiare</h2>
+          <p className="lede">Scegli l’argomento e il tipo di sessione.</p>
+          <div className="field">
+            <label htmlFor="session-topic">Argomento della sessione</label>
+            <select
+              id="session-topic"
+              value={selectedTopicId ?? focusTopic?.id ?? ''}
+              onChange={(event) => setSelectedTopicId(event.target.value)}
+            >
+              <option value="">Sessione libera</option>
+              {topics.filter((item) => item.status !== 'completato').map((item) => (
+                <option key={item.id} value={item.id}>{item.title}</option>
+              ))}
+            </select>
           </div>
+          <div className="row study-actions">
+            <button className="btn accent" type="button" onClick={() => startSession((selectedTopicId ?? focusTopic?.id) || null, 'rapida')}>
+              Sessione rapida
+            </button>
+            <button className="btn secondary" type="button" onClick={() => startSession((selectedTopicId ?? focusTopic?.id) || null, 'completa')}>
+              Sessione completa
+            </button>
+          </div>
+          <p className="muted">Rapida: leggi, rifletti, applica. Completa: otto passi guidati.</p>
 
           {lastLog && (
             <div className="footnote">
@@ -302,12 +280,15 @@ export function SessioneView() {
     )
   }
 
-  const step = SESSION_STEPS[draft.step] || SESSION_STEPS[0]
-  const progress = ((draft.step + 1) / SESSION_STEPS.length) * 100
+  const stepIndexes = sessionStepIndexes(draft.mode)
+  const currentStep = stepIndexes[draft.step] ?? stepIndexes[0]
+  const rapidLabels = ['Leggi', 'Rifletti', 'Applica']
+  const step = SESSION_STEPS[currentStep]
+  const progress = ((draft.step + 1) / stepIndexes.length) * 100
   const topic = topics.find((t) => t.id === draft.topicId)
 
   function next() {
-    if (draft!.step >= SESSION_STEPS.length - 1) {
+    if (draft!.step >= stepIndexes.length - 1) {
       updateDraft({ minutesSpent: elapsedMin })
       completeSession()
       return
@@ -328,16 +309,16 @@ export function SessioneView() {
         </div>
         <div className="meta-line">
           <span>
-            Passo <strong>{draft.step + 1}/{SESSION_STEPS.length}</strong>
+            Passo <strong>{draft.step + 1}/{stepIndexes.length}</strong>
           </span>
           <span>
             {topic ? topic.title : 'Sessione libera'} · ~{elapsedMin || tick || 1} min
           </span>
         </div>
-        <h2>{step.title}</h2>
+        <h2>{draft.mode === 'rapida' ? rapidLabels[draft.step] : step.title}</h2>
         <p className="lede">{step.hint}</p>
 
-        {draft.step === 0 && (
+        {currentStep === 0 && (
           <ExpandableField
             label="Breve preghiera / intenzione"
             value={draft.prayer}
@@ -346,7 +327,7 @@ export function SessioneView() {
           />
         )}
 
-        {draft.step === 1 && (
+        {currentStep === 1 && (
           <ExpandableField
             label="Il mio obiettivo di oggi"
             value={draft.goal}
@@ -355,7 +336,7 @@ export function SessioneView() {
           />
         )}
 
-        {draft.step === 2 && (
+        {currentStep === 2 && (
           <div className="stack">
             {(draft.resourceTitle || draft.resourceUrl) && (
               <div className="list-item">
@@ -392,7 +373,7 @@ export function SessioneView() {
           </div>
         )}
 
-        {draft.step === 3 && (
+        {currentStep === 3 && (
           <div className="stack">
             {draft.resourceUrl && (
               <JwOpenButtons
@@ -445,7 +426,7 @@ export function SessioneView() {
           </div>
         )}
 
-        {draft.step === 4 && (
+        {currentStep === 4 && (
           <>
             <ExpandableField
               label="La mia meditazione"
@@ -468,7 +449,7 @@ export function SessioneView() {
           </>
         )}
 
-        {draft.step === 5 && (
+        {currentStep === 5 && (
           <div className="stack">
             <ExpandableField
               label="Domanda"
@@ -484,7 +465,7 @@ export function SessioneView() {
           </div>
         )}
 
-        {draft.step === 6 && (
+        {currentStep === 6 && (
           <ExpandableField
             label="Cosa proverò entro 48 ore"
             value={draft.practice}
@@ -493,7 +474,7 @@ export function SessioneView() {
           />
         )}
 
-        {draft.step === 7 && (
+        {currentStep === 7 && (
           <div className="stack">
             <div className="session-summary preview">
               <div>
@@ -518,31 +499,28 @@ export function SessioneView() {
           </div>
         )}
 
-        <div className="row" style={{ marginTop: '1rem', justifyContent: 'space-between' }}>
-          <div className="row">
+        <div className="row study-actions" style={{ marginTop: '1rem', justifyContent: 'space-between' }}>
+          <div className="row study-actions">
             <button className="btn secondary" type="button" onClick={back} disabled={draft.step === 0}>
               Indietro
             </button>
-            <button
-              className="btn secondary"
-              type="button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Vuoi davvero uscire? La sessione in corso non verrà salvata nel Diario.',
-                  )
-                ) {
-                  abandonSession()
-                }
-              }}
-            >
-              Esci
+            <button className="btn secondary" type="button" onClick={() => setView('home')}>
+              Salva e torna alla Home
             </button>
           </div>
           <button className="btn accent" type="button" onClick={next}>
-            {draft.step >= SESSION_STEPS.length - 1 ? 'Completa sessione' : 'Avanti'}
+            {draft.step >= stepIndexes.length - 1 ? 'Completa sessione' : 'Avanti'}
           </button>
         </div>
+        <button
+          className="btn secondary small"
+          type="button"
+          onClick={() => {
+            if (window.confirm('Vuoi sostituire la bozza in corso? I suoi appunti verranno eliminati.')) abandonSession()
+          }}
+        >
+          Inizia una nuova sessione
+        </button>
       </section>
     </div>
   )

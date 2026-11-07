@@ -2591,3 +2591,52 @@ img {
 .bible-study-details[open] > div {
   margin-top: 0.5rem;
 }
+
+.study-actions {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.study-options > summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.5rem 0;
+}
+
+.study-options[open] > :not(summary) {
+  margin-top: 0.5rem;
+}
+
+.home-reading {
+  justify-items: start;
+  gap: 0.4rem;
+}
+
+.study-jump {
+  scroll-margin-block-start: 1rem;
+}
+
+.nav-more-group + .nav-more-group {
+  margin-top: 0.7rem;
+}
+
+@media (max-width: 900px) {
+  .nav-mobile {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+
+  .nav-mobile button {
+    flex-direction: column;
+    gap: 0.18rem;
+    justify-content: center;
+    padding-inline: 0.15rem;
+    white-space: normal;
+  }
+
+  .study-jump {
+    scroll-margin-block-start: calc(7.5rem + env(safe-area-inset-top, 0px));
+  }
+}

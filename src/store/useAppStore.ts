@@ -142,6 +142,10 @@ interface AppState {
   activeDecisionId: string | null
   aiMessages: AiMessage[]
   sessionDraft: StudySessionDraft | null
+  bibleReadingTarget: { id: string; request: string } | null
+  openBibleReadingPlan: (id: string) => void
+  notebookArchiveTarget: string | null
+  openNotebookTopic: (id: string) => void
   sessionLogs: StudySessionLog[]
   schedules: ScheduledStudy[]
   savedResources: SavedResource[]
@@ -172,7 +176,7 @@ interface AppState {
   recomputeDecisionConclusion: (id: string) => void
   pushAiMessage: (message: AiMessage) => void
   clearAi: () => void
-  startSession: (topicId?: string | null) => void
+  startSession: (topicId?: string | null, mode?: StudySessionDraft['mode']) => void
   updateSessionDraft: (patch: Partial<StudySessionDraft>) => void
   completeSession: () => StudySessionLog | null
   abandonSession: () => void
@@ -399,6 +403,15 @@ export const useAppStore = create<AppState>()(
       activeDecisionId: null,
       aiMessages: [],
       sessionDraft: null,
+      bibleReadingTarget: null,
+      notebookArchiveTarget: null,
+      openNotebookTopic: (id) => {
+        const topic = get().topics.find((item) => item.id === id)
+        if (!topic) return
+        if (topic.status === 'completato') set({ view: 'studio', notebookArchiveTarget: id })
+        else get().setActiveTopic(id)
+      },
+      openBibleReadingPlan: (id) => set({ view: 'lettureBibbia', bibleReadingTarget: { id, request: uid('reading') } }),
       sessionLogs: [],
       schedules: [],
       savedResources: [],
@@ -525,10 +538,14 @@ export const useAppStore = create<AppState>()(
       pushAiMessage: (message) =>
         set((s) => ({ aiMessages: [...s.aiMessages, message] })),
       clearAi: () => set({ aiMessages: [] }),
-      startSession: (topicId = null) => {
-        const id = topicId ?? get().activeTopicId
+      startSession: (topicId, mode = 'completa') => {
+        if (get().sessionDraft) {
+          set({ view: 'sessione' })
+          return
+        }
+        const id = topicId === undefined ? get().activeTopicId : topicId
         const topic = get().topics.find((t) => t.id === id)
-        const draft = emptyDraft(id)
+        const draft = { ...emptyDraft(id), mode }
         if (topic) {
           draft.goal = topic.objectives[0] || ''
           draft.question = topic.questions[0]?.question || draft.question

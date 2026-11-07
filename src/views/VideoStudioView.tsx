@@ -383,22 +383,22 @@ export function VideoStudioView() {
       <section className="panel">
         <div className="section-head">
           <div>
-            <h2>Video → studio</h2>
+            <h2>Studia un video</h2>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Trascrivi un video di jw.org dai sottotitoli ufficiali e trasformalo in una guida
-              personale con obiettivi, riflessioni, domande e pratiche.
+              Incolla un link di jw.org oppure cerca un video. Potrai studiare un passaggio partendo dai sottotitoli.
             </p>
           </div>
         </div>
 
         <div className="field">
-          <label htmlFor="video-paste">Link jw.org o codice lank del video</label>
+          <label htmlFor="video-paste">Incolla il link del video</label>
           <div className="row">
             <input
               id="video-paste"
               value={paste}
               onChange={(e) => setPaste(e.target.value)}
-              placeholder="https://www.jw.org/finder?…&lank=pub-…_VIDEO"
+              onKeyDown={(e) => e.key === 'Enter' && !busy && paste.trim() && void loadTranscript(paste)}
+              placeholder="Link da jw.org o JW Library"
               style={{ flex: 1, minWidth: 180 }}
             />
             <button

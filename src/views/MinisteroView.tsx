@@ -47,7 +47,7 @@ export function MinisteroView() {
   const addDiscourseNote = useAppStore((s) => s.addDiscourseNote)
   const setView = useAppStore((s) => s.setView)
 
-  const [kind, setKind] = useState<MinistryAssistKind>('schema')
+  const [kind, setKind] = useState<MinistryAssistKind>('presentazione')
   const [topic, setTopic] = useState('')
   const [linkPaste, setLinkPaste] = useState('')
   const [busy, setBusy] = useState(false)
@@ -273,33 +273,15 @@ export function MinisteroView() {
 
         {(tab === 'aiuto' || Boolean(linkPaste.trim())) && (
           <div className="field" style={{ marginBottom: '0.85rem' }}>
-            <label>1. Cosa ti serve?</label>
-            <div className="list" style={{ gap: '0.55rem' }}>
-              {MINISTRY_KIND_ORDER.map((k) => {
-                const selected = kind === k
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    className={`list-item ${selected ? 'active' : ''}`}
-                    onClick={() => setKind(k)}
-                    style={{
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      width: '100%',
-                      border: selected
-                        ? '1px solid color-mix(in srgb, var(--accent) 65%, var(--line))'
-                        : undefined,
-                    }}
-                  >
-                    <strong>{MINISTRY_KIND_LABELS[k]}</strong>
-                    <p className="muted" style={{ margin: '0.2rem 0 0', fontSize: '0.88rem' }}>
-                      {MINISTRY_KIND_HELP[k]}
-                    </p>
-                  </button>
-                )
-              })}
-            </div>
+            <label htmlFor="min-kind">Cosa vuoi preparare?</label>
+            <select id="min-kind" value={kind} onChange={(event) => setKind(event.target.value as MinistryAssistKind)}>
+              {MINISTRY_KIND_ORDER.map((item) => (
+                <option key={item} value={item}>
+                  {item === 'presentazione' ? 'Una conversazione' : MINISTRY_KIND_LABELS[item]}
+                </option>
+              ))}
+            </select>
+            <p className="muted">{MINISTRY_KIND_HELP[kind]}</p>
           </div>
         )}
 
@@ -307,7 +289,7 @@ export function MinisteroView() {
           <label htmlFor="min-topic">
             {tab === 'articoli'
               ? 'Cerca materiale su tutto jw.org'
-              : '2. Tema (o lascia vuoto se usi un link)'}
+              : 'Di quale tema vuoi parlare?'}
           </label>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
             <input
@@ -342,7 +324,7 @@ export function MinisteroView() {
                 onClick={() => void generate()}
               >
                 <MessagesSquare size={16} />
-                {busy ? 'Preparo…' : `Prepara: ${MINISTRY_KIND_LABELS[kind]}`}
+                {busy ? 'Preparo…' : kind === 'presentazione' ? 'Prepara una conversazione' : 'Prepara la scheda'}
               </button>
             ) : null}
           </div>
