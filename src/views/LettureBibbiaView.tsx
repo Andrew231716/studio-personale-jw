@@ -7,6 +7,7 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
+import { BibleReadingGuide } from '../components/BibleReadingGuide'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwOpenButtons } from '../components/JwOpenButtons'
 import { SectionProgress } from '../components/SectionProgress'
@@ -19,6 +20,7 @@ import {
   searchBibleTopic,
   type BibleCatalogEntry,
 } from '../lib/bibleReading'
+import { buildBibleReadingGuide } from '../lib/bibleReadingGuide'
 import { uid } from '../lib/id'
 import { useAppStore } from '../store/useAppStore'
 import type { BibleReadingKind, BibleReadingPlan, BibleScriptureRef, StudyResource } from '../types'
@@ -49,6 +51,7 @@ export function LettureBibbiaView() {
   const [tab, setTab] = useState<'catalogo' | 'ricerca' | 'piano'>('catalogo')
 
   const active = plans.find((p) => p.id === activeId) || plans[0] || null
+  const guide = active ? buildBibleReadingGuide(active) : null
   const catalog = useMemo(
     () => filterCatalog(kind, catalogFilter),
     [kind, catalogFilter],
@@ -157,7 +160,11 @@ export function LettureBibbiaView() {
   }
 
   function savePlanAsStudy() {
-    if (!active) return
+    if (!active || !guide) return
+    const guidedReflections = Object.entries(active.studyProgress?.answers || {})
+      .filter(([, response]) => response.trim())
+      .map(([prompt, response]) => ({ id: uid('ref'), prompt, response: response.trim() }))
+    const action = active.studyProgress?.action?.trim()
     const reflectionBlock = (active.reflections || [])
       .map((r, i) => `${i + 1}. ${r.text}`)
       .join('\n')
@@ -183,13 +190,17 @@ export function LettureBibbiaView() {
       resources: active.resources,
       objectives: [
         `Completare il percorso: ${active.query}`,
+        ...(action ? [action] : []),
         ...(active.reflections || []).slice(0, 3).map((r) => r.text.slice(0, 120)),
       ],
-      reflections: (active.reflections || []).map((r) => ({
-        id: uid('ref'),
-        prompt: 'Dal percorso di lettura Bibbia',
-        response: r.text,
-      })),
+      reflections: [
+        ...guidedReflections,
+        ...(active.reflections || []).map((r) => ({
+          id: uid('ref'),
+          prompt: 'Dal percorso di lettura Bibbia',
+          response: r.text,
+        })),
+      ],
       status: 'da_iniziare',
     })
     setView('studio')
@@ -469,36 +480,53 @@ export function LettureBibbiaView() {
                     )}
                   </div>
                 )}
-                <ExpandableField
-                  label="Titolo percorso"
-                  value={active.title}
-                  onChange={(value) => updateBiblePlan(active.id, { title: value })}
-                  rows={1}
-                />
-                <ExpandableField
-                  label="Piano di lettura (modificabile)"
-                  value={active.plan}
-                  onChange={(value) => updateBiblePlan(active.id, { plan: value })}
-                  rows={12}
-                  narrate
-                />
+                {guide && (
+                  <BibleReadingGuide
+                    guide={guide}
+                    progress={active.studyProgress}
+                    language={language}
+                    onProgress={(patch) => {
+                      const latest = useAppStore.getState().bibleReadingPlans.find((plan) => plan.id === active.id)
+                      if (latest) updateBiblePlan(active.id, { studyProgress: { ...latest.studyProgress, ...patch } })
+                    }}
+                  />
+                )}
 
-                <h4>Scritture da aprire</h4>
-                <div className="list">
-                  {(active.scriptures || []).map((scr) => (
-                    <div className="list-item" key={scr.id}>
-                      <JwOpenButtons
-                        url={scr.url}
-                        bible={scr.bible}
-                        language={language}
-                        webLabel={scr.label}
-                      />
+                <details className="bible-study-details">
+                  <summary>Testo completo e scritture collegate</summary>
+                  <div className="stack">
+                    <ExpandableField
+                      label="Titolo percorso"
+                      value={active.title}
+                      onChange={(value) => updateBiblePlan(active.id, { title: value })}
+                      rows={1}
+                    />
+                    <ExpandableField
+                      label="Piano di lettura (modificabile)"
+                      value={active.plan}
+                      onChange={(value) => updateBiblePlan(active.id, { plan: value })}
+                      rows={12}
+                      narrate
+                    />
+
+                    <h4>Scritture da aprire</h4>
+                    <div className="list">
+                      {(active.scriptures || []).map((scr) => (
+                        <div className="list-item" key={scr.id}>
+                          <JwOpenButtons
+                            url={scr.url}
+                            bible={scr.bible}
+                            language={language}
+                            webLabel={scr.label}
+                          />
+                        </div>
+                      ))}
+                      {!active.scriptures?.length && (
+                        <div className="empty">Nessuna scrittura collegata ancora.</div>
+                      )}
                     </div>
-                  ))}
-                  {!active.scriptures?.length && (
-                    <div className="empty">Nessuna scrittura collegata ancora.</div>
-                  )}
-                </div>
+                  </div>
+                </details>
 
                 <h4>Le mie riflessioni</h4>
                 <div className="field">

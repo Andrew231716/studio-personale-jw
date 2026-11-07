@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { buildBibleReadingGuide } from '../src/lib/bibleReadingGuide.ts'
 import { readBiblePlanTitle, repairBiblePlanTitle } from '../src/lib/biblePlanTitle.ts'
 import { mergeSnapshots, trackSyncChanges } from '../src/lib/icloud/merge.ts'
 import type { ICloudSnapshot } from '../src/lib/icloud/types.ts'
 import { findStudies, type StudySearchResult } from '../src/lib/studySearch.ts'
-import type { AppSettings, StudySessionDraft, StudyTopic } from '../src/types.ts'
+import type { AppSettings, BibleReadingPlan, StudySessionDraft, StudyTopic } from '../src/types.ts'
 
 const oldDate = '2026-11-06T09:00:00.000Z'
 const currentDate = '2026-11-07T09:00:00.000Z'
@@ -59,4 +60,38 @@ test('la ricerca unisce accenti, abbreviazioni bibliche, tipo e intervallo di da
   assert.deepEqual(findStudies(entries, { ...filter, query: 'fedelta' }).map((entry) => entry.id), ['a', 'b'])
   assert.deepEqual(findStudies(entries, { ...filter, query: 'Gc 1:3' }).map((entry) => entry.id), ['a'])
   assert.deepEqual(findStudies(entries, { ...filter, query: 'fedelta', kind: 'sessione', from: '2026-11-06' }), [])
+})
+
+test('un approfondimento già salvato diventa uno studio guidato e conserva i progressi', () => {
+  const scripture = { id: 'tim-4', label: '1 Timoteo 4:12-16', bible: '54004012' }
+  const plan: BibleReadingPlan = {
+    id: 'tim', title: 'Timoteo', query: 'Timoteo', kind: 'personaggio', createdAt: currentDate,
+    resources: [], scriptures: [scripture], aiEnriched: true,
+    studyProgress: {
+      completedReadings: ['Atti 16:1-5'],
+      answers: { 'Quale idea vuoi ricordare?': 'Essere di esempio.' },
+    },
+    plan: [
+      'Appunti precedenti',
+      'Approfondimento AI',
+      '**Titolo:** Timoteo',
+      'Un esempio per i giovani.',
+      '**Passi di lettura consigliati**',
+      '1. **1 Timoteo 4:12**. Nota in quali modi Timoteo poteva essere di esempio.',
+      '**Domande di riflessione**',
+      '1. Come puoi dare l’esempio?',
+      '**Azione pratica:** Scegli un modo concreto per incoraggiare qualcuno.',
+      '**Risorse aggiuntive**',
+      'Materiale da consultare',
+    ].join('\n'),
+  }
+  const guide = buildBibleReadingGuide(plan)
+  assert.equal(guide.intro, 'Un esempio per i giovani.')
+  assert.equal(guide.readings[0].scripture, scripture)
+  assert.equal(guide.readings[1].text, 'Atti 16:1-5')
+  assert.deepEqual(guide.questions, ['Come puoi dare l’esempio?', 'Quale idea vuoi ricordare?'])
+  assert.equal(guide.practice, 'Scegli un modo concreto per incoraggiare qualcuno.')
+  const offline = buildBibleReadingGuide({ ...plan, plan: 'Leggi le scritture indicate.', aiEnriched: false })
+  assert.equal(offline.readings[0].scripture, scripture)
+  assert.equal(offline.questions.length, 3)
 })

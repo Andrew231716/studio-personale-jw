@@ -2504,3 +2504,90 @@ img {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
 }
+
+.bible-study {
+  gap: 0.8rem;
+}
+
+.bible-study-header,
+.bible-study-stage {
+  padding: clamp(0.85rem, 3vw, 1.2rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+.bible-study-header {
+  gap: 0.5rem;
+  background: color-mix(in srgb, var(--secondary) 8%, var(--surface));
+}
+
+.bible-study-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.bible-study :is(h4, p) {
+  margin: 0;
+}
+
+.bible-study-stage > h4 {
+  margin-bottom: 0.75rem;
+}
+
+.bible-study progress {
+  display: block;
+  inline-size: 100%;
+  block-size: 0.65rem;
+  accent-color: var(--primary);
+}
+
+.bible-study-list {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.bible-study-list li + li {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.bible-study-check {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.bible-study-check input {
+  flex: 0 0 auto;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.bible-study-list .jw-ref {
+  margin: 0 0 0.3rem 1.9rem;
+}
+
+.bible-study-suggestion {
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+
+.bible-study-details > summary {
+  padding: 0.65rem 0;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bible-study-details[open] > div {
+  margin-top: 0.5rem;
+}

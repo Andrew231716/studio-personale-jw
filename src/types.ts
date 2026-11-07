@@ -278,6 +278,13 @@ export interface BibleReflection {
   createdAt: string
 }
 
+export interface BibleReadingProgress {
+  completedReadings?: string[]
+  answers?: Record<string, string>
+  action?: string
+  actionDone?: boolean
+}
+
 export interface BibleReadingPlan {
   id: string
   title: string
@@ -285,6 +292,7 @@ export interface BibleReadingPlan {
   query: string
   plan: string
   aiEnriched?: boolean
+  studyProgress?: BibleReadingProgress
   resources: StudyResource[]
   scriptures?: BibleScriptureRef[]
   reflections?: BibleReflection[]
