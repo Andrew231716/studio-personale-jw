@@ -169,7 +169,7 @@ function scripturesFromBibleResults(results: JwResult[], language: string): Bibl
     const parsed = !bible ? parseScriptureLabel(r.title) : {}
     out.push({
       id: uid('scr'),
-      label: r.title.replace(/\u00a0/g, ' '),
+      label: r.title.replace(/&nbsp;|&#160;|\u00a0/gi, ' '),
       bible: bible || parsed.bible,
       url: r.url || (bible ? bibleOpenUrl(bible, language) : undefined),
       note: r.snippet?.slice(0, 160),
@@ -349,7 +349,7 @@ Non inventare link. Usa solo terminologia jw.org.`
       ...resources.map((resource) => resource.url),
       ...scriptures.flatMap((ref) => ref.url ? [ref.url] : []),
     ],
-    signal: AbortSignal.timeout(20_000),
+    signal: AbortSignal.timeout(55_000),
     requireRemote: true,
   })
   return { title: readBiblePlanTitle(plan, base.query), plan }
