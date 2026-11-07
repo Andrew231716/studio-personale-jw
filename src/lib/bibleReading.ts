@@ -336,8 +336,8 @@ export async function enrichBibleReadingPlan(
   const prompt = `Proponi un percorso di lettura della Bibbia su “${base.query}” (categoria: ${kindLabel}).
 ${base.blurb ? `Contesto catalogo: ${base.blurb}` : ''}
 Inizia con “Titolo: ” seguito dal titolo effettivo sulla stessa riga.
-Poi spiega perché leggerlo, indica passi di lettura e 3 domande di riflessione.
-Collega solo articoli/video jw.org forniti nel contesto.
+In massimo 200 parole spiega perché leggerlo, indica al massimo 4 passi di lettura e chiudi con 3 domande di riflessione complete.
+Se citi articoli o video, usa solo quelli forniti nel contesto e inseriscili nei passi di lettura.
 Non inventare link. Usa solo terminologia jw.org.`
 
   const plan = await askAi({

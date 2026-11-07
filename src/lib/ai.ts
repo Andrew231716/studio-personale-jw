@@ -39,7 +39,7 @@ function readAiSettings(): AiSettings {
 }
 
 /** Output token sempre bassi (piano free / risparmio). */
-export const AI_MAX_OUT_TOKENS = 512
+export const AI_MAX_OUT_TOKENS = 768
 const CONTEXT_CHAR_LIMIT = 12_000
 const HISTORY_MSG_LIMIT = 2
 const HISTORY_CHAR_LIMIT = 500
