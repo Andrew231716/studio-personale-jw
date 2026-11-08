@@ -51,6 +51,7 @@ import {
   formatRecordingDuration,
   getDiscourseRecordingBlob,
   listDiscourseRecordings,
+  mediaRecorderSupported,
   type DiscourseRecordingMeta,
 } from '../lib/discourseRecordings'
 import {
@@ -126,7 +127,9 @@ export function DiscorsoView() {
   activeSectionIdRef.current = activeSectionId
 
   const micOk = speechDictationSupported()
+  const canRecord = mediaRecorderSupported()
   const supportNote = speechDictationSupportNote()
+  const captureOk = micOk || canRecord
 
   const bodyJoined = useMemo(
     () =>
@@ -332,8 +335,11 @@ export function DiscorsoView() {
       setMicError('Crea o apri un discorso prima di dettare.')
       return
     }
-    if (!micOk) {
-      setMicError(supportNote || 'Dettatura non supportata.')
+    if (!captureOk) {
+      setMicError(
+        supportNote ||
+          'Microfono non disponibile. Serve un browser con registrazione audio (Chrome/Safari/Edge).',
+      )
       return
     }
     // Assicura una sezione attiva dove inserire automaticamente
@@ -350,10 +356,12 @@ export function DiscorsoView() {
       },
       onLevel: setMicLevel,
       onError: (msg) => {
+        // Errori fatali microfono: chiudi sessione
         setMicError(msg)
         setListening(false)
         setMicLevel(0)
       },
+      onWarning: (msg) => setRecHint(msg),
       onEnd: () => {
         setListening(false)
         setPartial('')
@@ -361,11 +369,20 @@ export function DiscorsoView() {
       },
       onRecordingSaved: (meta) => {
         setRecordings((prev) => [meta, ...prev.filter((r) => r.id !== meta.id)])
-        setRecHint('Registrazione salvata: puoi riascoltarla sotto.')
+        setRecHint(
+          online
+            ? 'Registrazione salvata: puoi riascoltarla sotto.'
+            : 'Registrazione offline salvata su questo dispositivo. Riascoltala quando vuoi; la trascrizione automatica richiede rete.',
+        )
       },
       onRecordingError: (msg) => setRecHint(msg),
     })
     setListening(true)
+    if (!online) {
+      setRecHint(
+        'Modalità offline: registro l’audio in locale. Il testo automatico riprende online.',
+      )
+    }
   }
 
   async function playRecording(id: string) {
@@ -753,11 +770,11 @@ export function DiscorsoView() {
                 >
                   {listening ? (
                     <>
-                      <MicOff size={16} /> Ferma dettatura
+                      <MicOff size={16} /> Ferma
                     </>
                   ) : (
                     <>
-                      <Mic size={16} /> Dettatura + registra
+                      <Mic size={16} /> {online ? 'Dettatura + registra' : 'Registra (offline)'}
                     </>
                   )}
                 </button>
@@ -828,8 +845,9 @@ export function DiscorsoView() {
               {polishHint && <p className="muted">{polishHint}</p>}
               {listening && (
                 <p className="muted">
-                  Microfono attivo: il testo si inserisce da solo nella sezione selezionata.
-                  L’audio resta registrato in background su questo dispositivo.
+                  {online
+                    ? 'Microfono attivo: testo in automatico nella sezione selezionata; audio salvato in locale.'
+                    : 'Offline: sto registrando l’audio in locale. Al termine riascoltalo o attendi la rete per trascrivere.'}
                 </p>
               )}
 

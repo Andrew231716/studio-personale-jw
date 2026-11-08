@@ -167,6 +167,7 @@ export function createDictation(lang = 'it-IT'): {
           handlers.onError(
             'Dettatura richiede rete per il riconoscimento vocale su questo browser. Scrivi a mano oppure riprova online.',
           )
+          stopped = true
           return
         }
         handlers.onError(`Dettatura: ${event.error}`)
@@ -175,7 +176,8 @@ export function createDictation(lang = 'it-IT'): {
       recog.onend = () => {
         // Prima di riavviare: salva le parole interim ancora in scorrimento
         flushInterim()
-        if (!stopped) {
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+        if (!stopped && !offline) {
           try {
             recog?.start()
             return

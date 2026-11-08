@@ -1,5 +1,7 @@
 /**
- * Cattura Discorso: dettatura + registrazione audio in background sullo stesso stream.
+ * Cattura Discorso offline-first:
+ * - Registrazione audio locale (sempre, anche offline)
+ * - Dettatura testo best-effort (su molti browser serve rete)
  */
 
 import {
@@ -10,9 +12,13 @@ import {
 } from './discourseRecordings'
 import { createDictation, type DictationHandlers } from './speechDictation'
 
-export interface DiscourseCaptureHandlers extends Omit<DictationHandlers, 'stream'> {
+export interface DiscourseCaptureHandlers extends Omit<DictationHandlers, 'stream' | 'onEnd'> {
   onRecordingSaved?: (meta: DiscourseRecordingMeta) => void
   onRecordingError?: (message: string) => void
+  /** Avviso non fatale (es. dettatura offline non disponibile). */
+  onWarning?: (message: string) => void
+  /** Sessione chiusa (stop utente o errore microfono fatale). */
+  onEnd: () => void
 }
 
 export function createDiscourseCapture(lang = 'it-IT') {
@@ -23,8 +29,47 @@ export function createDiscourseCapture(lang = 'it-IT') {
   let startedAt = 0
   let discourseId = ''
   let recording = false
+  let sessionActive = false
   let finalizeOnce: Promise<void> | null = null
   let activeHandlers: DiscourseCaptureHandlers | null = null
+  let audioCtx: AudioContext | null = null
+  let levelRaf = 0
+
+  function stopLevelMeter() {
+    if (levelRaf) cancelAnimationFrame(levelRaf)
+    levelRaf = 0
+    try {
+      void audioCtx?.close()
+    } catch {
+      /* ignore */
+    }
+    audioCtx = null
+  }
+
+  function startLevelMeter(onLevel?: (n: number) => void) {
+    if (!onLevel || !stream) return
+    try {
+      audioCtx = new AudioContext()
+      const src = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 256
+      src.connect(analyser)
+      const data = new Uint8Array(analyser.frequencyBinCount)
+      const tick = () => {
+        analyser.getByteTimeDomainData(data)
+        let sum = 0
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128
+          sum += v * v
+        }
+        onLevel(Math.min(1, Math.sqrt(sum / data.length) * 4))
+        levelRaf = requestAnimationFrame(tick)
+      }
+      tick()
+    } catch {
+      /* ignore */
+    }
+  }
 
   async function start(noteId: string, handlers: DiscourseCaptureHandlers) {
     discourseId = noteId
@@ -32,54 +77,101 @@ export function createDiscourseCapture(lang = 'it-IT') {
     startedAt = Date.now()
     finalizeOnce = null
     activeHandlers = handlers
+    sessionActive = true
+
+    if (!mediaRecorderSupported()) {
+      handlers.onRecordingError?.(
+        'Registrazione non supportata su questo browser. Serve un browser recente con microfono.',
+      )
+      handlers.onEnd()
+      sessionActive = false
+      return
+    }
 
     try {
-      if (mediaRecorderSupported()) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
-        })
-        const mime = pickRecorderMimeType()
-        recorder = mime
-          ? new MediaRecorder(stream, { mimeType: mime })
-          : new MediaRecorder(stream)
-        recorder.ondataavailable = (ev) => {
-          if (ev.data && ev.data.size > 0) chunks.push(ev.data)
-        }
-        recorder.onerror = () => {
-          handlers.onRecordingError?.('Registrazione audio interrotta.')
-        }
-        // timeslice: pezzi in background, meno perdite se la pagina si sospende
-        recorder.start(1000)
-        recording = true
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
+      const mime = pickRecorderMimeType()
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) chunks.push(ev.data)
       }
+      recorder.onerror = () => {
+        handlers.onRecordingError?.('Registrazione audio interrotta.')
+      }
+      recorder.start(1000)
+      recording = true
+      startLevelMeter(handlers.onLevel)
     } catch {
       stream = null
       recorder = null
       recording = false
-      handlers.onRecordingError?.(
-        'Registrazione audio non avviata (permesso microfono o browser). La dettatura può comunque funzionare.',
+      sessionActive = false
+      handlers.onError?.(
+        'Microfono non disponibile. Consenti l’accesso nelle impostazioni del browser.',
+      )
+      handlers.onEnd()
+      return
+    }
+
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+    if (offline) {
+      handlers.onWarning?.(
+        'Offline: registro l’audio sul dispositivo. La trascrizione automatica riprenderà quando torni online (o riascolta e completa a mano).',
       )
     }
 
-    dictation.start({
-      onPartial: handlers.onPartial,
-      onFinal: handlers.onFinal,
-      onError: handlers.onError,
-      onLevel: handlers.onLevel,
-      stream,
-      onEnd: () => {
-        void finalizeRecording().finally(() => handlers.onEnd())
-      },
-    })
+    // Dettatura best-effort: errori di rete non chiudono la registrazione
+    if (dictation.isSupported) {
+      dictation.start({
+        stream,
+        onPartial: handlers.onPartial,
+        onFinal: handlers.onFinal,
+        onLevel: undefined, // livello già dallo stream condiviso
+        onError: (msg) => {
+          if (!sessionActive) return
+          const soft =
+            /rete|network|offline|richiede rete|riconoscimento vocale/i.test(msg) ||
+            (typeof navigator !== 'undefined' && !navigator.onLine)
+          if (soft) {
+            handlers.onWarning?.(
+              'Trascrizione automatica non disponibile al momento (spesso serve rete). Continuo a registrare l’audio in locale.',
+            )
+            // Non chiamare onEnd: la sessione resta in registrazione
+            try {
+              dictation.stop()
+            } catch {
+              /* ignore */
+            }
+            return
+          }
+          handlers.onError(msg)
+        },
+        onEnd: () => {
+          // Fine STT senza stop utente: se ancora in sessione, resta solo audio
+          if (sessionActive) {
+            handlers.onWarning?.(
+              'Dettatura in pausa. L’audio continua a registrarsi — tocca Ferma quando hai finito.',
+            )
+          }
+        },
+      })
+    } else {
+      handlers.onWarning?.(
+        'Dettatura testo non supportata qui. Registro comunque l’audio per riascoltarlo dopo.',
+      )
+    }
   }
 
   function finalizeRecording(): Promise<void> {
     if (finalizeOnce) return finalizeOnce
     finalizeOnce = (async () => {
       const handlers = activeHandlers
+      stopLevelMeter()
       if (!recording || !recorder) {
         cleanupStream()
         return
@@ -112,7 +204,7 @@ export function createDiscourseCapture(lang = 'it-IT') {
           discourseId,
           blob,
           durationMs,
-          label: 'Dettatura',
+          label: typeof navigator !== 'undefined' && !navigator.onLine ? 'Offline' : 'Dettatura',
         })
         handlers?.onRecordingSaved?.(meta)
       } catch {
@@ -134,8 +226,15 @@ export function createDiscourseCapture(lang = 'it-IT') {
   }
 
   function stop() {
-    dictation.stop()
-    void finalizeRecording()
+    sessionActive = false
+    try {
+      dictation.stop()
+    } catch {
+      /* ignore */
+    }
+    void finalizeRecording().finally(() => {
+      activeHandlers?.onEnd()
+    })
   }
 
   return {
