@@ -14,6 +14,8 @@ export interface DiscourseRecordingMeta {
   mimeType: string
   label?: string
   byteLength?: number
+  /** Trascrizione salvata (se già eseguita). */
+  transcript?: string
 }
 
 interface RecordingRow extends DiscourseRecordingMeta {
@@ -140,6 +142,31 @@ export async function deleteDiscourseRecording(id: string): Promise<void> {
       resolve()
     }
     tx.onerror = () => reject(tx.error)
+  })
+}
+
+export async function updateDiscourseRecordingTranscript(
+  id: string,
+  transcript: string,
+): Promise<DiscourseRecordingMeta | null> {
+  const db = await openDb()
+  return await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    const req = store.get(id)
+    req.onsuccess = () => {
+      const row = req.result as RecordingRow | undefined
+      if (!row) {
+        resolve(null)
+        return
+      }
+      const next: RecordingRow = { ...row, transcript: transcript.trim() }
+      store.put(next)
+      const { blob: _b, ...meta } = next
+      resolve(meta)
+    }
+    req.onerror = () => reject(req.error)
+    tx.oncomplete = () => db.close()
   })
 }
 

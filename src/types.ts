@@ -234,7 +234,7 @@ export type AppView =
   | 'assistente'
   | 'impostazioni'
 
-export type DiscourseSectionKind = 'introduzione' | 'punto' | 'conclusione'
+export type DiscourseSectionKind = 'libera' | 'introduzione' | 'punto' | 'conclusione'
 
 export interface DiscourseSection {
   id: string

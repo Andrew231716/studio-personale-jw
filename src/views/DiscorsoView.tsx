@@ -16,6 +16,8 @@ import {
   NotebookPen,
   Download,
   Headphones,
+  ListTree,
+  Subtitles,
 } from 'lucide-react'
 import {
   ScriptureAssist,
@@ -31,7 +33,7 @@ import {
   getCachedVerseCount,
   getOfflineBibleStats,
 } from '../lib/bibleText'
-import { polishDiscourseText } from '../lib/discourseAi'
+import { polishDiscourseText, structureDiscourseWithAi } from '../lib/discourseAi'
 import {
   downloadDiscourseText,
   exportDiscourseEpub,
@@ -41,6 +43,7 @@ import { reviseDiscourseForExport } from '../lib/exportRevise'
 import {
   SECTION_KIND_LABEL,
   ensureSections,
+  flattenSectionBodies,
   joinSections,
   sectionIndexForElapsed,
   totalMinutes,
@@ -52,8 +55,10 @@ import {
   getDiscourseRecordingBlob,
   listDiscourseRecordings,
   mediaRecorderSupported,
+  updateDiscourseRecordingTranscript,
   type DiscourseRecordingMeta,
 } from '../lib/discourseRecordings'
+import { transcribeDiscourseAudio } from '../lib/discourseTranscribe'
 import {
   appendDictatedChunk,
   speechDictationSupportNote,
@@ -113,6 +118,8 @@ export function DiscorsoView() {
   const [playUrl, setPlayUrl] = useState<string | null>(null)
   const [playId, setPlayId] = useState<string | null>(null)
   const [recHint, setRecHint] = useState('')
+  const [structureBusy, setStructureBusy] = useState(false)
+  const [transcribeBusyId, setTranscribeBusyId] = useState<string | null>(null)
 
   const capture = useRef(createDiscourseCapture(language === 'E' ? 'en-US' : 'it-IT'))
   const editorRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
@@ -430,25 +437,76 @@ export function DiscorsoView() {
     URL.revokeObjectURL(url)
   }
 
-  function addSection(kind: DiscourseSectionKind = 'punto') {
-    const n = sections.filter((s) => s.kind === 'punto').length + 1
+  function addSection(kind: DiscourseSectionKind = 'libera') {
     const next: DiscourseSection = {
       id: uid('dsec'),
-      kind,
-      title: kind === 'punto' ? `Punto ${n}` : SECTION_KIND_LABEL[kind],
+      kind: 'libera',
+      title: kind === 'libera' ? '' : SECTION_KIND_LABEL[kind],
       body: '',
-      minutes: kind === 'introduzione' || kind === 'conclusione' ? 2 : 4,
+      minutes: 5,
     }
-    const updated = [...sections]
-    if (kind === 'conclusione') updated.push(next)
-    else if (kind === 'introduzione') updated.unshift(next)
-    else {
-      const concl = updated.findIndex((s) => s.kind === 'conclusione')
-      if (concl >= 0) updated.splice(concl, 0, next)
-      else updated.push(next)
-    }
-    persistSections(updated)
+    persistSections([...sections, next])
     setActiveSectionId(next.id)
+  }
+
+  async function runStructureAnalyze() {
+    const full = flattenSectionBodies(sections) || joinSections(sections)
+    if (!full.trim()) {
+      setPolishHint('Scrivi o detta qualcosa prima di analizzare la struttura.')
+      return
+    }
+    if (structureBusy) return
+    setStructureBusy(true)
+    setPolishHint('Analizzo la struttura (introduzione, punti, conclusione)…')
+    try {
+      const { sections: next, source } = await structureDiscourseWithAi(full, {
+        forceLocal: !online,
+      })
+      skipNextPolish.current = true
+      persistSections(next)
+      setActiveSectionId(next[0]?.id || null)
+      setPolishHint(
+        source === 'ai'
+          ? 'Struttura applicata con AI. Il contenuto è stato conservato.'
+          : online
+            ? 'Struttura locale applicata (contenuto conservato).'
+            : 'Offline: struttura locale. Contenuto conservato.',
+      )
+    } catch (e) {
+      setPolishHint(e instanceof Error ? e.message : 'Analisi non riuscita')
+    } finally {
+      setStructureBusy(false)
+    }
+  }
+
+  async function transcribeRecording(id: string) {
+    if (transcribeBusyId) return
+    setTranscribeBusyId(id)
+    setRecHint('Trascrivo la registrazione…')
+    try {
+      const blob = await getDiscourseRecordingBlob(id)
+      if (!blob) throw new Error('Registrazione non trovata su questo dispositivo.')
+      const { text } = await transcribeDiscourseAudio(blob, { language })
+      const meta = await updateDiscourseRecordingTranscript(id, text)
+      if (meta) {
+        setRecordings((prev) => prev.map((r) => (r.id === id ? { ...r, ...meta } : r)))
+      }
+      // Inserisce nel blocco attivo senza cancellare il testo già scritto
+      const currentSections = sectionsRef.current
+      const sid = activeSectionIdRef.current || currentSections[0]?.id
+      if (sid) {
+        const current = currentSections.find((s) => s.id === sid)?.body || ''
+        const nextBody = appendDictatedChunk(current, text)
+        persistSections(
+          currentSections.map((s) => (s.id === sid ? { ...s, body: nextBody } : s)),
+        )
+      }
+      setRecHint('Trascrizione inserita nella bozza. Puoi rivederla sotto la registrazione.')
+    } catch (e) {
+      setRecHint(e instanceof Error ? e.message : 'Trascrizione non riuscita')
+    } finally {
+      setTranscribeBusyId(null)
+    }
   }
 
   function removeSection(id: string) {
@@ -591,7 +649,7 @@ export function DiscorsoView() {
           <div className="discourse-toolbar">
             <div className="discourse-toolbar-copy">
               <p className="section-kicker">Discorso</p>
-              <h2>Struttura, dettatura e scritture</h2>
+              <h2>Bozza libera, dettatura e scritture</h2>
             </div>
             <button className="btn accent" type="button" onClick={createNew}>
               <Plus size={16} /> Nuovo
@@ -641,8 +699,17 @@ export function DiscorsoView() {
                     />
                     Auto-sintassi
                   </label>
-                  <button className="btn secondary small" type="button" onClick={() => addSection('punto')}>
-                    <Plus size={14} /> Punto
+                  <button className="btn secondary small" type="button" onClick={() => addSection('libera')}>
+                    <Plus size={14} /> Blocco
+                  </button>
+                  <button
+                    className="btn secondary small"
+                    type="button"
+                    disabled={structureBusy || polishBusy}
+                    onClick={() => void runStructureAnalyze()}
+                  >
+                    <ListTree size={14} />{' '}
+                    {structureBusy ? 'Analizzo…' : 'Analizza struttura AI'}
                   </button>
                   <button
                     className={`btn ${practiceOn ? 'danger' : 'secondary'} small`}
@@ -689,11 +756,16 @@ export function DiscorsoView() {
                 >
                   <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                     <div className="row" style={{ gap: 8, flex: 1, flexWrap: 'wrap' }}>
-                      <span className="badge">{SECTION_KIND_LABEL[s.kind]}</span>
+                      {s.kind !== 'libera' && (
+                        <span className="badge">{SECTION_KIND_LABEL[s.kind]}</span>
+                      )}
                       <input
                         value={s.title}
                         onChange={(e) => patchSection(s.id, { title: e.target.value })}
-                        aria-label="Titolo sezione"
+                        aria-label="Titolo blocco"
+                        placeholder={
+                          s.kind === 'libera' ? 'Titolo opzionale…' : SECTION_KIND_LABEL[s.kind]
+                        }
                         style={{ flex: 1, minWidth: 120 }}
                       />
                       <label className="row" style={{ gap: 4 }}>
@@ -727,9 +799,11 @@ export function DiscorsoView() {
                     value={s.body}
                     rows={idx === 0 ? 8 : 6}
                     placeholder={
-                      s.kind === 'introduzione'
-                        ? 'Apri con una domanda o una scrittura… es. Pr 14:12'
-                        : 'Scrivi o detta qui…'
+                      s.kind === 'libera'
+                        ? 'Scrivi o detta liberamente… poi «Analizza struttura AI» per intro / punti / conclusione.'
+                        : s.kind === 'introduzione'
+                          ? 'Apri con una domanda o una scrittura… es. Pr 14:12'
+                          : 'Scrivi o detta qui…'
                     }
                     onFocus={() => setActiveSectionId(s.id)}
                     onChange={(e) => {
@@ -857,8 +931,8 @@ export function DiscorsoView() {
                     <Headphones size={16} /> Registrazioni salvate
                   </h3>
                   <p className="muted" style={{ margin: 0 }}>
-                    Riascolta o scarica l’audio per riprendere la trascrizione più tardi. Restano
-                    solo su questo dispositivo.
+                    Riascolta, scarica o trascrivi (serve rete + Gemini). Restano solo su questo
+                    dispositivo.
                   </p>
                   {playUrl && (
                     <audio
@@ -907,6 +981,19 @@ export function DiscorsoView() {
                           <button
                             className="btn secondary small"
                             type="button"
+                            disabled={!online || transcribeBusyId === r.id}
+                            onClick={() => void transcribeRecording(r.id)}
+                          >
+                            <Subtitles size={14} />{' '}
+                            {transcribeBusyId === r.id
+                              ? 'Trascrivo…'
+                              : r.transcript
+                                ? 'Ritrascrivi'
+                                : 'Trascrivi'}
+                          </button>
+                          <button
+                            className="btn secondary small"
+                            type="button"
                             onClick={() => void downloadRecording(r.id)}
                           >
                             <Download size={14} /> Scarica
@@ -919,6 +1006,14 @@ export function DiscorsoView() {
                             <Trash2 size={14} />
                           </button>
                         </div>
+                        {r.transcript && (
+                          <details style={{ marginTop: '0.45rem' }}>
+                            <summary className="muted">Trascrizione salvata</summary>
+                            <p style={{ whiteSpace: 'pre-wrap', margin: '0.35rem 0 0' }}>
+                              {r.transcript}
+                            </p>
+                          </details>
+                        )}
                       </div>
                     ))}
                   </div>

@@ -11,6 +11,10 @@
     "api/export-revise.js": {
       "maxDuration": 60,
       "memory": 1024
+    },
+    "api/ai-transcribe.js": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
   "rewrites": [
