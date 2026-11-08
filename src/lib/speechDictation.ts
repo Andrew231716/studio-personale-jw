@@ -6,6 +6,8 @@ export interface DictationHandlers {
   onEnd: () => void
   /** Livello microfono 0–1 (se disponibile via getUserMedia). */
   onLevel?: (level: number) => void
+  /** Stream già aperto (es. condiviso con MediaRecorder). */
+  stream?: MediaStream | null
 }
 
 type Recog = SpeechRecognition
@@ -48,18 +50,22 @@ export function createDictation(lang = 'it-IT'): {
   let stopped = false
   let audioCtx: AudioContext | null = null
   let analyser: AnalyserNode | null = null
-  let micStream: MediaStream | null = null
+  let ownedStream: MediaStream | null = null
   let levelRaf = 0
+  let lastInterim = ''
+  let handlersRef: DictationHandlers | null = null
 
-  function stopLevelMeter() {
+  function stopLevelMeter(stopTracks: boolean) {
     if (levelRaf) cancelAnimationFrame(levelRaf)
     levelRaf = 0
-    try {
-      micStream?.getTracks().forEach((t) => t.stop())
-    } catch {
-      /* ignore */
+    if (stopTracks) {
+      try {
+        ownedStream?.getTracks().forEach((t) => t.stop())
+      } catch {
+        /* ignore */
+      }
+      ownedStream = null
     }
-    micStream = null
     try {
       void audioCtx?.close()
     } catch {
@@ -69,12 +75,11 @@ export function createDictation(lang = 'it-IT'): {
     analyser = null
   }
 
-  async function startLevelMeter(onLevel?: (n: number) => void) {
-    if (!onLevel || !navigator.mediaDevices?.getUserMedia) return
+  function startLevelMeter(stream: MediaStream, onLevel?: (n: number) => void) {
+    if (!onLevel) return
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
       audioCtx = new AudioContext()
-      const src = audioCtx.createMediaStreamSource(micStream)
+      const src = audioCtx.createMediaStreamSource(stream)
       analyser = audioCtx.createAnalyser()
       analyser.fftSize = 256
       src.connect(analyser)
@@ -93,105 +98,142 @@ export function createDictation(lang = 'it-IT'): {
       }
       tick()
     } catch {
-      /* permesso già gestito dalla SpeechRecognition */
+      /* ignore */
     }
+  }
+
+  function flushInterim() {
+    const piece = lastInterim.trim()
+    lastInterim = ''
+    if (piece && handlersRef) handlersRef.onFinal(piece)
   }
 
   function start(handlers: DictationHandlers) {
     stopped = false
+    lastInterim = ''
+    handlersRef = handlers
     recog?.abort()
-    stopLevelMeter()
-    void startLevelMeter(handlers.onLevel)
+    stopLevelMeter(true)
 
-    recog = new Ctor()
-    recog.lang = lang
-    recog.continuous = true
-    recog.interimResults = true
-    recog.maxAlternatives = 1
-
-    recog.onresult = (event: SpeechRecognitionEvent) => {
-      let interim = ''
-      let finals = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i]
-        const piece = result[0]?.transcript || ''
-        if (result.isFinal) finals += piece
-        else interim += piece
-      }
-      if (finals.trim()) handlers.onFinal(finals)
-      if (interim.trim()) handlers.onPartial(interim)
-    }
-
-    recog.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (event.error === 'aborted' || event.error === 'no-speech') return
-      if (event.error === 'not-allowed') {
-        handlers.onError(
-          'Microfono non autorizzato. Consenti l’accesso nelle impostazioni del browser.',
-        )
-        return
-      }
-      if (event.error === 'network') {
-        handlers.onError(
-          'Dettatura richiede rete per il riconoscimento vocale su questo browser. Scrivi a mano oppure riprova online.',
-        )
-        return
-      }
-      handlers.onError(`Dettatura: ${event.error}`)
-    }
-
-    recog.onend = () => {
-      if (!stopped) {
+    const boot = async () => {
+      let stream = handlers.stream || null
+      if (!stream && handlers.onLevel && navigator.mediaDevices?.getUserMedia) {
         try {
-          recog?.start()
-          return
+          ownedStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+          stream = ownedStream
         } catch {
-          /* ignore */
+          /* SpeechRecognition chiederà il mic da sola */
         }
       }
-      stopLevelMeter()
-      handlers.onEnd()
+      if (stream) startLevelMeter(stream, handlers.onLevel)
+
+      recog = new Ctor()
+      recog.lang = lang
+      recog.continuous = true
+      recog.interimResults = true
+      recog.maxAlternatives = 1
+
+      recog.onresult = (event: SpeechRecognitionEvent) => {
+        let interim = ''
+        let finals = ''
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i]
+          const piece = result[0]?.transcript || ''
+          if (result.isFinal) finals += piece
+          else interim += piece
+        }
+        if (finals.trim()) {
+          lastInterim = ''
+          handlers.onFinal(finals)
+          handlers.onPartial('')
+        }
+        if (interim.trim()) {
+          lastInterim = interim
+          handlers.onPartial(interim)
+        } else if (!finals.trim()) {
+          lastInterim = ''
+        }
+      }
+
+      recog.onerror = (event: SpeechRecognitionErrorEvent) => {
+        if (event.error === 'aborted' || event.error === 'no-speech') return
+        if (event.error === 'not-allowed') {
+          handlers.onError(
+            'Microfono non autorizzato. Consenti l’accesso nelle impostazioni del browser.',
+          )
+          return
+        }
+        if (event.error === 'network') {
+          handlers.onError(
+            'Dettatura richiede rete per il riconoscimento vocale su questo browser. Scrivi a mano oppure riprova online.',
+          )
+          return
+        }
+        handlers.onError(`Dettatura: ${event.error}`)
+      }
+
+      recog.onend = () => {
+        // Prima di riavviare: salva le parole interim ancora in scorrimento
+        flushInterim()
+        if (!stopped) {
+          try {
+            recog?.start()
+            return
+          } catch {
+            /* ignore */
+          }
+        }
+        stopLevelMeter(Boolean(ownedStream))
+        handlers.onEnd()
+      }
+
+      try {
+        recog.start()
+      } catch (e) {
+        stopLevelMeter(Boolean(ownedStream))
+        handlers.onError(e instanceof Error ? e.message : 'Impossibile avviare il microfono')
+      }
     }
 
-    try {
-      recog.start()
-    } catch (e) {
-      stopLevelMeter()
-      handlers.onError(e instanceof Error ? e.message : 'Impossibile avviare il microfono')
-    }
+    void boot()
   }
 
   function stop() {
     stopped = true
+    flushInterim()
     try {
       recog?.stop()
     } catch {
       /* ignore */
     }
     recog = null
-    stopLevelMeter()
+    stopLevelMeter(Boolean(ownedStream))
+    handlersRef = null
   }
 
   return { start, stop, isSupported: true }
 }
 
-/** Inserisce testo alla posizione del cursore in una textarea, senza perdere la selezione. */
+/**
+ * Inserisce il pezzo in coda al testo della sezione (dettatura automatica).
+ * Non dipende dal cursore: evita perdite mentre scorrono le interim.
+ */
+export function appendDictatedChunk(value: string, chunk: string): string {
+  const piece = chunk.trim()
+  if (!piece) return value
+  const base = value.replace(/\s+$/, '')
+  if (!base) return `${piece} `
+  const needsSpace = !/\s$/.test(base) && !/^[.,;:!?]/.test(piece)
+  return `${base}${needsSpace ? ' ' : ''}${piece} `
+}
+
+/** @deprecated preferisci appendDictatedChunk per la dettatura */
 export function insertAtCursor(
   el: HTMLTextAreaElement | null,
   value: string,
   chunk: string,
 ): { next: string; cursor: number } {
-  if (!el) {
-    const next = value.replace(/\s+$/, '')
-    const joined = next ? `${next} ${chunk.trim()} ` : `${chunk.trim()} `
-    return { next: joined, cursor: joined.length }
-  }
-  const start = el.selectionStart ?? value.length
-  const end = el.selectionEnd ?? value.length
-  const piece = chunk.trim()
-  const before = value.slice(0, start)
-  const after = value.slice(end)
-  const needsSpaceBefore = before.length > 0 && !/\s$/.test(before)
-  const insert = `${needsSpaceBefore ? ' ' : ''}${piece} `
-  const next = before + insert + after
-  return { next, cursor: before.length + insert.length }
+  const next = appendDictatedChunk(value, chunk)
+  if (!el) return { next, cursor: next.length }
+  return { next, cursor: next.length }
 }
