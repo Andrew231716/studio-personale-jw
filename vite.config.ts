@@ -201,6 +201,56 @@ async function localApiMiddleware(
       })
       return
     }
+    if (url.pathname === '/api/ai-transcribe' && req.method === 'POST') {
+      // @ts-expect-error API route is plain JS without declarations
+      const mod = (await import('./api/ai-transcribe.js')) as {
+        default: (req: unknown, res: unknown) => Promise<void>
+      }
+      const raw = await readBody(req)
+      let body: unknown = {}
+      try {
+        body = JSON.parse(raw || '{}')
+      } catch {
+        body = {}
+      }
+      await new Promise<void>((resolve, reject) => {
+        const fakeReq = {
+          method: 'POST',
+          headers: req.headers || {},
+          body,
+        }
+        const fakeRes = {
+          statusCode: 200,
+          status(code: number) {
+            this.statusCode = code
+            return this
+          },
+          setHeader(name: string, value: string) {
+            res.setHeader(name, value)
+            return this
+          },
+          json(payload: unknown) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify(payload))
+            resolve()
+          },
+          send(payload: string) {
+            res.statusCode = this.statusCode
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+            res.end(payload)
+            resolve()
+          },
+          end(payload?: string) {
+            res.statusCode = this.statusCode
+            res.end(payload)
+            resolve()
+          },
+        }
+        void mod.default(fakeReq, fakeRes).catch(reject)
+      })
+      return
+    }
     if (url.pathname === '/api/export-revise' && req.method === 'POST') {
       // @ts-expect-error API route is plain JS without declarations
       const mod = (await import('./api/export-revise.js')) as {

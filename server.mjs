@@ -88,6 +88,15 @@ app.post('/api/ai', express.json({ limit: '1mb' }), async (req, res) => {
   }
 })
 
+app.post('/api/ai-transcribe', express.json({ limit: '8mb' }), async (req, res) => {
+  try {
+    const { default: handler } = await import('./api/ai-transcribe.js')
+    await handler(req, res)
+  } catch (e) {
+    res.status(502).send(String(e))
+  }
+})
+
 app.post('/api/export-revise', express.json({ limit: '1mb' }), async (req, res) => {
   try {
     const { default: handler } = await import('./api/export-revise.js')
