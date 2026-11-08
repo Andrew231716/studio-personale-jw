@@ -15,6 +15,7 @@ import {
   WifiOff,
   NotebookPen,
   Download,
+  Headphones,
 } from 'lucide-react'
 import {
   ScriptureAssist,
@@ -44,9 +45,17 @@ import {
   sectionIndexForElapsed,
   totalMinutes,
 } from '../lib/discourseStructure'
+import { createDiscourseCapture } from '../lib/discourseCapture'
 import {
-  createDictation,
-  insertAtCursor,
+  deleteDiscourseRecording,
+  formatRecordingDuration,
+  getDiscourseRecordingBlob,
+  listDiscourseRecordings,
+  mediaRecorderSupported,
+  type DiscourseRecordingMeta,
+} from '../lib/discourseRecordings'
+import {
+  appendDictatedChunk,
   speechDictationSupportNote,
   speechDictationSupported,
 } from '../lib/speechDictation'
@@ -100,8 +109,12 @@ export function DiscorsoView() {
   const [offlineChapters, setOfflineChapters] = useState(0)
   const fullAbortRef = useRef<AbortController | null>(null)
   const [exportBusy, setExportBusy] = useState<string | null>(null)
+  const [recordings, setRecordings] = useState<DiscourseRecordingMeta[]>([])
+  const [playUrl, setPlayUrl] = useState<string | null>(null)
+  const [playId, setPlayId] = useState<string | null>(null)
+  const [recHint, setRecHint] = useState('')
 
-  const dictation = useRef(createDictation(language === 'E' ? 'en-US' : 'it-IT'))
+  const capture = useRef(createDiscourseCapture(language === 'E' ? 'en-US' : 'it-IT'))
   const editorRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const scriptureAssistRef = useRef<ScriptureAssistHandle | null>(null)
   const polishTimer = useRef<number | null>(null)
@@ -109,11 +122,14 @@ export function DiscorsoView() {
   const practiceStarted = useRef<number | null>(null)
   const sectionsRef = useRef(sections)
   const activeSectionIdRef = useRef(activeSectionId)
+  const playUrlRef = useRef<string | null>(null)
   sectionsRef.current = sections
   activeSectionIdRef.current = activeSectionId
 
   const micOk = speechDictationSupported()
+  const canRecord = mediaRecorderSupported()
   const supportNote = speechDictationSupportNote()
+  const captureOk = micOk || canRecord
 
   const bodyJoined = useMemo(
     () =>
@@ -177,10 +193,19 @@ export function DiscorsoView() {
 
   useEffect(() => {
     return () => {
-      dictation.current.stop()
+      capture.current.stop()
       if (polishTimer.current) window.clearTimeout(polishTimer.current)
+      if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current)
     }
   }, [])
+
+  useEffect(() => {
+    if (!note?.id) {
+      setRecordings([])
+      return
+    }
+    void listDiscourseRecordings(note.id).then(setRecordings)
+  }, [note?.id])
 
   useEffect(() => {
     if (!practiceOn) return
@@ -278,16 +303,19 @@ export function DiscorsoView() {
     const currentSections = sectionsRef.current
     const sid = activeSectionIdRef.current || currentSections[0]?.id
     if (!sid) return
-    const el = editorRefs.current[sid] || null
     const current = currentSections.find((s) => s.id === sid)?.body || ''
-    const { next, cursor } = insertAtCursor(el, current, chunk)
+    const next = appendDictatedChunk(current, chunk)
+    if (next === current) return
     const updated = currentSections.map((s) => (s.id === sid ? { ...s, body: next } : s))
     persistSections(updated)
     requestAnimationFrame(() => {
       const ta = editorRefs.current[sid]
       if (ta) {
         ta.focus()
-        ta.setSelectionRange(cursor, cursor)
+        const pos = next.length
+        ta.setSelectionRange(pos, pos)
+        // Mantieni visibile la fine del testo mentre detta
+        ta.scrollTop = ta.scrollHeight
       }
     })
     if (endsSentence(next)) scheduleAutoPolish(updated)
@@ -295,19 +323,32 @@ export function DiscorsoView() {
 
   function toggleMic() {
     setMicError('')
+    setRecHint('')
     if (listening) {
-      dictation.current.stop()
+      capture.current.stop()
       setListening(false)
       setPartial('')
       setMicLevel(0)
       return
     }
-    if (!micOk) {
-      setMicError(supportNote || 'Dettatura non supportata.')
+    if (!note) {
+      setMicError('Crea o apri un discorso prima di dettare.')
       return
     }
-    dictation.current = createDictation(language === 'E' ? 'en-US' : 'it-IT')
-    dictation.current.start({
+    if (!captureOk) {
+      setMicError(
+        supportNote ||
+          'Microfono non disponibile. Serve un browser con registrazione audio (Chrome/Safari/Edge).',
+      )
+      return
+    }
+    // Assicura una sezione attiva dove inserire automaticamente
+    if (!activeSectionIdRef.current && sectionsRef.current[0]?.id) {
+      setActiveSectionId(sectionsRef.current[0].id)
+      activeSectionIdRef.current = sectionsRef.current[0].id
+    }
+    capture.current = createDiscourseCapture(language === 'E' ? 'en-US' : 'it-IT')
+    void capture.current.start(note.id, {
       onPartial: (t) => setPartial(t),
       onFinal: (t) => {
         appendDictation(t)
@@ -315,17 +356,78 @@ export function DiscorsoView() {
       },
       onLevel: setMicLevel,
       onError: (msg) => {
+        // Errori fatali microfono: chiudi sessione
         setMicError(msg)
         setListening(false)
         setMicLevel(0)
       },
+      onWarning: (msg) => setRecHint(msg),
       onEnd: () => {
         setListening(false)
         setPartial('')
         setMicLevel(0)
       },
+      onRecordingSaved: (meta) => {
+        setRecordings((prev) => [meta, ...prev.filter((r) => r.id !== meta.id)])
+        setRecHint(
+          online
+            ? 'Registrazione salvata: puoi riascoltarla sotto.'
+            : 'Registrazione offline salvata su questo dispositivo. Riascoltala quando vuoi; la trascrizione automatica richiede rete.',
+        )
+      },
+      onRecordingError: (msg) => setRecHint(msg),
     })
     setListening(true)
+    if (!online) {
+      setRecHint(
+        'Modalità offline: registro l’audio in locale. Il testo automatico riprende online.',
+      )
+    }
+  }
+
+  async function playRecording(id: string) {
+    if (playUrlRef.current) {
+      URL.revokeObjectURL(playUrlRef.current)
+      playUrlRef.current = null
+    }
+    if (playId === id) {
+      setPlayId(null)
+      setPlayUrl(null)
+      return
+    }
+    const blob = await getDiscourseRecordingBlob(id)
+    if (!blob) {
+      setRecHint('Registrazione non trovata su questo dispositivo.')
+      return
+    }
+    const url = URL.createObjectURL(blob)
+    playUrlRef.current = url
+    setPlayUrl(url)
+    setPlayId(id)
+  }
+
+  async function removeRecording(id: string) {
+    await deleteDiscourseRecording(id)
+    setRecordings((prev) => prev.filter((r) => r.id !== id))
+    if (playId === id) {
+      if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current)
+      playUrlRef.current = null
+      setPlayId(null)
+      setPlayUrl(null)
+    }
+  }
+
+  async function downloadRecording(id: string) {
+    const blob = await getDiscourseRecordingBlob(id)
+    if (!blob) return
+    const meta = recordings.find((r) => r.id === id)
+    const ext = (meta?.mimeType || blob.type || '').includes('mp4') ? 'm4a' : 'webm'
+    const a = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    a.href = url
+    a.download = `discorso-${(meta?.createdAt || id).slice(0, 19).replace(/[:T]/g, '-')}.${ext}`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   function addSection(kind: DiscourseSectionKind = 'punto') {
@@ -652,7 +754,7 @@ export function DiscorsoView() {
               ))}
 
               {listening && partial && (
-                <p className="muted discourse-partial">…{partial}</p>
+                <p className="muted discourse-partial">In corso: …{partial}</p>
               )}
               {listening && (
                 <div className="mic-level" aria-hidden>
@@ -672,7 +774,7 @@ export function DiscorsoView() {
                     </>
                   ) : (
                     <>
-                      <Mic size={16} /> Dettatura
+                      <Mic size={16} /> {online ? 'Dettatura + registra' : 'Registra (offline)'}
                     </>
                   )}
                 </button>
@@ -731,7 +833,8 @@ export function DiscorsoView() {
                 </button>
               </div>
 
-              {micError && <p className="muted">{micError}</p>}
+              {micError && <p className="error-text">{micError}</p>}
+              {recHint && <p className="muted">{recHint}</p>}
               <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
                 EPUB: i popup dei versetti funzionano meglio in Apple Books o Thorium; altri
                 lettori possono mostrare solo il testo senza interazione.
@@ -741,7 +844,85 @@ export function DiscorsoView() {
               )}
               {polishHint && <p className="muted">{polishHint}</p>}
               {listening && (
-                <p className="muted">Microfono attivo — il testo va nella sezione selezionata.</p>
+                <p className="muted">
+                  {online
+                    ? 'Microfono attivo: testo in automatico nella sezione selezionata; audio salvato in locale.'
+                    : 'Offline: sto registrando l’audio in locale. Al termine riascoltalo o attendi la rete per trascrivere.'}
+                </p>
+              )}
+
+              {recordings.length > 0 && (
+                <div className="stack" style={{ marginTop: '0.75rem' }}>
+                  <h3 className="row" style={{ gap: 8, margin: 0 }}>
+                    <Headphones size={16} /> Registrazioni salvate
+                  </h3>
+                  <p className="muted" style={{ margin: 0 }}>
+                    Riascolta o scarica l’audio per riprendere la trascrizione più tardi. Restano
+                    solo su questo dispositivo.
+                  </p>
+                  {playUrl && (
+                    <audio
+                      key={playId || playUrl}
+                      src={playUrl}
+                      controls
+                      autoPlay
+                      style={{ width: '100%' }}
+                      onEnded={() => {
+                        if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current)
+                        playUrlRef.current = null
+                        setPlayUrl(null)
+                        setPlayId(null)
+                      }}
+                    />
+                  )}
+                  <div className="list">
+                    {recordings.map((r) => (
+                      <div className="list-item" key={r.id}>
+                        <strong>
+                          {new Date(r.createdAt).toLocaleString('it-IT', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                          })}
+                        </strong>
+                        <p className="muted" style={{ margin: '0.2rem 0' }}>
+                          {formatRecordingDuration(r.durationMs)}
+                          {r.byteLength ? ` · ${Math.round(r.byteLength / 1024)} KB` : ''}
+                        </p>
+                        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                          <button
+                            className="btn secondary small"
+                            type="button"
+                            onClick={() => void playRecording(r.id)}
+                          >
+                            {playId === r.id ? (
+                              <>
+                                <Pause size={14} /> Chiudi
+                              </>
+                            ) : (
+                              <>
+                                <Play size={14} /> Ascolta
+                              </>
+                            )}
+                          </button>
+                          <button
+                            className="btn secondary small"
+                            type="button"
+                            onClick={() => void downloadRecording(r.id)}
+                          >
+                            <Download size={14} /> Scarica
+                          </button>
+                          <button
+                            className="btn secondary small"
+                            type="button"
+                            onClick={() => void removeRecording(r.id)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}
