@@ -1,3 +1,6 @@
+import { BIBLE_CHAPTER_COUNTS } from './bibleChapterCounts'
+import { BIBLE_BOOKS } from './bibleRefs'
+
 /** Tipi minimi Web Speech API (Chrome / Safari). */
 export interface DictationHandlers {
   onPartial: (text: string) => void
@@ -260,9 +263,50 @@ export function appendDictatedChunk(value: string, chunk: string): string {
   const piece = chunk.trim()
   if (!piece) return value
   const base = value.replace(/\s+$/, '')
-  if (!base) return `${piece} `
+  if (!base) return `${normalizeSpokenScriptureReferences(piece)} `
   const needsSpace = !/\s$/.test(base) && !/^[.,;:!?]/.test(piece)
-  return `${base}${needsSpace ? ' ' : ''}${piece} `
+  return `${normalizeSpokenScriptureReferences(
+    `${base}${needsSpace ? ' ' : ''}${piece}`,
+  )} `
+}
+
+const spokenBookLimits = new Map(
+  BIBLE_BOOKS.flatMap((book) => {
+    const names = [book.name, book.short]
+    if (book.num === 19) names.push('Salmo')
+    return names
+      .filter((name): name is string => Boolean(name))
+      .map((name) => [
+        name.toLocaleLowerCase('it-IT'),
+        BIBLE_CHAPTER_COUNTS[book.num],
+      ] as const)
+  }),
+)
+
+const spokenBookPattern = [...spokenBookLimits.keys()]
+  .sort((a, b) => b.length - a.length)
+  .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'))
+  .join('|')
+
+const spokenScriptureRef = new RegExp(
+  `(^|[^\\p{L}\\p{N}])(${spokenBookPattern})\\s+(\\d{1,3})\\s+(\\d{1,3})(?=$|[^\\p{L}\\p{N}])`,
+  'giu',
+)
+
+/** Converte solo sequenze plausibili libro-capitolo-versetto dettate senza i due punti. */
+export function normalizeSpokenScriptureReferences(text: string): string {
+  return text.replace(
+    spokenScriptureRef,
+    (match, prefix: string, book: string, chapterRaw: string, verseRaw: string) => {
+      const chapter = Number(chapterRaw)
+      const verse = Number(verseRaw)
+      const maxChapter = spokenBookLimits.get(book.toLocaleLowerCase('it-IT'))
+      if (!maxChapter || chapter < 1 || chapter > maxChapter || verse < 1 || verse > 176) {
+        return match
+      }
+      return `${prefix}${book} ${chapter}:${verse}`
+    },
+  )
 }
 
 /** @deprecated preferisci appendDictatedChunk per la dettatura */

@@ -2305,14 +2305,6 @@ img {
   color: var(--text);
 }
 
-.discourse-scripture-preview {
-  margin-top: 0.35rem;
-  padding: 0.55rem 0.65rem;
-  border-radius: calc(var(--radius) - 4px);
-  border: 1px dashed color-mix(in srgb, #4a6da7 35%, var(--line));
-  background: color-mix(in srgb, #4a6da7 5%, var(--surface));
-}
-
 .scripture-ref-btn {
   width: 100%;
   text-align: left;

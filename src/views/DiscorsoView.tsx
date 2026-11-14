@@ -21,7 +21,6 @@ import {
   ScriptureAssist,
   type ScriptureAssistHandle,
 } from '../components/ScriptureAssist'
-import { ScriptureLinkedText } from '../components/ScriptureLinkedText'
 import { SectionProgress } from '../components/SectionProgress'
 import {
   TOTAL_BIBLE_CHAPTERS,
@@ -886,19 +885,6 @@ export function DiscorsoView() {
                       )}
                     </div>
                   </div>
-                  {/\d\s*:\s*\d/.test(s.body) && (
-                    <div className="discourse-scripture-preview">
-                      <p className="muted" style={{ margin: '0.45rem 0 0.25rem' }}>
-                        Anteprima — clicca una scrittura per aprire o riaprire il popup
-                      </p>
-                      <ScriptureLinkedText
-                        text={s.body}
-                        onOpenRef={(ref, anchor) => {
-                          scriptureAssistRef.current?.openRef(ref, anchor)
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
               ))}
 
@@ -1033,6 +1019,7 @@ export function DiscorsoView() {
               text={bodyJoined}
               language={language}
               resetKey={note.id}
+              compact
               onInsert={(snippet) => {
                 const sid = activeSectionIdRef.current || sectionsRef.current[0]?.id
                 if (!sid) return

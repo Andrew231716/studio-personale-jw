@@ -5,6 +5,10 @@ import { readBiblePlanTitle, repairBiblePlanTitle } from '../src/lib/biblePlanTi
 import { mergeSnapshots, trackSyncChanges } from '../src/lib/icloud/merge.ts'
 import type { ICloudSnapshot } from '../src/lib/icloud/types.ts'
 import { findStudies, indexStudies, type StudySearchResult } from '../src/lib/studySearch.ts'
+import {
+  appendDictatedChunk,
+  normalizeSpokenScriptureReferences,
+} from '../src/lib/speechDictation.ts'
 import type { AppSettings, BibleReadingPlan, StudySessionDraft, StudyTopic } from '../src/types.ts'
 
 const oldDate = '2026-11-06T09:00:00.000Z'
@@ -110,4 +114,12 @@ test('la ricerca ritrova le risposte del percorso originale e il prossimo passo'
   const index = indexStudies({ topics: [], sessions: [], resources: [], searches: [], readings: [reading] })
   const results = findStudies(index, { query: 'messaggio incoraggiante', kind: 'lettura', from: '', to: '' })
   assert.equal(results[0]?.id, reading.id)
+})
+
+test('la dettatura converte libro capitolo versetto nel formato della scrittura', () => {
+  assert.equal(normalizeSpokenScriptureReferences('Leggiamo Salmo 28 14.'), 'Leggiamo Salmo 28:14.')
+  assert.equal(normalizeSpokenScriptureReferences('1 Corinti 13 4'), '1 Corinti 13:4')
+  assert.equal(appendDictatedChunk('Leggiamo Salmo 28 ', '14'), 'Leggiamo Salmo 28:14 ')
+  assert.equal(normalizeSpokenScriptureReferences('Ci vediamo il 28 14.'), 'Ci vediamo il 28 14.')
+  assert.equal(normalizeSpokenScriptureReferences('Salmo 151 14'), 'Salmo 151 14')
 })
