@@ -39,6 +39,7 @@ export function DiarioView() {
   const [message, setMessage] = useState('')
   const [topicFilter, setTopicFilter] = useState<'tutti' | 'libere' | string>('tutti')
   const [practiceHint, setPracticeHint] = useState('')
+  const [query, setQuery] = useState('')
   const [linkDraft, setLinkDraft] = useState<Record<string, string>>({})
 
   const summary: StudySummary = useMemo(
@@ -66,11 +67,14 @@ export function DiarioView() {
   )
 
   const sortedSessions = useMemo(() => {
-    const list = [...sessions].sort((a, b) => b.completedAt.localeCompare(a.completedAt))
+    const needle = query.trim().toLocaleLowerCase('it')
+    const list = sessions.filter((session) =>
+      Object.values(session).some((value) => typeof value === 'string' && value.toLocaleLowerCase('it').includes(needle))
+    ).sort((a, b) => b.completedAt.localeCompare(a.completedAt))
     if (topicFilter === 'tutti') return list
     if (topicFilter === 'libere') return list.filter((s) => !s.topicId)
     return list.filter((s) => s.topicId === topicFilter)
-  }, [sessions, topicFilter])
+  }, [sessions, topicFilter, query])
 
   function isPracticeDone(topicId: string | null, practice: string | undefined) {
     if (!topicId || !practice?.trim()) return false
@@ -177,6 +181,8 @@ export function DiarioView() {
       <section className="panel">
         <p className="section-kicker">4 · Diario</p>
         <h2>Sessioni già fatte</h2>
+        <input type="search" aria-label="Cerca nel diario" placeholder="Cerca nel diario"
+          value={query} onChange={(event) => setQuery(event.target.value)} />
         <p className="lede">
           Ogni sessione completata resta qui. Filtra per argomento e segna le pratiche fatte.
         </p>
@@ -226,13 +232,17 @@ export function DiarioView() {
           </div>
         ) : (
           <div className="list" style={{ marginTop: '0.85rem' }}>
-            {sortedSessions.map((s) => {
+            {sortedSessions.map((s, index) => {
               const linked = s.topicId
                 ? topics.find((t) => t.id === s.topicId)
                 : undefined
               const practiced = isPracticeDone(s.topicId, s.practice)
               return (
-                <article key={s.id} id={`studio-search-sessione-${s.id}`} tabIndex={-1} className="list-item">
+                <div key={s.id}>
+                {s.completedAt.slice(0, 7) !== sortedSessions[index - 1]?.completedAt.slice(0, 7) && (
+                  <h3>{new Date(s.completedAt).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}</h3>
+                )}
+                <article id={`studio-search-sessione-${s.id}`} tabIndex={-1} className="list-item">
                   <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
                     <strong>{s.topicTitle}</strong>
                     <span className="badge">{s.minutesSpent} min</span>
@@ -401,6 +411,7 @@ export function DiarioView() {
                     </button>
                   </div>
                 </article>
+                </div>
               )
             })}
           </div>

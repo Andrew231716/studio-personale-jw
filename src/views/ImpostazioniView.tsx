@@ -60,6 +60,9 @@ export function ImpostazioniView() {
   const resetTheme = useAppStore((s) => s.resetTheme)
   const fileRef = useRef<HTMLInputElement>(null)
   const [backupMsg, setBackupMsg] = useState('')
+  const [lastBackup, setLastBackup] = useState(() => {
+    try { return localStorage.getItem('jw-last-local-backup') || '' } catch { return '' }
+  })
   const [backupBusy, setBackupBusy] = useState(false)
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
   const [notifMsg, setNotifMsg] = useState('')
@@ -104,6 +107,9 @@ export function ImpostazioniView() {
     try {
       const name = downloadBackup()
       setBackupMsg(`Backup scaricato: ${name}`)
+      const date = new Date().toISOString()
+      setLastBackup(date)
+      try { localStorage.setItem('jw-last-local-backup', date) } catch { /* Data disponibile fino alla chiusura. */ }
     } catch (e) {
       setBackupMsg(e instanceof Error ? e.message : 'Esportazione non riuscita')
     }
@@ -164,9 +170,17 @@ export function ImpostazioniView() {
 
   return (
     <div className="stack">
+      <nav className="chip-row" aria-label="Categorie delle impostazioni">
+        <a className="chip" href="#settings-data">Backup e dati</a>
+        <a className="chip" href="#settings-ai">AI e voce</a>
+        <a className="chip" href="#settings-look">Aspetto</a>
+        <a className="chip" href="#settings-notifications">Notifiche</a>
+        <a className="chip" href="#settings-offline">Offline</a>
+      </nav>
       <CloudSyncPanel />
       <section className="panel">
-        <h2>Backup degli studi</h2>
+        <h2 id="settings-data">Backup degli studi</h2>
+        {lastBackup && <p className="muted">Ultimo backup locale esportato · {new Date(lastBackup).toLocaleString('it-IT')}</p>}
         <p className="lede">
           Salva una copia completa dei tuoi studi (argomenti, sessioni, decisioni, salvati,
           impostazioni e chiave sync). Utile come cassaforte o per passare a un altro dispositivo.
@@ -265,7 +279,7 @@ export function ImpostazioniView() {
         <summary>Motore AI e voce narrativa</summary>
         <div className="stack">
           <section className="study-settings-section">
-            <h2>Motore AI</h2>
+            <h2 id="settings-ai">Motore AI</h2>
             <p className="lede">
               Motore AI per Assistente, Argomenti, Quaderno, Decisioni, Letture Bibbia, Video Studio,
               Discorso, Ministero ed esportazioni.
@@ -441,7 +455,7 @@ export function ImpostazioniView() {
         <div className="stack">
           <section className="study-settings-section">
             <div className="section-head">
-              <h2>Colori e aspetto</h2>
+              <h2 id="settings-look">Colori e aspetto</h2>
               <button className="btn secondary" type="button" onClick={resetTheme}>
                 Ripristina tema
               </button>
@@ -580,7 +594,7 @@ export function ImpostazioniView() {
         <summary>Promemoria e Bibbia offline</summary>
         <div className="stack">
           <section className="study-settings-section">
-            <h2>Promemoria</h2>
+            <h2 id="settings-notifications">Promemoria</h2>
             <p className="lede">
               L’app mostra già un avviso interno per studi programmati e obiettivi in scadenza. Puoi
               anche attivare le notifiche del sistema (quando la scheda è aperta).
@@ -604,7 +618,7 @@ export function ImpostazioniView() {
           </section>
 
           <section className="study-settings-section">
-            <h2>Bibbia offline</h2>
+            <h2 id="settings-offline">Bibbia offline</h2>
             <p className="lede">
               Testo TNM (edizione studio) da wol.jw.org, per i popup dei versetti anche senza rete.
               Puoi scaricare tutta la Bibbia (tutti i libri, capitoli e versetti) oppure un pacchetto

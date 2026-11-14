@@ -599,6 +599,14 @@ export function DecisioniView() {
             <section className="panel" id="dec-contesto">
               <div className="section-head">
                 <h2 style={{ margin: 0 }}>Dettaglio decisione</h2>
+                <label className="field">
+                  <span>Data per rivedere la decisione</span>
+                  <input type="date" value={decision.reviewDate || ''}
+                    onChange={(event) => updateDecision(decision.id, { reviewDate: event.target.value })} />
+                </label>
+                <button type="button" className="btn secondary small" onClick={() => setView('obiettiviDecisioni')}>
+                  Apri obiettivi
+                </button>
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                   <button
                     className="btn secondary small"

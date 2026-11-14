@@ -9,6 +9,7 @@ interface Props {
   startSec: number
   endSec: number
   title?: string
+  resumeKey?: string
   /** Se l’URL fallisce (scaduto), il parent può ricaricare da lank. */
   onMediaError?: () => void
 }
@@ -23,6 +24,7 @@ export function TranscriptKaraoke({
   startSec,
   endSec,
   title,
+  resumeKey,
   onMediaError,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -93,8 +95,12 @@ export function TranscriptKaraoke({
 
   function onTimeUpdate() {
     const el = videoRef.current
-    if (!el || playing) return
-    setCurrent(el.currentTime)
+    if (!el) return
+    if (resumeKey && el.currentTime >= startSec && el.currentTime <= rangeEnd) {
+      try { localStorage.setItem(`jw-video-position-${resumeKey}`, String(Math.floor(el.currentTime))) }
+      catch { /* La riproduzione resta disponibile. */ }
+    }
+    if (!playing) setCurrent(el.currentTime)
   }
 
   async function ensureReady(el: HTMLVideoElement): Promise<void> {
@@ -204,7 +210,8 @@ export function TranscriptKaraoke({
           const el = videoRef.current
           if (!el) return
           try {
-            el.currentTime = startSec
+            const stored = resumeKey ? Number(localStorage.getItem(`jw-video-position-${resumeKey}`)) : startSec
+            el.currentTime = stored >= startSec && stored < rangeEnd - 1 ? stored : startSec
           } catch {
             /* ignore */
           }

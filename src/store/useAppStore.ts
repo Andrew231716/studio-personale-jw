@@ -192,6 +192,7 @@ interface AppState {
   updateSchedule: (id: string, patch: Partial<ScheduledStudy>) => void
   removeSchedule: (id: string) => void
   saveResource: (resource: StudyResource, sourceQuery?: string) => SavedResource | null
+  setSavedResourceStudied: (id: string, studied: boolean) => void
   removeSavedResource: (id: string) => void
   removeSavedResources: (ids: string[]) => void
   saveSearch: (query: string, note?: string, resultCount?: number) => SavedSearch | null
@@ -763,6 +764,8 @@ export const useAppStore = create<AppState>()(
       },
       removeSavedResource: (id) =>
         set((s) => ({ savedResources: s.savedResources.filter((r) => r.id !== id) })),
+      setSavedResourceStudied: (id, studied) =>
+        set((s) => ({ savedResources: s.savedResources.map((r) => r.id === id ? { ...r, studied } : r) })),
       removeSavedResources: (ids) => {
         if (!ids.length) return
         const setIds = new Set(ids)

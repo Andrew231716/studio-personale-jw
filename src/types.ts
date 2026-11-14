@@ -73,6 +73,7 @@ export interface StudyResource {
 
 /** Materiale jw.org salvato per uno studio futuro (non ancora legato a un argomento). */
 export interface SavedResource extends StudyResource {
+  studied?: boolean
   savedAt: string
   sourceQuery?: string
 }
@@ -171,6 +172,7 @@ export interface DecisionGoal {
 }
 
 export interface DecisionItem {
+  reviewDate?: string
   id: string
   title: string
   context: string

@@ -121,6 +121,11 @@ export function PdfJwpubView() {
       <section className="panel">
         <p className="section-kicker">Documenti</p>
         <h2>PDF → EPUB</h2>
+        <ol className="jw-workflow" aria-label="Passaggi della conversione">
+          <li aria-current={!file ? 'step' : undefined}>Scegli il PDF</li>
+          <li aria-current={file && !extract ? 'step' : undefined}>Leggi l’anteprima</li>
+          <li aria-current={extract ? 'step' : undefined}>Esporta EPUB</li>
+        </ol>
         <p className="lede">
           Carica un PDF con testo, leggilo qui oppure esportalo in EPUB per Libri / Apple Books.
         </p>

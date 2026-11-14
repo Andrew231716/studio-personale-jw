@@ -22,6 +22,9 @@ import {
 } from '../lib/bibleReading'
 import { buildBibleReadingGuide, findReadingNotebook, getBibleReadingStatus, sortBibleReadingPlans } from '../lib/bibleReadingGuide'
 import { uid } from '../lib/id'
+import { preloadChapter } from '../lib/bibleText'
+import { parseScriptureLabel } from '../lib/bibleRefs'
+import { idbHasChapter } from '../lib/bibleOfflineDb'
 import { useAppStore } from '../store/useAppStore'
 import type { BibleReadingKind, BibleReadingPlan, BibleScriptureRef, StudyResource } from '../types'
 
@@ -49,6 +52,7 @@ export function LettureBibbiaView() {
   const [activeId, setActiveId] = useState<string | null>(target?.id || orderedPlans[0]?.id || null)
   const [handledRequest, setHandledRequest] = useState(target?.request)
   const [reflectionDraft, setReflectionDraft] = useState('')
+  const [offlineDownload, setOfflineDownload] = useState<{ id: string; message: string; busy: boolean } | null>(null)
   const [searchVerses, setSearchVerses] = useState<BibleScriptureRef[]>([])
   const [searchResources, setSearchResources] = useState<StudyResource[]>([])
   const [tab, setTab] = useState<'catalogo' | 'ricerca' | 'piano'>(orderedPlans.length ? 'piano' : 'catalogo')
@@ -560,6 +564,33 @@ export function LettureBibbiaView() {
                     />
 
                     <h4>Scritture da aprire</h4>
+                    {!!active.scriptures?.length && (
+                      <button type="button" className="btn secondary small" disabled={offlineDownload?.busy}
+                        onClick={async () => {
+                          const id = active.id
+                          setOfflineDownload({ id, message: 'Controllo i capitoli…', busy: true })
+                          let available = 0
+                          const chapters = new Set<string>()
+                          for (const scripture of active.scriptures || []) {
+                            const code = scripture.bible || parseScriptureLabel(scripture.label).bible
+                            if (code && /^\d{7,8}$/.test(code)) chapters.add(code.slice(0, -3))
+                          }
+                          for (const chapterCode of chapters) {
+                            const bookNum = Number(chapterCode.slice(0, -3))
+                            const chapter = Number(chapterCode.slice(-3))
+                            try {
+                              if (!await idbHasChapter(language, bookNum, chapter)) {
+                                await preloadChapter({ bookNum, chapter, language })
+                              }
+                              if (await idbHasChapter(language, bookNum, chapter)) available++
+                            } catch { /* Prosegue con gli altri capitoli. */ }
+                          }
+                          setOfflineDownload({ id, busy: false, message: chapters.size
+                            ? `${available} di ${chapters.size} capitoli disponibili offline.`
+                            : 'Nessun capitolo riconoscibile nel percorso.' })
+                        }}>Prepara per la lettura offline</button>
+                    )}
+                    {offlineDownload?.id === active.id && <p role="status">{offlineDownload.message}</p>}
                     <div className="list">
                       {(active.scriptures || []).map((scr) => (
                         <div className="list-item" key={scr.id}>

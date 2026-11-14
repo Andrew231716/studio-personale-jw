@@ -636,6 +636,12 @@ export function MinisteroView() {
                         >
                           {cardTitle}
                         </strong>
+                        <button className="btn secondary small" type="button" onClick={(event) => {
+                          event.stopPropagation()
+                          const id = crypto.randomUUID()
+                          pushNote({ ...n, id, title: `${cardTitle} (copia)`, createdAt: new Date().toISOString() })
+                          setActiveId(id)
+                        }}>Duplica</button>
                         <button
                           className="btn secondary small"
                           type="button"

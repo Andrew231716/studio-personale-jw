@@ -39,6 +39,7 @@ export function AssistenteView() {
   const [ctxTopicId, setCtxTopicId] = useState<string>(activeTopicId || '')
   const [ctxDecisionId, setCtxDecisionId] = useState<string>(activeDecisionId || '')
   const [searchError, setSearchError] = useState('')
+  const [failedPrompt, setFailedPrompt] = useState('')
 
   useEffect(() => {
     setCtxTopicId(activeTopicId || '')
@@ -57,13 +58,14 @@ export function AssistenteView() {
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
 
-  async function send(text = input) {
+  async function send(text = input, retry = false) {
     const prompt = text.trim()
     if (!prompt || busy) return
     setBusy(true)
     setInput('')
     setSearchError('')
-    pushAiMessage(createMessage('user', prompt))
+    setFailedPrompt('')
+    if (!retry) pushAiMessage(createMessage('user', prompt))
 
     let flat: Awaited<ReturnType<typeof searchJwDeep>>['flat'] = []
     let deepSections: JwResultSection[] = []
@@ -125,6 +127,7 @@ export function AssistenteView() {
       })
       pushAiMessage(createMessage('assistant', answer))
     } catch (e) {
+      setFailedPrompt(prompt)
       pushAiMessage(
         createMessage(
           'assistant',
@@ -237,6 +240,8 @@ export function AssistenteView() {
         )}
 
         <div className="field" style={{ marginTop: '0.9rem' }}>
+          {failedPrompt && <button type="button" className="btn secondary small" disabled={busy}
+            onClick={() => void send(failedPrompt, true)}>Riprova l’ultima domanda</button>}
           <label htmlFor="ai-input">Il tuo messaggio</label>
           <textarea
             id="ai-input"

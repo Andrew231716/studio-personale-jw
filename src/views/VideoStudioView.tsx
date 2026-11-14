@@ -322,12 +322,12 @@ export function VideoStudioView() {
     }
   }
 
-  function saveToNotebook(openSession = false) {
-    if (!guide) return
+  function saveToNotebook(openSession = false, excerptOnly = false) {
+    if (!guide && !excerptOnly) return
     const rangeLabel = `${formatClock(range.startSec)}–${formatClock(range.endSec)}`
-    const notebookTitle = videoTitle.trim() || guide.title.trim() || 'Video JW'
+    const notebookTitle = videoTitle.trim() || guide?.title.trim() || 'Video JW'
     const interest = [
-      guide.summary,
+      excerptOnly ? '' : guide?.summary,
       '',
       `Fonte video JW: ${notebookTitle}`,
       `Intervallo trascrizione: ${rangeLabel}`,
@@ -339,10 +339,10 @@ export function VideoStudioView() {
     const id = addTopic(notebookTitle, interest)
     updateTopic(id, {
       title: notebookTitle,
-      objectives: guide.objectives,
-      reflections: guide.reflections,
-      questions: guide.questions,
-      practices: guide.practices,
+      objectives: excerptOnly ? [] : guide?.objectives || [],
+      reflections: excerptOnly ? [{ id: uid('reflection'), prompt: `Estratto · ${rangeLabel}`, response: filtered.transcript }] : guide?.reflections || [],
+      questions: excerptOnly ? [] : guide?.questions || [],
+      practices: excerptOnly ? [] : guide?.practices || [],
       transcript: filtered.transcript,
       transcriptMeta: {
         lank,
@@ -740,6 +740,7 @@ export function VideoStudioView() {
               startSec={range.startSec}
               endSec={range.endSec || totalSec}
               title={videoTitle}
+              resumeKey={lank || activeSavedId || undefined}
               onMediaError={() => {
                 if (lank) void refreshProgressiveUrl(lank, activeSavedId)
               }}
@@ -753,6 +754,8 @@ export function VideoStudioView() {
               placeholder="Nessun testo in questo intervallo…"
             />
           )}
+          <button type="button" className="btn secondary small" disabled={!filtered.transcript.trim()}
+            onClick={() => saveToNotebook(false, true)}>Salva intervallo nel Quaderno · {rangeLabel}</button>
 
           <div className="row" style={{ flexWrap: 'wrap', gap: 8, marginTop: '0.75rem' }}>
             <button

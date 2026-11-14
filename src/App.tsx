@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { ViewIndex } from './components/ViewIndex'
 import {
   BookMarked,
   BookOpenText,
@@ -96,6 +97,7 @@ function applyTheme(theme: ReturnType<typeof useAppStore.getState>['settings']['
 }
 
 export default function App() {
+  const viewContentRef = useRef<HTMLDivElement>(null)
   const view = useAppStore((s) => s.view)
   const setView = useAppStore((s) => s.setView)
   const settings = useAppStore((s) => s.settings)
@@ -293,6 +295,8 @@ export default function App() {
           <PwaInstallHint />
           <InAppReminders />
           <StudySearch onOpenResult={openStudyResult} />
+          <ViewIndex area={view} scope={viewContentRef} />
+          <div className="jw-view-content" ref={viewContentRef}>
           {view === 'home' && <HomeView />}
           {view === 'argomenti' && <ArgomentiView />}
           {view === 'sessione' && <SessioneView />}
@@ -312,6 +316,7 @@ export default function App() {
           {view === 'obiettiviDecisioni' && <ObiettiviDecisioniView />}
           {view === 'assistente' && <AssistenteView />}
           {view === 'impostazioni' && <ImpostazioniView />}
+          </div>
         </div>
       </main>
     </div>

@@ -165,7 +165,8 @@ export function ObiettiviDecisioniView() {
               return !g.done && !!g.dueDate && g.dueDate <= today
             }
             return true
-          })
+          }).sort((a, b) => Number(a.done) - Number(b.done)
+            || (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
           if (filter !== 'tutti' && visible.length === 0 && goals.length > 0) return null
           return (
             <section className="panel" key={decision.id}>

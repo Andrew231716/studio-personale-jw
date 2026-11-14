@@ -73,7 +73,14 @@ import { useAppStore } from '../store/useAppStore'
 const discourseTabs = ['Originale', 'Revisione AI', 'Trascrizione'] as const
 
 export function DiscorsoView() {
-  const [blockViews, setBlockViews] = useState<Record<string, { tab?: number; compare?: number; collapsed?: boolean }>>({})
+  const [blockViews, setBlockViews] = useState<Record<string, { tab?: number; compare?: number; collapsed?: boolean }>>(() => {
+    try { return JSON.parse(localStorage.getItem('jw-discourse-block-views') || '{}') || {} }
+    catch { return {} }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('jw-discourse-block-views', JSON.stringify(blockViews)) }
+    catch { /* Il blocco resta utilizzabile quando lo spazio locale non è disponibile. */ }
+  }, [blockViews])
   const [captureSeconds, setCaptureSeconds] = useState(0)
   const language = useAppStore((s) => s.settings.language)
   const notes = useAppStore((s) => s.discourseNotes)
@@ -1046,6 +1053,19 @@ export function DiscorsoView() {
                 </div>
               </div>
 
+              <details className="jw-view-index">
+                <summary>Indice dei blocchi</summary>
+                <nav aria-label="Blocchi del discorso">
+                  {sections.map((section, index) => <button key={section.id} type="button" className="btn secondary small"
+                    onClick={() => {
+                      setBlockViews((current) => ({ ...current, [section.id]: { ...current[section.id], collapsed: false } }))
+                      document.getElementById(`discourse-block-${section.id}`)?.scrollIntoView({ block: 'start' })
+                    }}>
+                    {section.title || `Blocco ${index + 1}`} · {formatTime(sectionDurationSeconds(section))}
+                    {recordings.some((item) => item.sectionId === section.id && item.transcript) && ' · Trascritto'}
+                  </button>)}
+                </nav>
+              </details>
               {sections.map((s, idx) => {
                 const view = blockViews[s.id] || {}
                 const tab = view.tab ?? 0
@@ -1055,6 +1075,7 @@ export function DiscorsoView() {
                 return (
                 <div
                   key={s.id}
+                  id={`discourse-block-${s.id}`}
                   className={`discourse-section ${practiceIndex === idx ? 'is-active-practice' : ''}`}
                 >
                   <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>

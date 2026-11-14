@@ -835,7 +835,8 @@ export function StudioView() {
         </div>
         <div className="stack">
           {topic.reflections.map((r, idx) => (
-            <div key={r.id} className="stack">
+            <div key={r.id} id={`notebook-reflection-${r.id}`} className="stack study-jump">
+              <a className="chip" href={`#notebook-reflection-${r.id}`}>Riflessione {idx + 1}</a>
               <div className="row" style={{ justifyContent: 'flex-end' }}>
                 <button
                   className="btn secondary small"

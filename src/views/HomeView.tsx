@@ -81,6 +81,7 @@ export function HomeView() {
         <img className="hero-logo" src="/logo.svg" alt="" width={56} height={56} />
         <h1>{settings.brandName}</h1>
         <p>{settings.tagline}</p>
+        {(canResumeSession || readingPlan) && <h2 className="home-resume-title">Continua da dove eri</h2>}
         <div className="hero-actions study-actions">
           {canResumeSession ? (
             <button className="btn accent" type="button" onClick={() => setView('sessione')}>

@@ -28,6 +28,8 @@ function kindLabel(kind: ContentKind) {
 }
 
 export function SalvatiView() {
+  const setStudied = useAppStore((s) => s.setSavedResourceStudied)
+  const [studyFilter, setStudyFilter] = useState('all')
   const language = useAppStore((s) => s.settings.language)
   const topics = useAppStore((s) => s.topics)
   const savedResources = useAppStore((s) => s.savedResources)
@@ -46,6 +48,8 @@ export function SalvatiView() {
   const [seedQuery, setSeedQuery] = useState<string | undefined>()
   const [seedNonce, setSeedNonce] = useState(0)
   const [hint, setHint] = useState('')
+  const [query, setQuery] = useState('')
+  const matches = (title: string) => title.toLocaleLowerCase('it').includes(query.trim().toLocaleLowerCase('it'))
 
   const selectedItems = useMemo(
     () => savedResources.filter((r) => selected.includes(r.id)),
@@ -133,8 +137,18 @@ export function SalvatiView() {
               Nessun articolo o video salvato. Usa “Salva per dopo” nei risultati di ricerca.
             </div>
           )}
-          {savedResources.map((r) => (
+          <input type="search" aria-label="Cerca materiali salvati" placeholder="Cerca materiali salvati"
+            value={query} onChange={(event) => setQuery(event.target.value)} />
+          <select aria-label="Stato del materiale" value={studyFilter} onChange={(e) => setStudyFilter(e.target.value)}>
+            <option value="all">Tutti i materiali</option>
+            <option value="pending">Da studiare</option>
+            <option value="done">Studiati</option>
+          </select>
+          {savedResources.filter((resource) => matches(resource.title) &&
+            (studyFilter === 'all' || Boolean(resource.studied) === (studyFilter === 'done'))).map((r) => (
             <div className="list-item" key={r.id} id={`studio-search-materiale-${r.id}`} tabIndex={-1}>
+              <button type="button" className="btn secondary small" aria-pressed={Boolean(r.studied)}
+                onClick={() => setStudied(r.id, !r.studied)}>{r.studied ? 'Studiato' : 'Segna come studiato'}</button>
               <div className="row" style={{ justifyContent: 'space-between', gap: 8 }}>
                 <label className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
                   <input

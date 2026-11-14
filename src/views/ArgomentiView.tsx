@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Archive, NotebookPen, PlayCircle, Trash2 } from 'lucide-react'
 import { ExpandableField } from '../components/ExpandableField'
 import { JwSearch } from '../components/JwSearch'
@@ -28,6 +28,7 @@ export function ArgomentiView() {
   const [title, setTitle] = useState('')
   const [interest, setInterest] = useState('')
   const [showArchived, setShowArchived] = useState(false)
+  const [query, setQuery] = useState('')
   const [renameId, setRenameId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const [structureMsg, setStructureMsg] = useState('')
@@ -42,8 +43,10 @@ export function ArgomentiView() {
     }
   }
 
-  const openTopics = useMemo(() => activeTopics(topics), [topics])
-  const closedTopics = useMemo(() => archivedTopics(topics), [topics])
+  const matchingTopics = topics.filter((topic) =>
+    `${topic.title} ${topic.interest || ''}`.toLocaleLowerCase('it').includes(query.trim().toLocaleLowerCase('it')))
+  const openTopics = activeTopics(matchingTopics)
+  const closedTopics = archivedTopics(matchingTopics)
 
   function create(open: 'sessione' | 'quaderno') {
     if (!title.trim()) return
@@ -107,6 +110,8 @@ export function ArgomentiView() {
 
           <div className="list" style={{ marginTop: '1rem' }}>
             <h3 style={{ margin: '0 0 0.5rem' }}>Attivi</h3>
+            <input type="search" aria-label="Cerca argomenti" placeholder="Cerca argomenti"
+              value={query} onChange={(event) => setQuery(event.target.value)} />
             {openTopics.length === 0 && (
               <div className="empty">
                 Nessun argomento attivo. Creane uno qui o da un suggerimento jw.org.

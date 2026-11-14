@@ -316,6 +316,8 @@ export function SessioneView() {
           </span>
         </div>
         <h2>{draft.mode === 'rapida' ? rapidLabels[draft.step] : step.title}</h2>
+        <progress className="jw-step-progress" aria-label="Avanzamento della sessione"
+          value={draft.step + 1} max={stepIndexes.length} />
         <p className="lede">{step.hint}</p>
 
         {currentStep === 0 && (
