@@ -273,7 +273,6 @@ export function appendDictatedChunk(value: string, chunk: string): string {
 const spokenBookLimits = new Map(
   BIBLE_BOOKS.flatMap((book) => {
     const names = [book.name, book.short]
-    if (book.num === 19) names.push('Salmo')
     return names
       .filter((name): name is string => Boolean(name))
       .map((name) => [

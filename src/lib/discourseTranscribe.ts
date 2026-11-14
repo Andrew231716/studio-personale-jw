@@ -13,6 +13,13 @@ export interface TranscriptSegment {
   text: string
 }
 
+export interface TranscriptProgress {
+  language: string
+  nextPart: number
+  total: number
+  segments: TranscriptSegment[]
+}
+
 function wavClip(audio: AudioBuffer, start: number, end: number) {
   const samples = end - start
   const data = new DataView(new ArrayBuffer(44 + samples * 2))
@@ -78,7 +85,7 @@ async function transcribeClip(
 
 export async function transcribeDiscourseAudio(
   blob: Blob,
-  opts: { language?: string; signal?: AbortSignal; durationMs?: number; forceDecode?: boolean; onProgress?: (part: number, total: number) => void } = {},
+  opts: { language?: string; signal?: AbortSignal; durationMs?: number; forceDecode?: boolean; onProgress?: (part: number, total: number) => void; resume?: TranscriptProgress; saveProgress?: (progress: TranscriptProgress) => Promise<void> } = {},
 ) {
   if (!navigator.onLine) throw new Error('Serve connessione per trascrivere la registrazione.')
   let segments: TranscriptSegment[]
@@ -92,18 +99,23 @@ export async function transcribeDiscourseAudio(
     } catch {
       throw new Error('Il browser non riesce a leggere questo formato. Prova con MP3, WAV o M4A.')
     }
-    segments = []
     const clipSize = CLIP_SECONDS * SAMPLE_RATE
-    let speakerOffset = 0
-    for (let start = 0; start < audio.length; start += clipSize) {
+    const total = Math.ceil(audio.length / clipSize)
+    const language = opts.language || 'auto'
+    const resume = opts.resume?.language === language && opts.resume.total === total ? opts.resume : undefined
+    segments = [...(resume?.segments || [])]
+    let speakerOffset = segments.reduce((max, item) => Math.max(max, Number(item.speaker.split(' ').at(-1)) || 0), 0)
+    for (let part = resume?.nextPart ?? 0; part < total; part++) {
+      const start = part * clipSize
       opts.signal?.throwIfAborted()
-      opts.onProgress?.(start / clipSize + 1, Math.ceil(audio.length / clipSize))
+      opts.onProgress?.(part + 1, total)
       const clip = wavClip(audio, start, Math.min(audio.length, start + clipSize))
       const result = await transcribeClip(clip, opts, speakerOffset)
       for (const segment of result.segments) {
         segments.push({ ...segment, start: start / SAMPLE_RATE + segment.start })
       }
       speakerOffset = Math.max(speakerOffset, ...result.segments.map((segment) => Number(segment.speaker.split(' ').at(-1)) || 0))
+      await opts.saveProgress?.({ language, nextPart: part + 1, total, segments })
     }
   }
   const text = segments.map((segment) => segment.text).join('\n')

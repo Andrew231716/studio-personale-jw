@@ -20,7 +20,7 @@ export const BIBLE_BOOKS: Array<{ num: number; name: string; short?: string }> =
   { num: 16, name: 'Neemia' },
   { num: 17, name: 'Ester' },
   { num: 18, name: 'Giobbe' },
-  { num: 19, name: 'Salmi' },
+  { num: 19, name: 'Salmi', short: 'Salmo' },
   { num: 20, name: 'Proverbi' },
   { num: 21, name: 'Ecclesiaste' },
   { num: 22, name: 'Cantico dei Cantici', short: 'Cantico' },

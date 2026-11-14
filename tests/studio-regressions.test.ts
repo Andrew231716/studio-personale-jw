@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { findScriptureRefsInText } from '../src/lib/bibleText.ts'
 import test from 'node:test'
 import { buildBibleReadingGuide, getBibleReadingStatus } from '../src/lib/bibleReadingGuide.ts'
 import { readBiblePlanTitle, repairBiblePlanTitle } from '../src/lib/biblePlanTitle.ts'
@@ -122,4 +123,13 @@ test('la dettatura converte libro capitolo versetto nel formato della scrittura'
   assert.equal(appendDictatedChunk('Leggiamo Salmo 28 ', '14'), 'Leggiamo Salmo 28:14 ')
   assert.equal(normalizeSpokenScriptureReferences('Ci vediamo il 28 14.'), 'Ci vediamo il 28 14.')
   assert.equal(normalizeSpokenScriptureReferences('Salmo 151 14'), 'Salmo 151 14')
+})
+
+test('il popup può rilevare due inserimenti dello stesso Salmo', () => {
+  const text = 'Salmo 23:1\n\nLeggiamo ancora Salmo 23:1'
+  assert.equal(findScriptureRefsInText(text).length, 1)
+  const references = findScriptureRefsInText(text, true)
+  assert.equal(references.length, 2)
+  assert.equal(references[0].bible, references[1].bible)
+  assert.equal(references[1].index, text.lastIndexOf('Salmo'))
 })

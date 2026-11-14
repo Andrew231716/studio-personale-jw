@@ -111,7 +111,7 @@ function chapterKey(language: string, book: number, chapter: number) {
 /**
  * Trova riferimenti: nomi completi, short e abbreviazioni (Pr 14:12, 1Co 13:4-7, Mt 24:14).
  */
-export function findScriptureRefsInText(text: string): ParsedScriptureRef[] {
+export function findScriptureRefsInText(text: string, includeRepeats = false): ParsedScriptureRef[] {
   if (!text) return []
   const out: ParsedScriptureRef[] = []
   const seen = new Set<string>()
@@ -129,6 +129,7 @@ export function findScriptureRefsInText(text: string): ParsedScriptureRef[] {
       while ((m = re.exec(text))) {
         pushRef(out, seen, {
           book,
+          includeRepeats,
           chapter: Number(m[3]),
           verse: Number(m[4]),
           verseEnd: m[5] ? Number(m[5]) : undefined,
@@ -149,6 +150,7 @@ export function findScriptureRefsInText(text: string): ParsedScriptureRef[] {
     // Evita doppi match già presi come nome lungo
     pushRef(out, seen, {
       book,
+      includeRepeats,
       chapter: Number(m[3]),
       verse: Number(m[4]),
       verseEnd: m[5] ? Number(m[5]) : undefined,
@@ -165,6 +167,7 @@ function pushRef(
   seen: Set<string>,
   p: {
     book: (typeof BIBLE_BOOKS)[number]
+    includeRepeats: boolean
     chapter: number
     verse: number
     verseEnd?: number
@@ -173,7 +176,7 @@ function pushRef(
   },
 ) {
   if (!p.chapter || !p.verse) return
-  const key = `${p.book.num}:${p.chapter}:${p.verse}:${p.verseEnd || p.verse}`
+  const key = `${p.book.num}:${p.chapter}:${p.verse}:${p.verseEnd || p.verse}${p.includeRepeats ? `:${p.index}` : ''}`
   if (seen.has(key)) return
   seen.add(key)
   const label = p.verseEnd
@@ -342,21 +345,27 @@ export async function fetchScriptureVerse(params: {
       ? `${params.bookName} ${params.chapter}:${params.verse}-${params.verseEnd}`
       : `${params.bookName} ${params.chapter}:${params.verse}`
   const bible = bibleCode(params.bookNum, params.chapter, params.verse)
+  if (params.chapter < 1 || params.chapter > chaptersForBook(params.bookNum)) {
+    throw new Error('Capitolo non presente in questo libro.')
+  }
   const cacheId = `${language}:${bible}:${params.verseEnd || params.verse}:${withContext ? 'ctx' : 'plain'}`
   const cache = loadVerseCache()
-  if (cache[cacheId]?.text) {
+  const cachedVerse = cache[cacheId] || (!navigator.onLine
+    ? cache[`${language}:${bible}:${params.verseEnd || params.verse}:${withContext ? 'plain' : 'ctx'}`]
+    : undefined)
+  if (cachedVerse?.text) {
     return {
-      label: cache[cacheId].label || label,
+      label: cachedVerse.label || label,
       bible,
-      text: cache[cacheId].text,
+      text: cachedVerse.text,
       url: bibleOpenUrl(bible, language),
       bookName: params.bookName,
       bookNum: params.bookNum,
       chapter: params.chapter,
       verse: params.verse,
       verseEnd: params.verseEnd,
-      before: withContext ? cache[cacheId].before : undefined,
-      after: withContext ? cache[cacheId].after : undefined,
+      before: withContext ? cachedVerse.before : undefined,
+      after: withContext ? cachedVerse.after : undefined,
       cached: true,
     }
   }

@@ -24,6 +24,8 @@ import {
 import { SectionProgress } from '../components/SectionProgress'
 import {
   TOTAL_BIBLE_CHAPTERS,
+  chaptersForBook,
+  findScriptureRefsInText,
   downloadFullOfflineBible,
   downloadOfflineBiblePack,
   getCachedChapterCount,
@@ -58,7 +60,7 @@ import {
   updateDiscourseRecording,
   type DiscourseRecordingMeta,
 } from '../lib/discourseRecordings'
-import { transcribeDiscourseAudio } from '../lib/discourseTranscribe'
+import { transcribeDiscourseAudio, type TranscriptSegment } from '../lib/discourseTranscribe'
 import {
   appendDictatedChunk,
   speechDictationSupportNote,
@@ -119,6 +121,8 @@ export function DiscorsoView() {
   const [importing, setImporting] = useState(false)
   const [audioAnalysis, setAudioAnalysis] = useState<{ id: string; answer: string } | null>(null)
   const [analysisBusy, setAnalysisBusy] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState(1)
+  const [timingAdvice, setTimingAdvice] = useState<{ sectionId: string; text: string } | null>(null)
   const playerRef = useRef<HTMLVideoElement | null>(null)
   const requestedPlaybackTime = useRef(0)
 
@@ -492,14 +496,22 @@ export function DiscorsoView() {
     const blob = await getDiscourseRecordingBlob(id)
     if (!blob) throw new Error('Registrazione non trovata su questo dispositivo.')
     const recording = recordings.find((item) => item.id === id)
+    const saveProgress = async (progress: NonNullable<DiscourseRecordingMeta['progress']>) => {
+      const saved = await updateDiscourseRecording(id, { progress })
+      if (!saved) throw new Error('La registrazione è stata rimossa.')
+      setRecordings((items) => items.map((item) => item.id === id ? saved : item))
+    }
+    const selectedLanguage = recording?.progress?.language || transcriptLanguage
     const { text, segments } = await transcribeDiscourseAudio(blob, {
-      language: transcriptLanguage,
+      language: selectedLanguage,
+      resume: recording?.progress,
+      saveProgress,
       durationMs: recording?.durationMs,
       forceDecode: Boolean(recording?.fileName),
       onProgress: (part, total) => setRecHint(`Trascrivo parte ${part} di ${total}…`),
     })
     const saved = await updateDiscourseRecording(id, {
-      transcript: text, segments, summary: undefined, translation: undefined,
+      transcript: text, segments, summary: undefined, translation: undefined, progress: undefined,
     })
     if (saved) setRecordings((current) => current.map((item) => item.id === id ? saved : item))
     return text
@@ -600,11 +612,66 @@ export function DiscorsoView() {
     }
   }
 
+  async function saveTranscriptEdit(recording: DiscourseRecordingMeta, text: string, segments?: TranscriptSegment[]) {
+    try {
+      const saved = await updateDiscourseRecording(recording.id, {
+        transcript: text, segments, summary: undefined, translation: undefined,
+      })
+      if (!saved) throw new Error('Registrazione non trovata.')
+      setRecordings((items) => items.map((item) => item.id === saved.id ? saved : item))
+      setAudioAnalysis((current) => current?.id === saved.id ? null : current)
+      setRecHint('Correzione salvata.')
+    } catch {
+      setRecHint('Impossibile salvare la correzione.')
+    }
+  }
+
+  function insertTranscriptPassage(recording: DiscourseRecordingMeta, text: string) {
+    if (!recording.sectionId) return
+    const section = sectionsRef.current.find((item) => item.id === recording.sectionId)
+    if (section) patchSavedSection(recording.discourseId, section.id, {
+      body: [section.body.trim(), text.trim()].filter(Boolean).join('\n\n'),
+    })
+  }
+
+  function transcriptScriptures(text: string) {
+    return findScriptureRefsInText(text).map((reference) => {
+      const doubtful = reference.chapter > chaptersForBook(reference.bookNum)
+        || (reference.verseEnd ?? reference.verse) > 176
+        || (reference.verseEnd != null && reference.verseEnd < reference.verse)
+      return <button key={reference.index} type="button" className="btn secondary small"
+        onClick={() => scriptureAssistRef.current?.openRef(reference)}>
+        {reference.label}{doubtful ? ' · Da verificare' : ' · Verifica'}
+      </button>
+    })
+  }
+
+  async function suggestTimingCuts(section: DiscourseSection) {
+    if (analysisBusy || section.recordedDurationMs == null) return
+    const source = section.revision?.text || section.body
+    if (!source.trim()) return
+    setAnalysisBusy(true)
+    try {
+      const text = await askAi({
+        prompt: `Il blocco dura ${formatRecordingDuration(section.recordedDurationMs)} e l’obiettivo è ${section.minutes} minuti. Indica in italiano quali ripetizioni o frasi accorciare, preservando il senso e le scritture. Cita i passaggi da tagliare.`,
+        context: source,
+      })
+      setTimingAdvice({ sectionId: section.id, text })
+    } catch (error) {
+      setRecHint(error instanceof Error ? error.message : 'Suggerimenti non disponibili.')
+    } finally {
+      setAnalysisBusy(false)
+    }
+  }
+
   function renderRecording(recording: DiscourseRecordingMeta, unlinked: boolean) {
+    const speakers = [...new Set(recording.segments?.map((segment) => segment.speaker) || [])]
+    const transcriptLocked = !!transcribeBusyId || polishBusy || analysisBusy
     return (
       <div className="stack list-item" key={recording.id}>
         <strong>{recording.title || new Date(recording.createdAt).toLocaleString('it-IT')}</strong>
         <small>{formatRecordingDuration(recording.durationMs)}</small>
+        {recording.progress && <small>Parti salvate {recording.progress.nextPart}/{recording.progress.total}</small>}
         {unlinked && (
           <select aria-label="Collega registrazione a un blocco" value=""
             onChange={(event) => void linkRecording(recording.id, event.target.value)}>
@@ -622,7 +689,7 @@ export function DiscorsoView() {
             disabled={!online || !!transcribeBusyId || polishBusy}
             onClick={() => void transcribeRecording(recording.id)}>
             <Subtitles size={14} />
-            {transcribeBusyId === recording.id ? 'Trascrivo…' : recording.transcript ? 'Ritrascrivi' : 'Trascrivi'}
+            {transcribeBusyId === recording.id ? 'Trascrivo…' : recording.progress ? 'Riprendi' : recording.transcript ? 'Ritrascrivi' : 'Trascrivi'}
           </button>
           <button className="btn secondary small" type="button" aria-label="Scarica registrazione"
             onClick={() => void downloadRecording(recording.id)}>
@@ -638,20 +705,73 @@ export function DiscorsoView() {
           <video ref={playerRef} src={playUrl} controls autoPlay playsInline
             onLoadedMetadata={(event) => {
               event.currentTarget.currentTime = requestedPlaybackTime.current
+              event.currentTarget.playbackRate = playbackRate
             }}
             style={{ width: '100%', maxHeight: recording.mimeType.startsWith('video/') ? 280 : 54 }} />
         )}
         {recording.transcript && (
             <details className="stack" open>
             <summary>Leggi e analizza la trascrizione</summary>
+            <label className="field">
+              <span>Velocità di ascolto</span>
+              <select value={playbackRate} onChange={(event) => {
+                const rate = Number(event.target.value)
+                setPlaybackRate(rate)
+                if (playerRef.current) playerRef.current.playbackRate = rate
+              }}>
+                <option value={0.75}>0,75×</option><option value={1}>1×</option><option value={1.25}>1,25×</option>
+              </select>
+            </label>
+            {!!speakers.length && (
+              <form className="stack" onSubmit={(event) => {
+                event.preventDefault()
+                const values = new FormData(event.currentTarget)
+                const from = String(values.get('speaker'))
+                const to = String(values.get('newName')).trim()
+                if (!to || from === to) return
+                const segments = recording.segments?.map((segment) =>
+                  segment.speaker === from ? { ...segment, speaker: to } : segment)
+                void saveTranscriptEdit(recording, recording.transcript || '', segments)
+              }}>
+                <label>Relatore <select name="speaker">{speakers.map((speaker) => <option key={speaker}>{speaker}</option>)}</select></label>
+                <input name="newName" list={`speakers-${recording.id}`} aria-label="Nuovo nome del relatore" required maxLength={60} />
+                <datalist id={`speakers-${recording.id}`}>{speakers.map((speaker) => <option key={speaker} value={speaker} />)}</datalist>
+                <button className="btn secondary small" disabled={transcriptLocked}>Rinomina o unisci relatore</button>
+              </form>
+            )}
             {recording.segments?.length ? recording.segments.map((segment, index) => (
-              <p key={index}>
+              <div className="stack" key={index}>
                 <button type="button" className="btn secondary small"
                   onClick={() => void playRecording(recording.id, segment.start)}>
                   {formatTime(Math.floor(segment.start))} · {segment.speaker}
-                </button>{' '}{segment.text}
-              </p>
-            )) : <p>{recording.transcript}</p>}
+                </button>
+                <form className="stack" onSubmit={(event) => {
+                  event.preventDefault()
+                  const text = String(new FormData(event.currentTarget).get('passage')).trim()
+                  if (!text) return
+                  const segments = recording.segments?.map((item, position) => position === index ? { ...item, text } : item)
+                  if (segments) void saveTranscriptEdit(recording, segments.map((item) => item.text).join('\n'), segments)
+                }}>
+                  <textarea key={segment.text} name="passage" defaultValue={segment.text} aria-label="Testo del passaggio" required rows={3} />
+                  <div className="row discourse-recording-actions">
+                    <button className="btn secondary small" disabled={transcriptLocked}>Salva correzione</button>
+                    {!unlinked && <button type="button" className="btn secondary small"
+                      onClick={() => insertTranscriptPassage(recording, segment.text)}>Usa nel blocco</button>}
+                    {transcriptScriptures(segment.text)}
+                  </div>
+                </form>
+              </div>
+            )) : <form className="stack" onSubmit={(event) => {
+              event.preventDefault()
+              const text = String(new FormData(event.currentTarget).get('passage')).trim()
+              if (text) void saveTranscriptEdit(recording, text)
+            }}>
+              <textarea key={recording.transcript} name="passage" defaultValue={recording.transcript} aria-label="Trascrizione" required rows={5} />
+              <button className="btn secondary small" disabled={transcriptLocked}>Salva correzione</button>
+              {!unlinked && <button type="button" className="btn secondary small"
+                onClick={() => insertTranscriptPassage(recording, recording.transcript || '')}>Usa nel blocco</button>}
+              {transcriptScriptures(recording.transcript)}
+            </form>}
             <div className="row discourse-recording-actions">
               <button type="button" className="btn secondary small" onClick={() => exportTranscript(recording, 'txt')}>TXT</button>
               {!!recording.segments?.length && <button type="button" className="btn secondary small" onClick={() => exportTranscript(recording, 'srt')}>SRT</button>}
@@ -935,10 +1055,8 @@ export function DiscorsoView() {
                         }
                         style={{ flex: 1, minWidth: 120 }}
                       />
-                      {s.recordedDurationMs != null ? (
-                        <span><Timer size={14} /> {formatRecordingDuration(s.recordedDurationMs)}</span>
-                      ) : <label className="row" style={{ gap: 4 }}>
-                        <span className="muted">min</span>
+                      <label className="row" style={{ gap: 4 }}>
+                        <span className="muted">Obiettivo (min)</span>
                         <input
                           type="number"
                           min={1}
@@ -949,7 +1067,12 @@ export function DiscorsoView() {
                           }
                           style={{ width: 64 }}
                         />
-                      </label>}
+                      </label>
+                      {s.recordedDurationMs != null && (
+                        <span><Timer size={14} /> Prova {formatRecordingDuration(s.recordedDurationMs)}
+                          {s.recordedDurationMs > s.minutes * 60_000 && ` · Oltre di ${formatRecordingDuration(s.recordedDurationMs - s.minutes * 60_000)}`}
+                        </span>
+                      )}
                     </div>
                     <button
                       className="btn secondary small"
@@ -960,6 +1083,11 @@ export function DiscorsoView() {
                       <Trash2 size={14} />
                     </button>
                   </div>
+                  {s.recordedDurationMs != null && s.recordedDurationMs > s.minutes * 60_000 && (
+                    <button type="button" className="btn secondary small" disabled={!online || analysisBusy || !(s.revision?.text || s.body).trim()}
+                      onClick={() => void suggestTimingCuts(s)}>Suggerisci tagli</button>
+                  )}
+                  {timingAdvice?.sectionId === s.id && <p>{timingAdvice.text}</p>}
                   <button
                     className={`btn small ${captureSectionId === s.id && listening ? 'danger' : 'secondary'}`}
                     type="button"

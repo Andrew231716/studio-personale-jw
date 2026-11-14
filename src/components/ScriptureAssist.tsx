@@ -11,7 +11,6 @@ import {
   fetchScriptureVerse,
   findScriptureRefsInText,
   latestChapterHint,
-  latestScriptureNearEnd,
   preloadChapter,
   type ParsedScriptureRef,
   type ScriptureVerseResult,
@@ -43,10 +42,6 @@ function refAutoKey(ref: Pick<ParsedScriptureRef, 'bible' | 'verse' | 'verseEnd'
   return `${ref.bible}:${ref.verseEnd || ref.verse}`
 }
 
-function keysInText(value: string): Set<string> {
-  return new Set(findScriptureRefsInText(value || '').map(refAutoKey))
-}
-
 export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
   function ScriptureAssist(
     { text, language = 'I', onInsert, compact, autoOpenOnType = true, resetKey },
@@ -57,7 +52,8 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
     const [error, setError] = useState('')
     const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
     const preloadKey = useRef('')
-    const prevKeys = useRef<Set<string> | null>(null)
+    const prevText = useRef<string | null>(null)
+    const requestId = useRef(0)
     const timer = useRef<number | null>(null)
     const languageRef = useRef(language)
     languageRef.current = language
@@ -72,7 +68,9 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
       parsed: ParsedScriptureRef,
       nextAnchor?: { x: number; y: number },
     ) => {
-      if (nextAnchor) setAnchor(nextAnchor)
+      const id = ++requestId.current
+      setAnchor(nextAnchor ?? null)
+      setVerse(null)
       setLoading(true)
       setError('')
       try {
@@ -85,18 +83,18 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
           language: languageRef.current,
           withContext: true,
         })
-        setVerse(result)
+        if (id === requestId.current) setVerse(result)
       } catch (e) {
-        setVerse(null)
+        if (id !== requestId.current) return
         setError(
-          !navigator.onLine
+          !navigator.onLine && e instanceof Error && e.message.startsWith('Offline:')
             ? 'Offline: versetto non in cache. Scarica il pacchetto Bibbia in Discorso/Impostazioni oppure riconnettiti.'
             : e instanceof Error
               ? e.message
               : 'Versetto non trovato',
         )
       } finally {
-        setLoading(false)
+        if (id === requestId.current) setLoading(false)
       }
     }
 
@@ -108,15 +106,14 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
 
     useEffect(() => {
       // Cambio bozza/nota: non trattare i refs già presenti come “nuovi”.
-      prevKeys.current = null
+      prevText.current = null
+      requestId.current++
+      setVerse(null)
+      setLoading(false)
+      setError('')
     }, [resetKey])
 
     useEffect(() => {
-      function syncKeysWithoutOpening(value: string) {
-        const now = keysInText(value)
-        prevKeys.current = now
-      }
-
       async function runPreload(value: string) {
         const hint = latestChapterHint(value)
         if (!hint) return
@@ -136,30 +133,28 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
       }
 
       async function runLookup(value: string) {
-        const now = keysInText(value)
-        const parsed = latestScriptureNearEnd(value)
-
-        // Primo snapshot dopo mount / reset: registra, non aprire.
-        if (prevKeys.current === null) {
-          prevKeys.current = now
-          return
+        const previous = prevText.current
+        prevText.current = value
+        if (previous === null || previous === value) return
+        const seen = new Map<string, number>()
+        for (const item of findScriptureRefsInText(previous, true)) {
+          const key = refAutoKey(item)
+          seen.set(key, (seen.get(key) || 0) + 1)
         }
-
-        const newlyAdded = [...now].filter((k) => !prevKeys.current!.has(k))
-        prevKeys.current = now
-
-        if (!parsed) return
-        const key = refAutoKey(parsed)
-        if (!newlyAdded.includes(key)) return
-
-        await openRefFn.current(parsed)
+        const parsed = findScriptureRefsInText(value, true).filter((item) => {
+          const key = refAutoKey(item)
+          const count = seen.get(key) || 0
+          seen.set(key, count - 1)
+          return count <= 0
+        }).at(-1)
+        if (parsed) await openRefFn.current(parsed)
       }
 
       if (timer.current) window.clearTimeout(timer.current)
       timer.current = window.setTimeout(() => {
         void runPreload(text)
         if (autoOpenOnType) void runLookup(text)
-        else syncKeysWithoutOpening(text)
+        else prevText.current = text
       }, 380)
       return () => {
         if (timer.current) window.clearTimeout(timer.current)
@@ -177,6 +172,8 @@ export const ScriptureAssist = forwardRef<ScriptureAssistHandle, Props>(
           language={language}
           anchor={anchor}
           onClose={() => {
+            requestId.current++
+            setLoading(false)
             setVerse(null)
             setError('')
             setAnchor(null)
