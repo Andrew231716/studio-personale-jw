@@ -70,7 +70,11 @@ import { uid } from '../lib/id'
 import type { DiscourseSection, DiscourseSectionKind } from '../types'
 import { useAppStore } from '../store/useAppStore'
 
+const discourseTabs = ['Originale', 'Revisione AI', 'Trascrizione'] as const
+
 export function DiscorsoView() {
+  const [blockViews, setBlockViews] = useState<Record<string, { tab?: number; compare?: number; collapsed?: boolean }>>({})
+  const [captureSeconds, setCaptureSeconds] = useState(0)
   const language = useAppStore((s) => s.settings.language)
   const notes = useAppStore((s) => s.discourseNotes)
   const activeId = useAppStore((s) => s.activeDiscourseId)
@@ -93,6 +97,13 @@ export function DiscorsoView() {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [listening, setListening] = useState(false)
+  useEffect(() => {
+    if (!listening) return
+    const started = performance.now()
+    setCaptureSeconds(0)
+    const timer = window.setInterval(() => setCaptureSeconds(Math.floor((performance.now() - started) / 1000)), 250)
+    return () => window.clearInterval(timer)
+  }, [listening])
   const [captureSectionId, setCaptureSectionId] = useState<string | null>(null)
   const [captureSaving, setCaptureSaving] = useState(false)
   const [partial, setPartial] = useState('')
@@ -263,7 +274,7 @@ export function DiscorsoView() {
     if (note) patchSavedSection(note.id, id, patch)
   }
 
-  async function runPolish() {
+  async function runPolish(sectionId?: string) {
     if (!note || polishBusy) return
     const noteId = note.id
     const latest = new Map<string, DiscourseRecordingMeta>()
@@ -272,7 +283,8 @@ export function DiscorsoView() {
         latest.set(recording.sectionId, recording)
       }
     }
-    const candidates = sections.filter((section) => section.body.trim() || latest.has(section.id))
+    const candidates = sections.filter((section) => (!sectionId || section.id === sectionId)
+      && (section.body.trim() || latest.has(section.id)))
     if (!candidates.length) {
       setPolishHint('Scrivi o registra almeno un blocco.')
       return
@@ -701,14 +713,6 @@ export function DiscorsoView() {
             <Trash2 size={14} />
           </button>
         </div>
-        {playId === recording.id && playUrl && (
-          <video ref={playerRef} src={playUrl} controls autoPlay playsInline
-            onLoadedMetadata={(event) => {
-              event.currentTarget.currentTime = requestedPlaybackTime.current
-              event.currentTarget.playbackRate = playbackRate
-            }}
-            style={{ width: '100%', maxHeight: recording.mimeType.startsWith('video/') ? 280 : 54 }} />
-        )}
         {recording.transcript && (
             <details className="stack" open>
             <summary>Leggi e analizza la trascrizione</summary>
@@ -745,6 +749,14 @@ export function DiscorsoView() {
                   onClick={() => void playRecording(recording.id, segment.start)}>
                   {formatTime(Math.floor(segment.start))} · {segment.speaker}
                 </button>
+                <p>{segment.text}</p>
+                <div className="row discourse-recording-actions">
+                  {!unlinked && <button type="button" className="btn secondary small"
+                    onClick={() => insertTranscriptPassage(recording, segment.text)}>Usa nel blocco</button>}
+                  {transcriptScriptures(segment.text)}
+                </div>
+                <details>
+                <summary>Modifica passaggio</summary>
                 <form className="stack" onSubmit={(event) => {
                   event.preventDefault()
                   const text = String(new FormData(event.currentTarget).get('passage')).trim()
@@ -755,11 +767,9 @@ export function DiscorsoView() {
                   <textarea key={segment.text} name="passage" defaultValue={segment.text} aria-label="Testo del passaggio" required rows={3} />
                   <div className="row discourse-recording-actions">
                     <button className="btn secondary small" disabled={transcriptLocked}>Salva correzione</button>
-                    {!unlinked && <button type="button" className="btn secondary small"
-                      onClick={() => insertTranscriptPassage(recording, segment.text)}>Usa nel blocco</button>}
-                    {transcriptScriptures(segment.text)}
                   </div>
                 </form>
+                </details>
               </div>
             )) : <form className="stack" onSubmit={(event) => {
               event.preventDefault()
@@ -1036,7 +1046,13 @@ export function DiscorsoView() {
                 </div>
               </div>
 
-              {sections.map((s, idx) => (
+              {sections.map((s, idx) => {
+                const view = blockViews[s.id] || {}
+                const tab = view.tab ?? 0
+                const setView = (patch: typeof view) => setBlockViews((current) => ({
+                  ...current, [s.id]: { ...current[s.id], ...patch },
+                }))
+                return (
                 <div
                   key={s.id}
                   className={`discourse-section ${practiceIndex === idx ? 'is-active-practice' : ''}`}
@@ -1083,13 +1099,19 @@ export function DiscorsoView() {
                       <Trash2 size={14} />
                     </button>
                   </div>
+                  <button type="button" className="btn secondary small" aria-expanded={!view.collapsed}
+                    disabled={captureSectionId === s.id && listening}
+                    onClick={() => setView({ collapsed: !view.collapsed })}>
+                    {view.collapsed ? 'Apri blocco' : 'Comprimi blocco'}
+                  </button>
+                  <div hidden={view.collapsed} className="stack discourse-block-content">
                   {s.recordedDurationMs != null && s.recordedDurationMs > s.minutes * 60_000 && (
                     <button type="button" className="btn secondary small" disabled={!online || analysisBusy || !(s.revision?.text || s.body).trim()}
                       onClick={() => void suggestTimingCuts(s)}>Suggerisci tagli</button>
                   )}
                   {timingAdvice?.sectionId === s.id && <p>{timingAdvice.text}</p>}
                   <button
-                    className={`btn small ${captureSectionId === s.id && listening ? 'danger' : 'secondary'}`}
+                    className={`btn small ${captureSectionId === s.id && listening ? 'danger' : 'accent'}`}
                     type="button"
                     disabled={!captureOk || captureSaving || structureBusy || (listening && captureSectionId !== s.id)}
                     onClick={() => toggleMic(s.id)}
@@ -1106,8 +1128,22 @@ export function DiscorsoView() {
                       </div>
                     </>
                   )}
-                  <div className="discourse-comparison">
-                    <div className="stack">
+                  <div className="discourse-version-controls">
+                    <div className="discourse-tabs" role="group" aria-label="Versioni del blocco">
+                      {discourseTabs.map((label, index) => (
+                        <button key={label} type="button" className="btn small" aria-pressed={tab === index}
+                          onClick={() => setView({ tab: index, compare: view.compare === index ? undefined : view.compare })}>{label}</button>
+                      ))}
+                    </div>
+                    <label className="discourse-compare-select">Confronta con
+                      <select value={view.compare ?? ''} onChange={(event) => setView({ compare: event.target.value === '' ? undefined : Number(event.target.value) })}>
+                        <option value="">Una versione</option>
+                        {discourseTabs.map((label, index) => index !== tab && <option key={label} value={index}>{label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="discourse-comparison" data-compare={view.compare != null}>
+                    <div className="stack discourse-version" data-active={tab === 0} data-paired={view.compare === 0}>
                       <strong>Testo originale</strong>
                       <textarea
                         ref={(el) => {
@@ -1131,13 +1167,18 @@ export function DiscorsoView() {
                         }}
                       />
                     </div>
-                    <div className="stack discourse-comparison-result">
+                    <div className="stack discourse-comparison-result discourse-version" data-active={tab === 1} data-paired={view.compare === 1}>
                       <strong>{s.revision?.source === 'local' ? 'Revisione locale' : 'Versione sistemata con AI'}</strong>
                       <p>{s.revision?.text || 'Premi «Sistema ora» per confrontare la revisione.'}</p>
+                      <button type="button" className="btn secondary small"
+                        disabled={polishBusy || listening || captureSaving || !!transcribeBusyId || structureBusy}
+                        onClick={() => void runPolish(s.id)}>{polishBusy ? 'Sistemo…' : 'Sistema ora'}</button>
                       {s.revision?.recordingId && <small>{recordings.find((item) => item.id === s.revision?.recordingId)?.title}</small>}
                     </div>
-                    <div className="stack discourse-comparison-result">
+                    <div className="stack discourse-comparison-result discourse-version" data-active={tab === 2} data-paired={view.compare === 2}>
                       <strong>Trascrizione audio</strong>
+                      <details>
+                        <summary>Lingua e importazione</summary>
                       <label className="field">
                         <span>Lingua della trascrizione</span>
                         <select value={transcriptLanguage} onChange={(event) => setTranscriptLanguage(event.target.value)}>
@@ -1156,6 +1197,7 @@ export function DiscorsoView() {
                             if (file) void importRecording(file, s.id)
                           }} />
                       </label>
+                      </details>
                       {recordings.filter((item) => item.sectionId === s.id).map((item) =>
                         renderRecording(item, false),
                       )}
@@ -1164,9 +1206,33 @@ export function DiscorsoView() {
                       )}
                     </div>
                   </div>
+                  </div>
                 </div>
-              ))}
+              )})}
 
+              {listening && captureSectionId && (
+                <div className="discourse-capture-bar" role="region" aria-label="Registrazione in corso">
+                  <div><strong>Registrazione · {formatTime(captureSeconds)}</strong>
+                    {partial && <p>{partial}</p>}</div>
+                  <button type="button" className="btn danger" onClick={() => toggleMic(captureSectionId)}>
+                    <MicOff size={16} /> Ferma
+                  </button>
+                </div>
+              )}
+              {playId && playUrl && !listening && (
+                <div className="discourse-capture-bar" role="region" aria-label="Lettore registrazione">
+                  <video key={playUrl} ref={playerRef} src={playUrl} controls autoPlay playsInline
+                    onLoadedMetadata={(event) => {
+                      event.currentTarget.currentTime = requestedPlaybackTime.current
+                      event.currentTarget.playbackRate = playbackRate
+                    }}
+                    style={{ width: '100%', minWidth: 0, maxHeight: recordings.find((item) => item.id === playId)?.mimeType.startsWith('video/') ? 180 : 54 }} />
+                  <button type="button" className="btn secondary small" onClick={() => void playRecording(playId)}>Chiudi</button>
+                </div>
+              )}
+
+              <details>
+                <summary>Azioni del discorso</summary>
               <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
                 <button
                   className="btn secondary"
@@ -1175,7 +1241,7 @@ export function DiscorsoView() {
                   onClick={() => void runPolish()}
                 >
                   <Sparkles size={16} />{' '}
-                  {polishBusy ? 'Sistemo…' : 'Sistema ora'}
+                  {polishBusy ? 'Sistemo…' : 'Sistema tutti i blocchi'}
                 </button>
                 <button className="btn secondary" type="button" onClick={saveToQuaderno}>
                   <NotebookPen size={16} /> Quaderno
@@ -1218,6 +1284,7 @@ export function DiscorsoView() {
                   <Trash2 size={16} />
                 </button>
               </div>
+              </details>
 
               {micError && <p className="error-text">{micError}</p>}
               {recHint && <p className="muted">{recHint}</p>}
