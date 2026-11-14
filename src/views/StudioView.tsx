@@ -50,6 +50,20 @@ export function StudioView() {
   const aiBusy = aiBusyKind !== null
   const [archiveMsg, setArchiveMsg] = useState('')
   const [editingTitle, setEditingTitle] = useState(false)
+  const [notebookTab, setNotebookTab] = useState('notes')
+  useEffect(() => {
+    function openLinkedPanel() {
+      const hash = window.location.hash
+      if (hash === '#notebook-resources') setNotebookTab('resources')
+      else if (hash === '#notebook-practice') setNotebookTab('practice')
+      else if (hash === '#notebook-notes' || hash.startsWith('#notebook-reflection-')) setNotebookTab('notes')
+      else return
+      requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' }))
+    }
+    openLinkedPanel()
+    window.addEventListener('hashchange', openLinkedPanel)
+    return () => window.removeEventListener('hashchange', openLinkedPanel)
+  }, [])
   const [titleDraft, setTitleDraft] = useState('')
   const [exportBusy, setExportBusy] = useState<'pdf' | 'epub' | null>(null)
 
@@ -596,11 +610,12 @@ export function StudioView() {
         )}
 
         <nav className="chip-row" aria-label="Vai a una parte del Quaderno">
-          <a className="chip" href="#notebook-notes">Appunti</a>
-          <a className="chip" href="#notebook-resources">Scritture e materiali</a>
-          <a className="chip" href="#notebook-practice">Azioni da provare</a>
+          {([['notes', 'Appunti'], ['resources', 'Materiali'], ['practice', 'Da provare']] as const).map(([key, label]) => (
+            <button key={key} type="button" className={`chip ${notebookTab === key ? 'active' : ''}`}
+              aria-pressed={notebookTab === key} onClick={() => setNotebookTab(key)}>{label}</button>
+          ))}
         </nav>
-        <div className="study-jump" id="notebook-notes" style={{ marginTop: '0.85rem' }}>
+        <div className="study-jump notebook-tab-panel" hidden={notebookTab !== 'notes'} id="notebook-notes" style={{ marginTop: '0.85rem' }}>
           <ExpandableField
             label="Perché mi interessa / note"
             value={topic.interest}
@@ -765,7 +780,7 @@ export function StudioView() {
           </div>
         </section>
 
-        <section className="panel study-jump" id="notebook-resources">
+        <section className="panel study-jump notebook-tab-panel" hidden={notebookTab !== 'resources'} id="notebook-resources">
           <div className="section-head">
             <h3>Materiale jw.org</h3>
           </div>
@@ -821,7 +836,7 @@ export function StudioView() {
         </section>
       </div>
 
-      <section className="panel">
+      <section className="panel notebook-tab-panel" hidden={notebookTab !== 'notes'}>
         <div className="section-head">
           <h3>Punti di riflessione</h3>
           <button
@@ -896,7 +911,7 @@ export function StudioView() {
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel notebook-tab-panel" hidden={notebookTab !== 'notes'}>
         <div className="section-head">
           <h3>Domande</h3>
           <button
@@ -970,7 +985,7 @@ export function StudioView() {
         </div>
       </section>
 
-      <section className="panel study-jump" id="notebook-practice">
+      <section className="panel study-jump notebook-tab-panel" hidden={notebookTab !== 'practice'} id="notebook-practice">
         <div className="section-head">
           <h3>Cose pratiche da provare</h3>
           <button

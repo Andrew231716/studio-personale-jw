@@ -2695,6 +2695,7 @@ img {
 }
 .discourse-capture-bar p { margin: 0; overflow-wrap: anywhere; max-height: 3.5em; overflow: auto; }
 .jw-view-index { margin-block: .75rem; }
+.notebook-tab-panel[hidden] { display: none; }
 .jw-workflow { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; padding-inline-start: 1.3rem; }
 .jw-workflow [aria-current="step"] { font-weight: 700; }
 .jw-step-progress { display: block; width: 100%; height: .45rem; accent-color: var(--accent); }
