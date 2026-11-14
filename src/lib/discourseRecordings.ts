@@ -1,6 +1,7 @@
 /** Registrazioni audio Discorso in IndexedDB (i blob non entrano in localStorage). */
 
 import { uid } from './id'
+import type { TranscriptSegment } from './discourseTranscribe'
 
 const DB_NAME = 'jw-studio-discourse-recordings'
 const DB_VERSION = 1
@@ -18,6 +19,10 @@ export interface DiscourseRecordingMeta {
   byteLength?: number
   /** Trascrizione salvata (se già eseguita). */
   transcript?: string
+  segments?: TranscriptSegment[]
+  summary?: string
+  translation?: string
+  fileName?: string
 }
 
 interface RecordingRow extends DiscourseRecordingMeta {
@@ -69,6 +74,7 @@ export async function saveDiscourseRecording(params: {
   sectionId?: string
   title?: string
   label?: string
+  fileName?: string
 }): Promise<DiscourseRecordingMeta> {
   const id = uid('drec')
   const meta: DiscourseRecordingMeta = {
@@ -80,6 +86,7 @@ export async function saveDiscourseRecording(params: {
     label: params.label,
     sectionId: params.sectionId,
     title: params.title,
+    fileName: params.fileName,
     byteLength: params.blob.size,
   }
   const db = await openDb()
@@ -153,7 +160,7 @@ export async function deleteDiscourseRecording(id: string): Promise<void> {
 
 export async function updateDiscourseRecording(
   id: string,
-  patch: Pick<DiscourseRecordingMeta, 'transcript' | 'sectionId'>,
+  patch: Pick<DiscourseRecordingMeta, 'transcript' | 'sectionId' | 'segments' | 'summary' | 'translation'>,
 ): Promise<DiscourseRecordingMeta | null> {
   const db = await openDb()
   return await new Promise((resolve, reject) => {

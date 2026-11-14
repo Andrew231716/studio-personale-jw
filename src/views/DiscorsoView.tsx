@@ -31,6 +31,7 @@ import {
   getOfflineBibleStats,
 } from '../lib/bibleText'
 import { polishDiscourseText, structureDiscourseWithAi } from '../lib/discourseAi'
+import { askAi } from '../lib/ai'
 import {
   downloadDiscourseText,
   exportDiscourseEpub,
@@ -53,6 +54,7 @@ import {
   getDiscourseRecordingBlob,
   listDiscourseRecordings,
   mediaRecorderSupported,
+  saveDiscourseRecording,
   updateDiscourseRecording,
   type DiscourseRecordingMeta,
 } from '../lib/discourseRecordings'
@@ -113,6 +115,12 @@ export function DiscorsoView() {
   const [recHint, setRecHint] = useState('')
   const [structureBusy, setStructureBusy] = useState(false)
   const [transcribeBusyId, setTranscribeBusyId] = useState<string | null>(null)
+  const [transcriptLanguage, setTranscriptLanguage] = useState('auto')
+  const [importing, setImporting] = useState(false)
+  const [audioAnalysis, setAudioAnalysis] = useState<{ id: string; answer: string } | null>(null)
+  const [analysisBusy, setAnalysisBusy] = useState(false)
+  const playerRef = useRef<HTMLVideoElement | null>(null)
+  const requestedPlaybackTime = useRef(0)
 
   const capture = useRef(createDiscourseCapture(language === 'E' ? 'en-US' : 'it-IT'))
   const editorRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
@@ -379,7 +387,12 @@ export function DiscorsoView() {
     }
   }
 
-  async function playRecording(id: string) {
+  async function playRecording(id: string, start?: number) {
+    if (playId === id && start != null && playerRef.current) {
+      playerRef.current.currentTime = start
+      void playerRef.current.play().catch(() => {})
+      return
+    }
     const noteId = visibleNoteId.current
     if (playUrlRef.current) {
       URL.revokeObjectURL(playUrlRef.current)
@@ -397,6 +410,7 @@ export function DiscorsoView() {
       return
     }
     const url = URL.createObjectURL(blob)
+    requestedPlaybackTime.current = start ?? 0
     playUrlRef.current = url
     setPlayUrl(url)
     setPlayId(id)
@@ -423,7 +437,7 @@ export function DiscorsoView() {
     const url = URL.createObjectURL(blob)
     a.href = url
     const name = meta?.title?.replace(/[\\/:*?"<>|]/g, '-').trim() || `discorso-${(meta?.createdAt || id).slice(0, 19).replace(/[:T]/g, '-')}`
-    a.download = `${name}.${ext}`
+    a.download = meta?.fileName || `${name}.${ext}`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -477,10 +491,86 @@ export function DiscorsoView() {
   async function readRecordingTranscript(id: string) {
     const blob = await getDiscourseRecordingBlob(id)
     if (!blob) throw new Error('Registrazione non trovata su questo dispositivo.')
-    const { text } = await transcribeDiscourseAudio(blob, { language })
-    const saved = await updateDiscourseRecording(id, { transcript: text })
+    const recording = recordings.find((item) => item.id === id)
+    const { text, segments } = await transcribeDiscourseAudio(blob, {
+      language: transcriptLanguage,
+      durationMs: recording?.durationMs,
+      forceDecode: Boolean(recording?.fileName),
+      onProgress: (part, total) => setRecHint(`Trascrivo parte ${part} di ${total}…`),
+    })
+    const saved = await updateDiscourseRecording(id, {
+      transcript: text, segments, summary: undefined, translation: undefined,
+    })
     if (saved) setRecordings((current) => current.map((item) => item.id === id ? saved : item))
     return text
+  }
+
+  async function importRecording(file: File, sectionId: string) {
+    if (!note || importing) return
+    const noteId = note.id
+    setImporting(true)
+    try {
+      const saved = await saveDiscourseRecording({
+        discourseId: noteId, sectionId, blob: file, fileName: file.name,
+        title: file.name.replace(/\.[^.]+$/, ''),
+      })
+      if (visibleNoteId.current === noteId) {
+        setRecordings((items) => [saved, ...items])
+        setRecHint('File importato. Premi «Trascrivi» per elaborarlo.')
+      }
+    } catch {
+      setRecHint('Impossibile salvare il file su questo dispositivo.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  function exportTranscript(recording: DiscourseRecordingMeta, format: 'txt' | 'srt' | 'summary') {
+    const timecode = (seconds: number) => new Date(Math.max(0, seconds) * 1000).toISOString().slice(11, 23).replace('.', ',')
+    const segments = recording.segments || []
+    const content = format === 'srt'
+      ? segments.map((segment, index) => {
+          const end = segments[index + 1]?.start ?? Math.max(segment.start + 1, (recording.durationMs ?? 0) / 1000)
+          return `${index + 1}\n${timecode(segment.start)} --> ${timecode(end)}\n${segment.speaker}: ${segment.text}`
+        }).join('\n\n')
+      : format === 'summary' ? recording.summary : recording.transcript
+    if (!content) return
+    const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${(recording.title || 'trascrizione').replace(/[^\p{L}\p{N} _-]/gu, '-')}${format === 'summary' ? '-riassunto' : ''}.${format === 'srt' ? 'srt' : 'txt'}`
+    link.click()
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+
+  async function analyzeAudio(recording: DiscourseRecordingMeta, prompt: string, field?: 'summary' | 'translation') {
+    if (!recording.transcript || analysisBusy) return
+    setAnalysisBusy(true)
+    setRecHint('')
+    try {
+      const parts = recording.transcript.match(/[\s\S]{1,11000}(?:\s|$)|[\s\S]{1,11000}/g) || []
+      const answers: string[] = []
+      for (const context of parts) {
+        answers.push(await askAi({ prompt, context }))
+      }
+      const combined = answers.join('\n\n')
+      const answer = answers.length === 1 || field === 'translation' || combined.length > 12_000
+        ? combined
+        : await askAi({
+            prompt: `${prompt}\nUnisci i risultati parziali qui sotto ed elimina le ripetizioni.`,
+            context: combined,
+          })
+      if (field) {
+        const saved = await updateDiscourseRecording(recording.id, { [field]: answer })
+        if (saved) setRecordings((items) => items.map((item) => item.id === saved.id ? saved : item))
+      } else {
+        setAudioAnalysis({ id: recording.id, answer })
+      }
+    } catch (error) {
+      setRecHint(error instanceof Error ? error.message : 'Analisi non riuscita.')
+    } finally {
+      setAnalysisBusy(false)
+    }
   }
 
   async function transcribeRecording(id: string) {
@@ -544,8 +634,51 @@ export function DiscorsoView() {
             <Trash2 size={14} />
           </button>
         </div>
-        {playId === recording.id && playUrl && <audio src={playUrl} controls autoPlay />}
-        {recording.transcript && <p>{recording.transcript}</p>}
+        {playId === recording.id && playUrl && (
+          <video ref={playerRef} src={playUrl} controls autoPlay playsInline
+            onLoadedMetadata={(event) => {
+              event.currentTarget.currentTime = requestedPlaybackTime.current
+            }}
+            style={{ width: '100%', maxHeight: recording.mimeType.startsWith('video/') ? 280 : 54 }} />
+        )}
+        {recording.transcript && (
+            <details className="stack" open>
+            <summary>Leggi e analizza la trascrizione</summary>
+            {recording.segments?.length ? recording.segments.map((segment, index) => (
+              <p key={index}>
+                <button type="button" className="btn secondary small"
+                  onClick={() => void playRecording(recording.id, segment.start)}>
+                  {formatTime(Math.floor(segment.start))} · {segment.speaker}
+                </button>{' '}{segment.text}
+              </p>
+            )) : <p>{recording.transcript}</p>}
+            <div className="row discourse-recording-actions">
+              <button type="button" className="btn secondary small" onClick={() => exportTranscript(recording, 'txt')}>TXT</button>
+              {!!recording.segments?.length && <button type="button" className="btn secondary small" onClick={() => exportTranscript(recording, 'srt')}>SRT</button>}
+              <button type="button" className="btn secondary small" disabled={!online || analysisBusy}
+                onClick={() => void analyzeAudio(recording, 'Riassumi in italiano la trascrizione fornita. Elenca i punti chiave e i riferimenti biblici citati, se presenti.', 'summary')}>
+                Riassunto AI
+              </button>
+              <button type="button" className="btn secondary small" disabled={!online || analysisBusy}
+                onClick={() => void analyzeAudio(recording, `Traduci fedelmente la trascrizione in ${language === 'E' ? 'inglese' : 'italiano'} e restituisci solo la traduzione.`, 'translation')}>
+                Traduci in {language === 'E' ? 'inglese' : 'italiano'}
+              </button>
+            </div>
+            {recording.summary && <><h4>Riassunto</h4><p>{recording.summary}</p><button type="button" className="btn secondary small" onClick={() => exportTranscript(recording, 'summary')}>Scarica riassunto</button></>}
+            {recording.translation && <><h4>Traduzione</h4><p>{recording.translation}</p></>}
+            <form className="stack" onSubmit={(event) => {
+              event.preventDefault()
+              const question = String(new FormData(event.currentTarget).get('question') || '').trim()
+              if (question) void analyzeAudio(recording, `Rispondi in italiano usando solo la trascrizione fornita. Se manca l’informazione, dillo. Domanda: ${question}`)
+            }}>
+              <input name="question" aria-label="Domanda sulla registrazione" placeholder="Una domanda sulla registrazione" required maxLength={500} />
+              <button type="submit" className="btn secondary small" disabled={!online || analysisBusy}>
+                {analysisBusy ? 'Elaborazione…' : 'Chiedi all’AI'}
+              </button>
+            </form>
+            {audioAnalysis?.id === recording.id && <p aria-live="polite">{audioAnalysis.answer}</p>}
+          </details>
+        )}
       </div>
     )
   }
@@ -877,6 +1010,24 @@ export function DiscorsoView() {
                     </div>
                     <div className="stack discourse-comparison-result">
                       <strong>Trascrizione audio</strong>
+                      <label className="field">
+                        <span>Lingua della trascrizione</span>
+                        <select value={transcriptLanguage} onChange={(event) => setTranscriptLanguage(event.target.value)}>
+                          <option value="auto">Rileva automaticamente</option>
+                          <option value="I">Italiano</option><option value="E">Inglese</option>
+                          <option value="S">Spagnolo</option><option value="F">Francese</option>
+                          <option value="D">Tedesco</option><option value="P">Portoghese</option>
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>{importing ? 'Importazione…' : 'Importa audio o video'}</span>
+                        <input type="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.mp4,.webm,.ogg,.mov"
+                          disabled={importing} onChange={(event) => {
+                            const file = event.target.files?.[0]
+                            event.target.value = ''
+                            if (file) void importRecording(file, s.id)
+                          }} />
+                      </label>
                       {recordings.filter((item) => item.sectionId === s.id).map((item) =>
                         renderRecording(item, false),
                       )}

@@ -18,7 +18,9 @@ export default async function handler(req, res) {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {}
     const audioBase64 = String(body.audioBase64 || '').replace(/\s/g, '')
     const mimeType = String(body.mimeType || 'audio/webm').split(';')[0].trim() || 'audio/webm'
-    const language = String(body.language || 'I').toUpperCase() === 'E' ? 'English' : 'Italian'
+    const languages = new Map([['I', 'Italian'], ['E', 'English'], ['S', 'Spanish'], ['F', 'French'], ['D', 'German'], ['P', 'Portuguese']])
+    const language = languages.get(body.language) || 'automatic'
+    const offset = Math.max(0, Number(body.speakerOffset) || 0)
 
     if (!audioBase64 || audioBase64.length < 64) {
       res.status(400).send('Audio mancante')
@@ -43,10 +45,9 @@ export default async function handler(req, res) {
     }
 
     const model = String(body.model || DEFAULT_MODEL).trim() || DEFAULT_MODEL
-    const prompt =
-      language === 'English'
-        ? 'Transcribe this spoken audio faithfully. Return ONLY the transcript text, no titles or markdown. Keep scripture references as spoken.'
-        : 'Trascrivi fedelmente questo audio parlato in italiano. Restituisci SOLO il testo trascritto, senza titoli né markdown. Conserva i riferimenti biblici come detti.'
+    const prompt = `Transcribe all audible speech faithfully, without translating or summarizing. Language hint: ${language}.
+Return JSON as {"segments":[{"start":0,"speaker":"1","text":"..."}]}.
+Use seconds relative to this clip, in chronological order. Start a segment at every speaker change and at natural breaks in long turns. Use consistent numeric speaker labels within this clip. Leave segments empty for silence. Never invent speech. Format Bible citations with a colon, e.g. John 3:16.`
 
     const upstream = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
       method: 'POST',
@@ -63,7 +64,8 @@ export default async function handler(req, res) {
         ],
         generationConfig: {
           temperature: 0.1,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 8192,
+          responseMimeType: 'application/json',
           thinkingConfig: model.includes('2.5')
             ? { thinkingBudget: 0 }
             : { thinkingLevel: 'minimal' },
@@ -97,12 +99,21 @@ export default async function handler(req, res) {
           .join('')
           .trim()
       : ''
-    if (!text) {
-      res.status(502).send('Nessun testo riconosciuto nell’audio.')
+    let segments
+    try {
+      segments = JSON.parse(text).segments.filter(
+        (item) => Number.isFinite(item?.start) && item.start >= 0 && item.start <= 120 && typeof item.text === 'string' && item.text.trim(),
+      ).map((item) => ({
+        start: item.start,
+        speaker: `Relatore ${offset + (Number.isSafeInteger(Number(item.speaker)) && Number(item.speaker) > 0 ? Number(item.speaker) : 1)}`,
+        text: item.text.trim(),
+      })).sort((a, b) => a.start - b.start)
+    } catch {
+      res.status(502).send('Il motore ha restituito una trascrizione incompleta. Riprova.')
       return
     }
 
-    res.status(200).json({ engine: 'gemini', text, model })
+    res.status(200).json({ engine: 'gemini', text: segments.map((segment) => segment.text).join('\n'), segments, model })
   } catch (error) {
     if (error instanceof SyntaxError) {
       res.status(400).send('Richiesta non valida')
