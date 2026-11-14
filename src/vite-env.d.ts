@@ -10,7 +10,8 @@ interface SpeechRecognition extends EventTarget {
   continuous: boolean
   interimResults: boolean
   maxAlternatives: number
-  start(): void
+  phrases?: Array<{ phrase: string; boost: number }>
+  start(track?: MediaStreamTrack): void
   stop(): void
   abort(): void
   onresult: ((event: SpeechRecognitionEvent) => void) | null
@@ -48,6 +49,7 @@ interface SpeechRecognitionConstructor {
 }
 
 interface Window {
+  SpeechRecognitionPhrase?: new (phrase: string, boost: number) => { phrase: string; boost: number }
   SpeechRecognition?: SpeechRecognitionConstructor
   webkitSpeechRecognition?: SpeechRecognitionConstructor
 }

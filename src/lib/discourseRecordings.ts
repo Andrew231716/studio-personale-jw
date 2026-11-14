@@ -12,6 +12,8 @@ export interface DiscourseRecordingMeta {
   createdAt: string
   durationMs?: number
   mimeType: string
+  sectionId?: string
+  title?: string
   label?: string
   byteLength?: number
   /** Trascrizione salvata (se già eseguita). */
@@ -64,6 +66,8 @@ export async function saveDiscourseRecording(params: {
   discourseId: string
   blob: Blob
   durationMs?: number
+  sectionId?: string
+  title?: string
   label?: string
 }): Promise<DiscourseRecordingMeta> {
   const id = uid('drec')
@@ -74,6 +78,8 @@ export async function saveDiscourseRecording(params: {
     durationMs: params.durationMs,
     mimeType: params.blob.type || 'audio/webm',
     label: params.label,
+    sectionId: params.sectionId,
+    title: params.title,
     byteLength: params.blob.size,
   }
   const db = await openDb()
@@ -145,28 +151,35 @@ export async function deleteDiscourseRecording(id: string): Promise<void> {
   })
 }
 
-export async function updateDiscourseRecordingTranscript(
+export async function updateDiscourseRecording(
   id: string,
-  transcript: string,
+  patch: Pick<DiscourseRecordingMeta, 'transcript' | 'sectionId'>,
 ): Promise<DiscourseRecordingMeta | null> {
   const db = await openDb()
   return await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')
     const store = tx.objectStore(STORE)
     const req = store.get(id)
+    let saved: DiscourseRecordingMeta | null = null
     req.onsuccess = () => {
       const row = req.result as RecordingRow | undefined
       if (!row) {
         resolve(null)
         return
       }
-      const next: RecordingRow = { ...row, transcript: transcript.trim() }
+      const next: RecordingRow = { ...row, ...patch }
       store.put(next)
       const { blob: _b, ...meta } = next
-      resolve(meta)
+      saved = meta
     }
-    req.onerror = () => reject(req.error)
-    tx.oncomplete = () => db.close()
+    tx.onabort = () => {
+      db.close()
+      reject(tx.error)
+    }
+    tx.oncomplete = () => {
+      db.close()
+      resolve(saved)
+    }
   })
 }
 

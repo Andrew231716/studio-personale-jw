@@ -8,6 +8,7 @@ export interface DictationHandlers {
   onLevel?: (level: number) => void
   /** Stream già aperto (es. condiviso con MediaRecorder). */
   stream?: MediaStream | null
+  hints?: string[]
 }
 
 type Recog = SpeechRecognition
@@ -34,7 +35,7 @@ export function speechDictationSupportNote(): string {
 
 export function createDictation(lang = 'it-IT'): {
   start: (handlers: DictationHandlers) => void
-  stop: () => void
+  stop: () => Promise<void>
   isSupported: boolean
 } {
   const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -42,7 +43,7 @@ export function createDictation(lang = 'it-IT'): {
     return {
       isSupported: false,
       start: (h) => h.onError(speechDictationSupportNote() || 'Dettatura non supportata.'),
-      stop: () => undefined,
+      stop: async () => undefined,
     }
   }
 
@@ -53,6 +54,8 @@ export function createDictation(lang = 'it-IT'): {
   let ownedStream: MediaStream | null = null
   let levelRaf = 0
   let lastInterim = ''
+  let finishStop: (() => void) | null = null
+  let stopTimeout = 0
   let handlersRef: DictationHandlers | null = null
 
   function stopLevelMeter(stopTracks: boolean) {
@@ -125,6 +128,10 @@ export function createDictation(lang = 'it-IT'): {
           /* SpeechRecognition chiederà il mic da sola */
         }
       }
+      if (stopped) {
+        stopLevelMeter(Boolean(ownedStream))
+        return
+      }
       if (stream) startLevelMeter(stream, handlers.onLevel)
 
       recog = new Ctor()
@@ -132,31 +139,41 @@ export function createDictation(lang = 'it-IT'): {
       recog.continuous = true
       recog.interimResults = true
       recog.maxAlternatives = 1
+      const Phrase = window.SpeechRecognitionPhrase
+      if (Phrase && 'phrases' in recog && handlers.hints?.length) {
+        try {
+          recog.phrases = handlers.hints.map((hint) => new Phrase(hint, 3))
+        } catch {
+          // Il riconoscimento resta disponibile anche senza suggerimenti.
+        }
+      }
+      const track = stream?.getAudioTracks()[0]
+      const begin = () => track?.readyState === 'live' ? recog?.start(track) : recog?.start()
+
 
       recog.onresult = (event: SpeechRecognitionEvent) => {
-        let interim = ''
-        let finals = ''
+        if (!handlersRef) return
+        const interim: string[] = []
+        const finals: string[] = []
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i]
-          const piece = result[0]?.transcript || ''
-          if (result.isFinal) finals += piece
-          else interim += piece
+          const piece = result[0]?.transcript.trim()
+          if (!piece) continue
+          if (result.isFinal) finals.push(piece)
+          else interim.push(piece)
         }
-        if (finals.trim()) {
-          lastInterim = ''
-          handlers.onFinal(finals)
-          handlers.onPartial('')
-        }
-        if (interim.trim()) {
-          lastInterim = interim
-          handlers.onPartial(interim)
-        } else if (!finals.trim()) {
-          lastInterim = ''
-        }
+        if (finals.length) handlers.onFinal(finals.join(' '))
+        lastInterim = interim.join(' ')
+        handlers.onPartial(lastInterim)
       }
 
       recog.onerror = (event: SpeechRecognitionErrorEvent) => {
         if (event.error === 'aborted' || event.error === 'no-speech') return
+        if (event.error === 'phrases-not-supported' && recog?.phrases?.length) {
+          recog.phrases = []
+          return
+        }
+        stopped = true
         if (event.error === 'not-allowed') {
           handlers.onError(
             'Microfono non autorizzato. Consenti l’accesso nelle impostazioni del browser.',
@@ -179,18 +196,21 @@ export function createDictation(lang = 'it-IT'): {
         const offline = typeof navigator !== 'undefined' && navigator.onLine === false
         if (!stopped && !offline) {
           try {
-            recog?.start()
+            begin()
             return
           } catch {
             /* ignore */
           }
         }
-        stopLevelMeter(Boolean(ownedStream))
-        handlers.onEnd()
+        if (finishStop) finishStop()
+        else {
+          stopLevelMeter(Boolean(ownedStream))
+          handlers.onEnd()
+        }
       }
 
       try {
-        recog.start()
+        begin()
       } catch (e) {
         stopLevelMeter(Boolean(ownedStream))
         handlers.onError(e instanceof Error ? e.message : 'Impossibile avviare il microfono')
@@ -202,15 +222,31 @@ export function createDictation(lang = 'it-IT'): {
 
   function stop() {
     stopped = true
-    flushInterim()
-    try {
-      recog?.stop()
-    } catch {
-      /* ignore */
-    }
-    recog = null
-    stopLevelMeter(Boolean(ownedStream))
-    handlersRef = null
+    const current = recog
+    if (!current || finishStop) return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      finishStop = () => {
+        window.clearTimeout(stopTimeout)
+        flushInterim()
+        current.onresult = null
+        current.onend = null
+        current.onerror = null
+        stopLevelMeter(Boolean(ownedStream))
+        handlersRef = null
+        recog = null
+        finishStop = null
+        resolve()
+      }
+      stopTimeout = window.setTimeout(() => {
+        current.abort()
+        finishStop?.()
+      }, 1200)
+      try {
+        current.stop()
+      } catch {
+        finishStop?.()
+      }
+    })
   }
 
   return { start, stop, isSupported: true }

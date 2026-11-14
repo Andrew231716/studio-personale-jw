@@ -2640,3 +2640,44 @@ img {
     scroll-margin-block-start: calc(7.5rem + env(safe-area-inset-top, 0px));
   }
 }
+
+.discourse-section {
+  container-type: inline-size;
+}
+
+.discourse-comparison {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.discourse-comparison > div {
+  min-width: 0;
+}
+
+.discourse-comparison-result {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.discourse-comparison-result p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.discourse-recording-actions {
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.discourse-comparison audio {
+  width: 100%;
+  min-width: 0;
+}
+
+@container (min-width: 570px) {
+  .discourse-comparison {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

@@ -1,8 +1,6 @@
 /** Trascrizione registrazioni Discorso via /api/ai-transcribe (Gemini). */
 
 import { aiRequestExtras } from './ai'
-import { localPolishDiscourse } from './discourseAi'
-import { normalizeJwItalian } from './jwItalianTerms'
 
 /** Limite pratico body JSON / Vercel (~4.5 MB). */
 const MAX_BYTES = 3_500_000
@@ -51,7 +49,7 @@ export async function transcribeDiscourseAudio(
     throw new Error(detail || `Trascrizione non riuscita (HTTP ${res.status}).`)
   }
   const data = (await res.json()) as { text?: string; engine?: string }
-  const text = normalizeJwItalian(localPolishDiscourse(String(data.text || '').trim()))
+  const text = String(data.text || '').trim()
   if (!text) throw new Error('Nessun testo riconosciuto nell’audio.')
   return { text, engine: data.engine || 'gemini' }
 }

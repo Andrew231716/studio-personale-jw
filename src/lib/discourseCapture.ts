@@ -13,6 +13,7 @@ import {
 import { createDictation, type DictationHandlers } from './speechDictation'
 
 export interface DiscourseCaptureHandlers extends Omit<DictationHandlers, 'stream' | 'onEnd'> {
+  onDuration?: (durationMs: number) => void
   onRecordingSaved?: (meta: DiscourseRecordingMeta) => void
   onRecordingError?: (message: string) => void
   /** Avviso non fatale (es. dettatura offline non disponibile). */
@@ -27,7 +28,7 @@ export function createDiscourseCapture(lang = 'it-IT') {
   let recorder: MediaRecorder | null = null
   let chunks: BlobPart[] = []
   let startedAt = 0
-  let discourseId = ''
+  let target: { discourseId: string; sectionId: string; title?: string }
   let recording = false
   let sessionActive = false
   let finalizeOnce: Promise<void> | null = null
@@ -71,10 +72,9 @@ export function createDiscourseCapture(lang = 'it-IT') {
     }
   }
 
-  async function start(noteId: string, handlers: DiscourseCaptureHandlers) {
-    discourseId = noteId
+  async function start(recordingTarget: typeof target, handlers: DiscourseCaptureHandlers) {
+    target = recordingTarget
     chunks = []
-    startedAt = Date.now()
     finalizeOnce = null
     activeHandlers = handlers
     sessionActive = true
@@ -89,14 +89,20 @@ export function createDiscourseCapture(lang = 'it-IT') {
     }
 
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
+      const grantedStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
         },
       })
+      if (!sessionActive) {
+        grantedStream.getTracks().forEach((track) => track.stop())
+        return
+      }
+      stream = grantedStream
       const mime = pickRecorderMimeType()
-      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime, audioBitsPerSecond: 48_000 }) : new MediaRecorder(stream)
       recorder.ondataavailable = (ev) => {
         if (ev.data && ev.data.size > 0) chunks.push(ev.data)
       }
@@ -104,10 +110,11 @@ export function createDiscourseCapture(lang = 'it-IT') {
         handlers.onRecordingError?.('Registrazione audio interrotta.')
       }
       recorder.start(1000)
+      startedAt = performance.now()
       recording = true
       startLevelMeter(handlers.onLevel)
     } catch {
-      stream = null
+      cleanupStream()
       recorder = null
       recording = false
       sessionActive = false
@@ -126,9 +133,13 @@ export function createDiscourseCapture(lang = 'it-IT') {
     }
 
     // Dettatura best-effort: errori di rete non chiudono la registrazione
-    if (dictation.isSupported) {
+    if (dictation.isSupported && !offline) {
       dictation.start({
         stream,
+        hints: [
+          ...(lang === 'it-IT' ? ['Geova', 'Sala del Regno', 'Rivelazione', 'Corinti', 'congregazione'] : []),
+          ...(target.title ? [target.title.slice(0, 80)] : []),
+        ],
         onPartial: handlers.onPartial,
         onFinal: handlers.onFinal,
         onLevel: undefined, // livello già dallo stream condiviso
@@ -143,13 +154,13 @@ export function createDiscourseCapture(lang = 'it-IT') {
             )
             // Non chiamare onEnd: la sessione resta in registrazione
             try {
-              dictation.stop()
+              void dictation.stop()
             } catch {
               /* ignore */
             }
             return
           }
-          handlers.onError(msg)
+          handlers.onWarning?.(`${msg} La registrazione audio continua.`)
         },
         onEnd: () => {
           // Fine STT senza stop utente: se ancora in sessione, resta solo audio
@@ -160,14 +171,14 @@ export function createDiscourseCapture(lang = 'it-IT') {
           }
         },
       })
-    } else {
+    } else if (!dictation.isSupported) {
       handlers.onWarning?.(
         'Dettatura testo non supportata qui. Registro comunque l’audio per riascoltarlo dopo.',
       )
     }
   }
 
-  function finalizeRecording(): Promise<void> {
+  function finalizeRecording(dictationDone: Promise<void>): Promise<void> {
     if (finalizeOnce) return finalizeOnce
     finalizeOnce = (async () => {
       const handlers = activeHandlers
@@ -177,7 +188,8 @@ export function createDiscourseCapture(lang = 'it-IT') {
         return
       }
       recording = false
-      const durationMs = Date.now() - startedAt
+      const durationMs = Math.round(performance.now() - startedAt)
+      handlers?.onDuration?.(durationMs)
       const rec = recorder
       const blob = await new Promise<Blob | null>((resolve) => {
         if (!rec) {
@@ -195,13 +207,17 @@ export function createDiscourseCapture(lang = 'it-IT') {
           resolve(null)
         }
       })
+      await dictationDone
       cleanupStream()
       recorder = null
       chunks = []
-      if (!blob || blob.size < 256 || !discourseId) return
+      if (!blob?.size) {
+        handlers?.onRecordingError?.('Nessun audio ricevuto dal microfono.')
+        return
+      }
       try {
         const meta = await saveDiscourseRecording({
-          discourseId,
+          ...target,
           blob,
           durationMs,
           label: typeof navigator !== 'undefined' && !navigator.onLine ? 'Offline' : 'Dettatura',
@@ -226,13 +242,10 @@ export function createDiscourseCapture(lang = 'it-IT') {
   }
 
   function stop() {
+    if (!sessionActive) return
     sessionActive = false
-    try {
-      dictation.stop()
-    } catch {
-      /* ignore */
-    }
-    void finalizeRecording().finally(() => {
+    const dictationDone = dictation.stop()
+    void finalizeRecording(dictationDone).finally(() => {
       activeHandlers?.onEnd()
     })
   }

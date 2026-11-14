@@ -68,8 +68,14 @@ export function joinSections(sections: DiscourseSection[]): string {
     .trim()
 }
 
+export function sectionDurationSeconds(section: DiscourseSection): number {
+  return section.recordedDurationMs == null
+    ? (Number(section.minutes) || 0) * 60
+    : Math.round(section.recordedDurationMs / 1000)
+}
+
 export function totalMinutes(sections: DiscourseSection[]): number {
-  return sections.reduce((n, s) => n + (Number(s.minutes) || 0), 0)
+  return sections.reduce((n, s) => n + sectionDurationSeconds(s), 0) / 60
 }
 
 /** Stima progressione lettura: indice sezione in base al tempo trascorso. */
@@ -80,7 +86,7 @@ export function sectionIndexForElapsed(
   if (!sections.length) return 0
   let acc = 0
   for (let i = 0; i < sections.length; i++) {
-    acc += Math.max(0.5, sections[i].minutes || 1) * 60
+    acc += sectionDurationSeconds(sections[i])
     if (elapsedSec < acc) return i
   }
   return sections.length - 1

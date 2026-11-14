@@ -11,11 +11,9 @@ import {
   Sparkles,
   Timer,
   Trash2,
-  Undo2,
   WifiOff,
   NotebookPen,
   Download,
-  Headphones,
   ListTree,
   Subtitles,
 } from 'lucide-react'
@@ -45,6 +43,7 @@ import {
   ensureSections,
   flattenSectionBodies,
   joinSections,
+  sectionDurationSeconds,
   sectionIndexForElapsed,
   totalMinutes,
 } from '../lib/discourseStructure'
@@ -55,7 +54,7 @@ import {
   getDiscourseRecordingBlob,
   listDiscourseRecordings,
   mediaRecorderSupported,
-  updateDiscourseRecordingTranscript,
+  updateDiscourseRecording,
   type DiscourseRecordingMeta,
 } from '../lib/discourseRecordings'
 import { transcribeDiscourseAudio } from '../lib/discourseTranscribe'
@@ -67,10 +66,6 @@ import {
 import { uid } from '../lib/id'
 import type { DiscourseSection, DiscourseSectionKind } from '../types'
 import { useAppStore } from '../store/useAppStore'
-
-function endsSentence(text: string) {
-  return /[.!?…]["»']?\s*$/.test(text.trim())
-}
 
 export function DiscorsoView() {
   const language = useAppStore((s) => s.settings.language)
@@ -95,14 +90,13 @@ export function DiscorsoView() {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [listening, setListening] = useState(false)
+  const [captureSectionId, setCaptureSectionId] = useState<string | null>(null)
+  const [captureSaving, setCaptureSaving] = useState(false)
   const [partial, setPartial] = useState('')
   const [micError, setMicError] = useState('')
   const [micLevel, setMicLevel] = useState(0)
   const [polishBusy, setPolishBusy] = useState(false)
   const [polishHint, setPolishHint] = useState('')
-  const [autoPolish, setAutoPolish] = useState(true)
-  const [undoBody, setUndoBody] = useState<string | null>(null)
-  const [undoSectionId, setUndoSectionId] = useState<string | null>(null)
   const [online, setOnline] = useState(
     typeof navigator === 'undefined' ? true : navigator.onLine,
   )
@@ -124,11 +118,11 @@ export function DiscorsoView() {
   const capture = useRef(createDiscourseCapture(language === 'E' ? 'en-US' : 'it-IT'))
   const editorRefs = useRef<Record<string, HTMLTextAreaElement | null>>({})
   const scriptureAssistRef = useRef<ScriptureAssistHandle | null>(null)
-  const polishTimer = useRef<number | null>(null)
-  const skipNextPolish = useRef(false)
   const practiceStarted = useRef<number | null>(null)
   const sectionsRef = useRef(sections)
   const activeSectionIdRef = useRef(activeSectionId)
+  const visibleNoteId = useRef(note?.id)
+  visibleNoteId.current = note?.id
   const playUrlRef = useRef<string | null>(null)
   sectionsRef.current = sections
   activeSectionIdRef.current = activeSectionId
@@ -136,7 +130,7 @@ export function DiscorsoView() {
   const micOk = speechDictationSupported()
   const canRecord = mediaRecorderSupported()
   const supportNote = speechDictationSupportNote()
-  const captureOk = micOk || canRecord
+  const captureOk = canRecord
 
   const bodyJoined = useMemo(
     () =>
@@ -193,15 +187,11 @@ export function DiscorsoView() {
     const secs = ensureSections(note)
     setSections(secs)
     setActiveSectionId(secs[0]?.id || null)
-    skipNextPolish.current = true
-    setUndoBody(null)
-    setUndoSectionId(null)
   }, [note?.id])
 
   useEffect(() => {
     return () => {
       capture.current.stop()
-      if (polishTimer.current) window.clearTimeout(polishTimer.current)
       if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current)
     }
   }, [])
@@ -211,7 +201,19 @@ export function DiscorsoView() {
       setRecordings([])
       return
     }
-    void listDiscourseRecordings(note.id).then(setRecordings)
+    let active = true
+    setRecordings([])
+    if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current)
+    playUrlRef.current = null
+    setPlayId(null)
+    setPlayUrl(null)
+    void listDiscourseRecordings(note.id).then((items) => {
+      if (active) setRecordings((current) => [
+        ...current,
+        ...items.filter((item) => !current.some((saved) => saved.id === item.id)),
+      ])
+    })
+    return () => { active = false }
   }, [note?.id])
 
   useEffect(() => {
@@ -228,110 +230,88 @@ export function DiscorsoView() {
 
   function persistSections(next: DiscourseSection[]) {
     if (!note) return
+    sectionsRef.current = next
     setSections(next)
     updateNote(note.id, { sections: next })
   }
 
-  function patchSection(id: string, patch: Partial<DiscourseSection>, opts?: { polish?: boolean }) {
-    const next = sections.map((s) => (s.id === id ? { ...s, ...patch } : s))
-    persistSections(next)
-    if (opts?.polish !== false && patch.body !== undefined) scheduleAutoPolish(next)
+  function patchSavedSection(noteId: string, id: string, patch: Partial<DiscourseSection>) {
+    const latest = visibleNoteId.current === noteId
+      ? sectionsRef.current
+      : useAppStore.getState().discourseNotes.find((item) => item.id === noteId)?.sections
+    if (!latest?.some((section) => section.id === id)) return
+    const next = latest.map((section) => section.id === id ? { ...section, ...patch } : section)
+    if (visibleNoteId.current === noteId) {
+      sectionsRef.current = next
+      setSections(next)
+    }
+    updateNote(noteId, { sections: next })
   }
 
-  function scheduleAutoPolish(secs: DiscourseSection[]) {
-    if (!autoPolish) return
-    if (skipNextPolish.current) {
-      skipNextPolish.current = false
-      return
-    }
-    const text = secs.map((s) => s.body).join('\n\n')
-    if (!endsSentence(text) && text.length > 0) {
-      // Solo a fine frase o dopo pausa lunga
-      if (polishTimer.current) window.clearTimeout(polishTimer.current)
-      polishTimer.current = window.setTimeout(() => {
-        if (endsSentence(text)) void runPolish(secs, true)
-      }, 4500)
-      return
-    }
-    if (polishTimer.current) window.clearTimeout(polishTimer.current)
-    polishTimer.current = window.setTimeout(() => {
-      void runPolish(secs, true)
-    }, 2800)
+  function patchSection(id: string, patch: Partial<DiscourseSection>) {
+    if (note) patchSavedSection(note.id, id, patch)
   }
 
-  async function runPolish(secs = sections, silent = false) {
-    const focusId = activeSectionId || secs[0]?.id
-    const focus = secs.find((s) => s.id === focusId) || secs[0]
-    if (!focus?.body.trim() || polishBusy) return
-    setPolishBusy(true)
-    if (!silent) setPolishHint('')
-    try {
-      const before = focus.body
-      const result = await polishDiscourseText(before, { forceLocal: !online })
-      if (result.text && result.text !== before) {
-        setUndoBody(before)
-        setUndoSectionId(focus.id)
-        skipNextPolish.current = true
-        const next = secs.map((s) =>
-          s.id === focus.id ? { ...s, body: result.text } : s,
-        )
-        persistSections(next)
-        setPolishHint(
-          result.source === 'ai'
-            ? 'Sintassi sistemata con AI. Puoi annullare.'
-            : online
-              ? 'Correzione locale. Puoi annullare.'
-              : 'Offline: correzione locale. Puoi annullare.',
-        )
-      } else if (!silent) {
-        setPolishHint('Nessuna modifica necessaria.')
+  async function runPolish() {
+    if (!note || polishBusy) return
+    const noteId = note.id
+    const latest = new Map<string, DiscourseRecordingMeta>()
+    for (const recording of recordings) {
+      if (recording.sectionId && !latest.has(recording.sectionId)) {
+        latest.set(recording.sectionId, recording)
       }
-    } catch (e) {
-      setPolishHint(e instanceof Error ? e.message : 'Correzione non riuscita')
+    }
+    const candidates = sections.filter((section) => section.body.trim() || latest.has(section.id))
+    if (!candidates.length) {
+      setPolishHint('Scrivi o registra almeno un blocco.')
+      return
+    }
+    setPolishBusy(true)
+    setPolishHint('')
+    let failed = 0
+    try {
+      for (const section of candidates) {
+        const recording = latest.get(section.id)
+        try {
+          const input = recording
+            ? recording.transcript || await readRecordingTranscript(recording.id)
+            : section.body
+          const result = await polishDiscourseText(input, { forceLocal: !online })
+          patchSavedSection(noteId, section.id, {
+            revision: { ...result, recordingId: recording?.id },
+          })
+        } catch {
+          failed++
+        }
+      }
+      setPolishHint(failed
+        ? `${failed} blocchi da riprovare. Controlla la connessione e la disponibilità della trascrizione AI.`
+        : 'Revisioni pronte nei riquadri dei blocchi.')
     } finally {
       setPolishBusy(false)
     }
   }
 
-  function undoPolish() {
-    if (!undoBody || !undoSectionId) return
-    skipNextPolish.current = true
-    const current = sectionsRef.current
-    const next = current.map((s) =>
-      s.id === undoSectionId ? { ...s, body: undoBody } : s,
-    )
-    persistSections(next)
-    setUndoBody(null)
-    setUndoSectionId(null)
-    setPolishHint('Correzione annullata.')
-  }
-
-  function appendDictation(chunk: string) {
-    const currentSections = sectionsRef.current
-    const sid = activeSectionIdRef.current || currentSections[0]?.id
-    if (!sid) return
-    const current = currentSections.find((s) => s.id === sid)?.body || ''
+  function appendDictation(noteId: string, sid: string, chunk: string) {
+    const current = sectionsRef.current.find((section) => section.id === sid)?.body || ''
+    if (visibleNoteId.current !== noteId) return
     const next = appendDictatedChunk(current, chunk)
     if (next === current) return
-    const updated = currentSections.map((s) => (s.id === sid ? { ...s, body: next } : s))
-    persistSections(updated)
+    patchSavedSection(noteId, sid, { body: next })
     requestAnimationFrame(() => {
       const ta = editorRefs.current[sid]
       if (ta) {
-        ta.focus()
-        const pos = next.length
-        ta.setSelectionRange(pos, pos)
         // Mantieni visibile la fine del testo mentre detta
         ta.scrollTop = ta.scrollHeight
       }
     })
-    if (endsSentence(next)) scheduleAutoPolish(updated)
   }
 
-  function toggleMic() {
+  function toggleMic(sectionId: string) {
     setMicError('')
     setRecHint('')
     if (listening) {
+      setCaptureSaving(true)
       capture.current.stop()
       setListening(false)
       setPartial('')
@@ -349,16 +329,20 @@ export function DiscorsoView() {
       )
       return
     }
-    // Assicura una sezione attiva dove inserire automaticamente
-    if (!activeSectionIdRef.current && sectionsRef.current[0]?.id) {
-      setActiveSectionId(sectionsRef.current[0].id)
-      activeSectionIdRef.current = sectionsRef.current[0].id
-    }
+    const section = sectionsRef.current.find((item) => item.id === sectionId)
+    if (!section || captureSaving) return
+    const noteId = note.id
+    setCaptureSectionId(section.id)
+    setActiveSectionId(section.id)
     capture.current = createDiscourseCapture(language === 'E' ? 'en-US' : 'it-IT')
-    void capture.current.start(note.id, {
+    void capture.current.start({
+      discourseId: noteId,
+      sectionId,
+      title: section.title.trim() || titleDraft.trim() || undefined,
+    }, {
       onPartial: (t) => setPartial(t),
       onFinal: (t) => {
-        appendDictation(t)
+        appendDictation(noteId, sectionId, t)
         setPartial('')
       },
       onLevel: setMicLevel,
@@ -370,15 +354,19 @@ export function DiscorsoView() {
       },
       onWarning: (msg) => setRecHint(msg),
       onEnd: () => {
+        setCaptureSaving(false)
+        setCaptureSectionId(null)
         setListening(false)
         setPartial('')
         setMicLevel(0)
       },
+      onDuration: (durationMs) => patchSavedSection(noteId, sectionId, { recordedDurationMs: durationMs }),
       onRecordingSaved: (meta) => {
+        if (visibleNoteId.current !== noteId) return
         setRecordings((prev) => [meta, ...prev.filter((r) => r.id !== meta.id)])
         setRecHint(
           online
-            ? 'Registrazione salvata: puoi riascoltarla sotto.'
+            ? 'Registrazione salvata nel blocco.'
             : 'Registrazione offline salvata su questo dispositivo. Riascoltala quando vuoi; la trascrizione automatica richiede rete.',
         )
       },
@@ -393,6 +381,7 @@ export function DiscorsoView() {
   }
 
   async function playRecording(id: string) {
+    const noteId = visibleNoteId.current
     if (playUrlRef.current) {
       URL.revokeObjectURL(playUrlRef.current)
       playUrlRef.current = null
@@ -403,6 +392,7 @@ export function DiscorsoView() {
       return
     }
     const blob = await getDiscourseRecordingBlob(id)
+    if (visibleNoteId.current !== noteId) return
     if (!blob) {
       setRecHint('Registrazione non trovata su questo dispositivo.')
       return
@@ -428,11 +418,13 @@ export function DiscorsoView() {
     const blob = await getDiscourseRecordingBlob(id)
     if (!blob) return
     const meta = recordings.find((r) => r.id === id)
-    const ext = (meta?.mimeType || blob.type || '').includes('mp4') ? 'm4a' : 'webm'
+    const mime = meta?.mimeType || blob.type
+    const ext = mime.includes('mp4') ? 'm4a' : mime.includes('ogg') ? 'ogg' : 'webm'
     const a = document.createElement('a')
     const url = URL.createObjectURL(blob)
     a.href = url
-    a.download = `discorso-${(meta?.createdAt || id).slice(0, 19).replace(/[:T]/g, '-')}.${ext}`
+    const name = meta?.title?.replace(/[\\/:*?"<>|]/g, '-').trim() || `discorso-${(meta?.createdAt || id).slice(0, 19).replace(/[:T]/g, '-')}`
+    a.download = `${name}.${ext}`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -450,6 +442,7 @@ export function DiscorsoView() {
   }
 
   async function runStructureAnalyze() {
+    const startingSections = sectionsRef.current
     const full = flattenSectionBodies(sections) || joinSections(sections)
     if (!full.trim()) {
       setPolishHint('Scrivi o detta qualcosa prima di analizzare la struttura.')
@@ -462,7 +455,10 @@ export function DiscorsoView() {
       const { sections: next, source } = await structureDiscourseWithAi(full, {
         forceLocal: !online,
       })
-      skipNextPolish.current = true
+        if (visibleNoteId.current !== note?.id || sectionsRef.current !== startingSections) {
+        setPolishHint('La bozza è cambiata. Avvia di nuovo l’analisi.')
+        return
+      }
       persistSections(next)
       setActiveSectionId(next[0]?.id || null)
       setPolishHint(
@@ -479,34 +475,80 @@ export function DiscorsoView() {
     }
   }
 
+  async function readRecordingTranscript(id: string) {
+    const blob = await getDiscourseRecordingBlob(id)
+    if (!blob) throw new Error('Registrazione non trovata su questo dispositivo.')
+    const { text } = await transcribeDiscourseAudio(blob, { language })
+    const saved = await updateDiscourseRecording(id, { transcript: text })
+    if (saved) setRecordings((current) => current.map((item) => item.id === id ? saved : item))
+    return text
+  }
+
   async function transcribeRecording(id: string) {
     if (transcribeBusyId) return
     setTranscribeBusyId(id)
     setRecHint('Trascrivo la registrazione…')
     try {
-      const blob = await getDiscourseRecordingBlob(id)
-      if (!blob) throw new Error('Registrazione non trovata su questo dispositivo.')
-      const { text } = await transcribeDiscourseAudio(blob, { language })
-      const meta = await updateDiscourseRecordingTranscript(id, text)
-      if (meta) {
-        setRecordings((prev) => prev.map((r) => (r.id === id ? { ...r, ...meta } : r)))
-      }
-      // Inserisce nel blocco attivo senza cancellare il testo già scritto
-      const currentSections = sectionsRef.current
-      const sid = activeSectionIdRef.current || currentSections[0]?.id
-      if (sid) {
-        const current = currentSections.find((s) => s.id === sid)?.body || ''
-        const nextBody = appendDictatedChunk(current, text)
-        persistSections(
-          currentSections.map((s) => (s.id === sid ? { ...s, body: nextBody } : s)),
-        )
-      }
-      setRecHint('Trascrizione inserita nella bozza. Puoi rivederla sotto la registrazione.')
+      await readRecordingTranscript(id)
+      setRecHint('Trascrizione salvata nel riquadro della registrazione.')
     } catch (e) {
       setRecHint(e instanceof Error ? e.message : 'Trascrizione non riuscita')
     } finally {
       setTranscribeBusyId(null)
     }
+  }
+
+  async function linkRecording(id: string, sectionId: string) {
+    try {
+      const saved = await updateDiscourseRecording(id, { sectionId })
+      if (!saved) return
+      setRecordings((current) => current.map((item) => item.id === id ? saved : item))
+      if (saved.durationMs != null) {
+        patchSavedSection(saved.discourseId, sectionId, { recordedDurationMs: saved.durationMs })
+      }
+    } catch {
+      setRecHint('Impossibile collegare la registrazione al blocco.')
+    }
+  }
+
+  function renderRecording(recording: DiscourseRecordingMeta, unlinked: boolean) {
+    return (
+      <div className="stack list-item" key={recording.id}>
+        <strong>{recording.title || new Date(recording.createdAt).toLocaleString('it-IT')}</strong>
+        <small>{formatRecordingDuration(recording.durationMs)}</small>
+        {unlinked && (
+          <select aria-label="Collega registrazione a un blocco" value=""
+            onChange={(event) => void linkRecording(recording.id, event.target.value)}>
+            <option value="" disabled>Collega a un blocco…</option>
+            {sections.map((section, index) => (
+              <option key={section.id} value={section.id}>{section.title.trim() || `Blocco ${index + 1}`}</option>
+            ))}
+          </select>
+        )}
+        <div className="row discourse-recording-actions">
+          <button className="btn secondary small" type="button" onClick={() => void playRecording(recording.id)}>
+            <Play size={14} /> {playId === recording.id ? 'Chiudi' : 'Ascolta'}
+          </button>
+          <button className="btn secondary small" type="button"
+            disabled={!online || !!transcribeBusyId || polishBusy}
+            onClick={() => void transcribeRecording(recording.id)}>
+            <Subtitles size={14} />
+            {transcribeBusyId === recording.id ? 'Trascrivo…' : recording.transcript ? 'Ritrascrivi' : 'Trascrivi'}
+          </button>
+          <button className="btn secondary small" type="button" aria-label="Scarica registrazione"
+            onClick={() => void downloadRecording(recording.id)}>
+            <Download size={14} />
+          </button>
+          <button className="btn secondary small" type="button" aria-label="Elimina registrazione"
+            disabled={polishBusy || transcribeBusyId === recording.id}
+            onClick={() => void removeRecording(recording.id)}>
+            <Trash2 size={14} />
+          </button>
+        </div>
+        {playId === recording.id && playUrl && <audio src={playUrl} controls autoPlay />}
+        {recording.transcript && <p>{recording.transcript}</p>}
+      </div>
+    )
   }
 
   function removeSection(id: string) {
@@ -524,7 +566,7 @@ export function DiscorsoView() {
 
   function fromMinistry(id: string) {
     const m = ministryNotes.find((x) => x.id === id)
-    if (!m) return
+    if (!m || captureSectionId) return
     addNote(m.title || 'Discorso da Ministero', {
       body: m.content,
       sourceMinistryNoteId: m.id,
@@ -651,7 +693,7 @@ export function DiscorsoView() {
               <p className="section-kicker">Discorso</p>
               <h2>Bozza libera, dettatura e scritture</h2>
             </div>
-            <button className="btn accent" type="button" onClick={createNew}>
+            <button className="btn accent" type="button" onClick={createNew} disabled={captureSectionId != null}>
               <Plus size={16} /> Nuovo
             </button>
           </div>
@@ -668,7 +710,7 @@ export function DiscorsoView() {
             <div className="empty">
               Nessun discorso ancora.
               <div style={{ marginTop: '0.75rem' }}>
-                <button className="btn" type="button" onClick={createNew}>
+                <button className="btn" type="button" onClick={createNew} disabled={captureSectionId != null}>
                   <Plus size={16} /> Crea il primo
                 </button>
               </div>
@@ -689,23 +731,16 @@ export function DiscorsoView() {
               </div>
 
               <div className="row discourse-meta-row">
-                <strong>Durata stimata: {totalMinutes(sections)} min</strong>
+                <strong>Durata totale · {formatTime(sections.reduce((sum, section) => sum + sectionDurationSeconds(section), 0))}</strong>
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                  <label className="row discourse-auto-label">
-                    <input
-                      type="checkbox"
-                      checked={autoPolish}
-                      onChange={(e) => setAutoPolish(e.target.checked)}
-                    />
-                    Auto-sintassi
-                  </label>
                   <button className="btn secondary small" type="button" onClick={() => addSection('libera')}>
                     <Plus size={14} /> Blocco
                   </button>
                   <button
                     className="btn secondary small"
                     type="button"
-                    disabled={structureBusy || polishBusy}
+                    disabled={structureBusy || polishBusy || listening || captureSaving || recordings.some((item) => item.sectionId) || sections.some((section) => section.recordedDurationMs != null || section.revision)}
+                    title="Disponibile prima di registrare o revisionare i blocchi"
                     onClick={() => void runStructureAnalyze()}
                   >
                     <ListTree size={14} />{' '}
@@ -768,7 +803,9 @@ export function DiscorsoView() {
                         }
                         style={{ flex: 1, minWidth: 120 }}
                       />
-                      <label className="row" style={{ gap: 4 }}>
+                      {s.recordedDurationMs != null ? (
+                        <span><Timer size={14} /> {formatRecordingDuration(s.recordedDurationMs)}</span>
+                      ) : <label className="row" style={{ gap: 4 }}>
                         <span className="muted">min</span>
                         <input
                           type="number"
@@ -780,37 +817,75 @@ export function DiscorsoView() {
                           }
                           style={{ width: 64 }}
                         />
-                      </label>
+                      </label>}
                     </div>
                     <button
                       className="btn secondary small"
                       type="button"
-                      disabled={sections.length <= 1}
+                      disabled={sections.length <= 1 || captureSectionId === s.id}
                       onClick={() => removeSection(s.id)}
                     >
                       <Trash2 size={14} />
                     </button>
                   </div>
-                  <textarea
-                    ref={(el) => {
-                      editorRefs.current[s.id] = el
-                    }}
-                    className="discourse-editor"
-                    value={s.body}
-                    rows={idx === 0 ? 8 : 6}
-                    placeholder={
-                      s.kind === 'libera'
-                        ? 'Scrivi o detta liberamente… poi «Analizza struttura AI» per intro / punti / conclusione.'
-                        : s.kind === 'introduzione'
-                          ? 'Apri con una domanda o una scrittura… es. Pr 14:12'
-                          : 'Scrivi o detta qui…'
-                    }
-                    onFocus={() => setActiveSectionId(s.id)}
-                    onChange={(e) => {
-                      setActiveSectionId(s.id)
-                      patchSection(s.id, { body: e.target.value })
-                    }}
-                  />
+                  <button
+                    className={`btn small ${captureSectionId === s.id && listening ? 'danger' : 'secondary'}`}
+                    type="button"
+                    disabled={!captureOk || captureSaving || structureBusy || (listening && captureSectionId !== s.id)}
+                    onClick={() => toggleMic(s.id)}
+                  >
+                    {listening && captureSectionId === s.id
+                      ? <><MicOff size={16} /> Ferma</>
+                      : <><Mic size={16} /> {captureSaving && captureSectionId === s.id ? 'Salvo…' : 'Detta e registra'}</>}
+                  </button>
+                  {listening && captureSectionId === s.id && (
+                    <>
+                      {partial && <p className="muted discourse-partial">In corso · {partial}</p>}
+                      <div className="mic-level" aria-hidden>
+                        <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
+                      </div>
+                    </>
+                  )}
+                  <div className="discourse-comparison">
+                    <div className="stack">
+                      <strong>Testo originale</strong>
+                      <textarea
+                        ref={(el) => {
+                          editorRefs.current[s.id] = el
+                        }}
+                        className="discourse-editor"
+                        value={s.body}
+                        aria-label="Testo originale"
+                        rows={idx === 0 ? 8 : 6}
+                        placeholder={
+                          s.kind === 'libera'
+                            ? 'Scrivi o detta liberamente… poi «Analizza struttura AI» per intro / punti / conclusione.'
+                            : s.kind === 'introduzione'
+                              ? 'Apri con una domanda o una scrittura… es. Pr 14:12'
+                              : 'Scrivi o detta qui…'
+                        }
+                        onFocus={() => setActiveSectionId(s.id)}
+                        onChange={(e) => {
+                          setActiveSectionId(s.id)
+                          patchSection(s.id, { body: e.target.value })
+                        }}
+                      />
+                    </div>
+                    <div className="stack discourse-comparison-result">
+                      <strong>{s.revision?.source === 'local' ? 'Revisione locale' : 'Versione sistemata con AI'}</strong>
+                      <p>{s.revision?.text || 'Premi «Sistema ora» per confrontare la revisione.'}</p>
+                      {s.revision?.recordingId && <small>{recordings.find((item) => item.id === s.revision?.recordingId)?.title}</small>}
+                    </div>
+                    <div className="stack discourse-comparison-result">
+                      <strong>Trascrizione audio</strong>
+                      {recordings.filter((item) => item.sectionId === s.id).map((item) =>
+                        renderRecording(item, false),
+                      )}
+                      {!recordings.some((item) => item.sectionId === s.id) && (
+                        <p className="muted">Registra in questo blocco per trascrivere l’audio.</p>
+                      )}
+                    </div>
+                  </div>
                   {/\d\s*:\s*\d/.test(s.body) && (
                     <div className="discourse-scripture-preview">
                       <p className="muted" style={{ margin: '0.45rem 0 0.25rem' }}>
@@ -827,45 +902,16 @@ export function DiscorsoView() {
                 </div>
               ))}
 
-              {listening && partial && (
-                <p className="muted discourse-partial">In corso: …{partial}</p>
-              )}
-              {listening && (
-                <div className="mic-level" aria-hidden>
-                  <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
-                </div>
-              )}
-
               <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-                <button
-                  className={`btn ${listening ? 'danger' : 'accent'}`}
-                  type="button"
-                  onClick={toggleMic}
-                >
-                  {listening ? (
-                    <>
-                      <MicOff size={16} /> Ferma
-                    </>
-                  ) : (
-                    <>
-                      <Mic size={16} /> {online ? 'Dettatura + registra' : 'Registra (offline)'}
-                    </>
-                  )}
-                </button>
                 <button
                   className="btn secondary"
                   type="button"
-                  disabled={polishBusy}
+                  disabled={polishBusy || listening || captureSaving || !!transcribeBusyId || structureBusy}
                   onClick={() => void runPolish()}
                 >
                   <Sparkles size={16} />{' '}
                   {polishBusy ? 'Sistemo…' : 'Sistema ora'}
                 </button>
-                {undoBody && (
-                  <button className="btn secondary" type="button" onClick={undoPolish}>
-                    <Undo2 size={16} /> Annulla correzione
-                  </button>
-                )}
                 <button className="btn secondary" type="button" onClick={saveToQuaderno}>
                   <NotebookPen size={16} /> Quaderno
                 </button>
@@ -898,6 +944,7 @@ export function DiscorsoView() {
                   className="btn danger"
                   type="button"
                   onClick={() => {
+                    if (captureSectionId) return
                     if (window.confirm(`Eliminare «${note.title || 'discorso'}»?`)) {
                       removeNote(note.id)
                     }
@@ -925,98 +972,12 @@ export function DiscorsoView() {
                 </p>
               )}
 
-              {recordings.length > 0 && (
-                <div className="stack" style={{ marginTop: '0.75rem' }}>
-                  <h3 className="row" style={{ gap: 8, margin: 0 }}>
-                    <Headphones size={16} /> Registrazioni salvate
-                  </h3>
-                  <p className="muted" style={{ margin: 0 }}>
-                    Riascolta, scarica o trascrivi (serve rete + Gemini). Restano solo su questo
-                    dispositivo.
-                  </p>
-                  {playUrl && (
-                    <audio
-                      key={playId || playUrl}
-                      src={playUrl}
-                      controls
-                      autoPlay
-                      style={{ width: '100%' }}
-                      onEnded={() => {
-                        if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current)
-                        playUrlRef.current = null
-                        setPlayUrl(null)
-                        setPlayId(null)
-                      }}
-                    />
+              {recordings.some((item) => !sections.some((section) => section.id === item.sectionId)) && (
+                <div className="stack">
+                  <h3>Registrazioni da collegare</h3>
+                  {recordings.filter((item) => !sections.some((section) => section.id === item.sectionId)).map((item) =>
+                    renderRecording(item, true),
                   )}
-                  <div className="list">
-                    {recordings.map((r) => (
-                      <div className="list-item" key={r.id}>
-                        <strong>
-                          {new Date(r.createdAt).toLocaleString('it-IT', {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          })}
-                        </strong>
-                        <p className="muted" style={{ margin: '0.2rem 0' }}>
-                          {formatRecordingDuration(r.durationMs)}
-                          {r.byteLength ? ` · ${Math.round(r.byteLength / 1024)} KB` : ''}
-                        </p>
-                        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-                          <button
-                            className="btn secondary small"
-                            type="button"
-                            onClick={() => void playRecording(r.id)}
-                          >
-                            {playId === r.id ? (
-                              <>
-                                <Pause size={14} /> Chiudi
-                              </>
-                            ) : (
-                              <>
-                                <Play size={14} /> Ascolta
-                              </>
-                            )}
-                          </button>
-                          <button
-                            className="btn secondary small"
-                            type="button"
-                            disabled={!online || transcribeBusyId === r.id}
-                            onClick={() => void transcribeRecording(r.id)}
-                          >
-                            <Subtitles size={14} />{' '}
-                            {transcribeBusyId === r.id
-                              ? 'Trascrivo…'
-                              : r.transcript
-                                ? 'Ritrascrivi'
-                                : 'Trascrivi'}
-                          </button>
-                          <button
-                            className="btn secondary small"
-                            type="button"
-                            onClick={() => void downloadRecording(r.id)}
-                          >
-                            <Download size={14} /> Scarica
-                          </button>
-                          <button
-                            className="btn secondary small"
-                            type="button"
-                            onClick={() => void removeRecording(r.id)}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                        {r.transcript && (
-                          <details style={{ marginTop: '0.45rem' }}>
-                            <summary className="muted">Trascrizione salvata</summary>
-                            <p style={{ whiteSpace: 'pre-wrap', margin: '0.35rem 0 0' }}>
-                              {r.transcript}
-                            </p>
-                          </details>
-                        )}
-                      </div>
-                    ))}
-                  </div>
                 </div>
               )}
             </div>
@@ -1045,12 +1006,12 @@ export function DiscorsoView() {
                   key={n.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => setActive(n.id)}
-                  onKeyDown={(e) => e.key === 'Enter' && setActive(n.id)}
+                  onClick={() => { if (!captureSectionId) setActive(n.id) }}
+                  onKeyDown={(e) => e.key === 'Enter' && !captureSectionId && setActive(n.id)}
                 >
                   <strong>{n.title || 'Senza titolo'}</strong>
                   <p className="muted" style={{ margin: '0.25rem 0 0' }}>
-                    {(n.estimatedMinutes || totalMinutes(ensureSections(n)))} min ·{' '}
+                    {formatTime(Math.round((n.estimatedMinutes ?? totalMinutes(ensureSections(n))) * 60))} ·{' '}
                     {(() => {
                       const preview = ensureSections(n)
                         .map((s) => s.body.trim())
@@ -1077,7 +1038,6 @@ export function DiscorsoView() {
                 if (!sid) return
                 const cur = sectionsRef.current.find((s) => s.id === sid)?.body || ''
                 const next = cur.trim() ? `${cur.trim()}\n\n${snippet}\n` : `${snippet}\n`
-                skipNextPolish.current = true
                 patchSection(sid, { body: next })
               }}
             />

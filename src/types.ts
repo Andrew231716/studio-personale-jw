@@ -243,6 +243,8 @@ export interface DiscourseSection {
   body: string
   /** Minuti stimati per questa sezione. */
   minutes: number
+  recordedDurationMs?: number
+  revision?: { text: string; source: 'ai' | 'local'; recordingId?: string }
 }
 
 /** Bozza appunti per un discorso pubblico. */
