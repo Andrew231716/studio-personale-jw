@@ -19,6 +19,7 @@ import {
 } from '../lib/bibleText'
 import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS, probeAiEngine, supportedGeminiModel } from '../lib/ai'
 import { parseKeysText } from '../lib/aiKeys'
+import { estimateTranscribeCapacity } from '../lib/transcribeCapacity'
 import { NARRATION_VOICES } from '../lib/speechNarration'
 import type {
   AiProviderPref,
@@ -403,9 +404,34 @@ export function ImpostazioniView() {
                 onChange={(e) => patchAi({ openRouterApiKeys: parseKeysText(e.target.value) })}
               />
             </div>
-            <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Catena testo: Gemini → Groq → OpenRouter → motore free. Trascrizione: Gemini → Groq
-              Whisper. Chiavi:{' '}
+            {(() => {
+              const cap = estimateTranscribeCapacity(settings.ai)
+              return (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <p className="muted" style={{ margin: '0 0 0.35rem' }}>
+                    Obiettivo trascrizione: <strong>{cap.target} min</strong>/giorno · stima attuale{' '}
+                    <strong>~{cap.minutes} min</strong>
+                    {cap.geminiKeys || cap.groqKeys
+                      ? ` (Gemini ×${cap.geminiKeys}, Groq ×${cap.groqKeys})`
+                      : ''}
+                  </p>
+                  <div
+                    className="bible-download-bar"
+                    aria-label={`Capacità trascrizione ${Math.round(cap.ratio * 100)}%`}
+                    style={{ maxWidth: 420 }}
+                  >
+                    <span style={{ width: `${Math.round(cap.ratio * 100)}%` }} />
+                  </div>
+                  <p className="muted" style={{ margin: '0.45rem 0 0' }}>
+                    {cap.tip}
+                  </p>
+                </div>
+              )
+            })()}
+            <p className="muted" style={{ margin: '0.65rem 0 0' }}>
+              Catena testo: Gemini → Groq → OpenRouter → free. Trascrizione lunga (fino a{' '}
+              {estimateTranscribeCapacity(settings.ai).target} min): Groq Whisper → Gemini, con
+              ripresa automatica. Chiavi:{' '}
               <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
                 Gemini
               </a>
@@ -417,7 +443,7 @@ export function ImpostazioniView() {
               <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
                 OpenRouter
               </a>
-              . Ogni servizio free ha comunque una quota propria.
+              .
             </p>
             <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
               <button

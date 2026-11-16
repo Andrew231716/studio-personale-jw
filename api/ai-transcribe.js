@@ -182,6 +182,7 @@ export default async function handler(req, res) {
 
     const model = String(body.model || DEFAULT_MODEL).trim() || DEFAULT_MODEL
     const provider = resolveProvider(req, body)
+    const longForm = body.longForm === true
     const attempts = []
     const pushGemini = () => {
       for (const apiKey of geminiKeys) {
@@ -197,7 +198,8 @@ export default async function handler(req, res) {
         )
       }
     }
-    if (provider === 'groq') {
+    // File lunghi: Whisper Groq prima (più adatto ai minuti); altrimenti Gemini → Groq
+    if (provider === 'groq' || longForm) {
       pushGroq()
       pushGemini()
     } else {
