@@ -1,16 +1,19 @@
 /**
- * Trascrizione audio → testo via Gemini (multimodal).
- * Prova più chiavi in rotazione su 429.
- * Body: { audioBase64, mimeType?, language?, geminiApiKeys? }
+ * Trascrizione audio: Gemini (multimodal) → Groq Whisper.
+ * Body: { audioBase64, mimeType?, language?, geminiApiKeys?, groqApiKeys? }
  */
-import { resolveGeminiKeys, resolveProvider } from './llmChat.js'
+import {
+  resolveGeminiKeys,
+  resolveGroqKeys,
+  resolveProvider,
+} from './llmChat.js'
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const DEFAULT_MODEL = 'gemini-2.5-flash'
 const REQUEST_TIMEOUT = 90_000
 const MAX_BASE64_CHARS = 6_000_000
 
-async function transcribeOnce({ apiKey, model, mimeType, audioBase64, language, offset }) {
+async function transcribeGemini({ apiKey, model, mimeType, audioBase64, language, offset }) {
   const prompt = `Transcribe all audible speech faithfully, without translating or summarizing. Language hint: ${language}.
 Return JSON as {"segments":[{"start":0,"speaker":"1","text":"..."}]}.
 Use seconds relative to this clip, in chronological order. Start a segment at every speaker change and at natural breaks in long turns. Use consistent numeric speaker labels within this clip. Leave segments empty for silence. Never invent speech. Format Bible citations with a colon, e.g. John 3:16.`
@@ -51,7 +54,7 @@ Use seconds relative to this clip, in chronological order. Start a segment at ev
         ? 'Gemini ha rifiutato la chiave. Controllala in Impostazioni.'
         : upstream.status === 429
           ? 'Limite Gemini raggiunto. Riprova più tardi.'
-          : String(data?.error?.message || 'Trascrizione non riuscita. Riprova o usa un file più corto.').slice(0, 280),
+          : String(data?.error?.message || 'Trascrizione Gemini non riuscita.').slice(0, 280),
     }
   }
 
@@ -63,26 +66,84 @@ Use seconds relative to this clip, in chronological order. Start a segment at ev
         .join('')
         .trim()
     : ''
-  let segments
   try {
-    segments = JSON.parse(text).segments.filter(
+    const segments = JSON.parse(text).segments.filter(
       (item) => Number.isFinite(item?.start) && item.start >= 0 && item.start <= 120 && typeof item.text === 'string' && item.text.trim(),
     ).map((item) => ({
       start: item.start,
       speaker: `Relatore ${offset + (Number.isSafeInteger(Number(item.speaker)) && Number(item.speaker) > 0 ? Number(item.speaker) : 1)}`,
       text: item.text.trim(),
     })).sort((a, b) => a.start - b.start)
+    return {
+      ok: true,
+      status: 200,
+      engine: 'gemini',
+      text: segments.map((segment) => segment.text).join('\n'),
+      segments,
+      model,
+    }
   } catch {
     return { ok: false, status: 502, text: 'Il motore ha restituito una trascrizione incompleta. Riprova.' }
   }
+}
 
+async function transcribeGroq({ apiKey, mimeType, audioBase64, language, offset }) {
+  const bytes = Buffer.from(audioBase64, 'base64')
+  const ext = mimeType.includes('wav')
+    ? 'wav'
+    : mimeType.includes('mp4') || mimeType.includes('m4a')
+      ? 'm4a'
+      : mimeType.includes('mpeg') || mimeType.includes('mp3')
+        ? 'mp3'
+        : 'webm'
+  const form = new FormData()
+  form.append('file', new Blob([bytes], { type: mimeType }), `clip.${ext}`)
+  form.append('model', 'whisper-large-v3')
+  form.append('response_format', 'verbose_json')
+  form.append('temperature', '0')
+  if (language && language !== 'automatic') {
+    const map = { Italian: 'it', English: 'en', Spanish: 'es', French: 'fr', German: 'de', Portuguese: 'pt' }
+    if (map[language]) form.append('language', map[language])
+  }
+
+  const upstream = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+  })
+  const data = await upstream.json().catch(() => null)
+  if (!upstream.ok) {
+    return {
+      ok: false,
+      status: upstream.status,
+      text: upstream.status === 429
+        ? 'Limite Groq raggiunto. Riprova più tardi o usa un’altra chiave.'
+        : String(data?.error?.message || 'Trascrizione Groq non riuscita.').slice(0, 280),
+    }
+  }
+
+  const chunks = Array.isArray(data?.segments) ? data.segments : []
+  let segments = chunks
+    .filter((item) => typeof item?.text === 'string' && item.text.trim())
+    .map((item) => ({
+      start: Math.max(0, Number(item.start) || 0),
+      speaker: `Relatore ${offset + 1}`,
+      text: String(item.text).trim(),
+    }))
+  if (!segments.length && typeof data?.text === 'string' && data.text.trim()) {
+    segments = [{ start: 0, speaker: `Relatore ${offset + 1}`, text: data.text.trim() }]
+  }
+  if (!segments.length) {
+    return { ok: false, status: 502, text: 'Nessun testo riconosciuto nell’audio (Groq).' }
+  }
   return {
     ok: true,
     status: 200,
-    engine: 'gemini',
-    text: segments.map((segment) => segment.text).join('\n'),
+    engine: 'groq',
+    text: segments.map((s) => s.text).join('\n'),
     segments,
-    model,
+    model: 'whisper-large-v3',
   }
 }
 
@@ -108,36 +169,52 @@ export default async function handler(req, res) {
       return
     }
 
-    const provider = resolveProvider(req, body)
-    const keys = resolveGeminiKeys(req, body)
-    if (!keys.length) {
+    const geminiKeys = resolveGeminiKeys(req, body)
+    const groqKeys = resolveGroqKeys(req, body)
+    if (!geminiKeys.length && !groqKeys.length) {
       res
         .status(400)
         .send(
-          provider === 'gemini' || provider === 'free'
-            ? 'Per trascrivere le registrazioni inserisci la chiave Gemini in Impostazioni → Motore AI.'
-            : 'Trascrizione audio richiede Gemini. Configuralo in Impostazioni → Motore AI.',
+          'Per trascrivere inserisci almeno una chiave Gemini o Groq in Impostazioni → Motore AI.',
         )
       return
     }
 
     const model = String(body.model || DEFAULT_MODEL).trim() || DEFAULT_MODEL
-    let last = { ok: false, status: 429, text: 'Limite Gemini raggiunto. Aggiungi altre chiavi in Impostazioni o riprova più tardi.' }
-    for (const apiKey of keys) {
-      last = await transcribeOnce({
-        apiKey,
-        model,
-        mimeType,
-        audioBase64,
-        language,
-        offset,
-      })
+    const provider = resolveProvider(req, body)
+    const attempts = []
+    const pushGemini = () => {
+      for (const apiKey of geminiKeys) {
+        attempts.push(() =>
+          transcribeGemini({ apiKey, model, mimeType, audioBase64, language, offset }),
+        )
+      }
+    }
+    const pushGroq = () => {
+      for (const apiKey of groqKeys) {
+        attempts.push(() =>
+          transcribeGroq({ apiKey, mimeType, audioBase64, language, offset }),
+        )
+      }
+    }
+    if (provider === 'groq') {
+      pushGroq()
+      pushGemini()
+    } else {
+      pushGemini()
+      pushGroq()
+    }
+
+    let last = { ok: false, status: 429, text: 'Limite AI raggiunto. Aggiungi altre chiavi o riprova più tardi.' }
+    for (const attempt of attempts) {
+      last = await attempt()
       if (last.ok) {
         res.status(200).json(last)
         return
       }
       if (last.status !== 429 && last.status !== 401 && last.status !== 403) {
-        break
+        // prova comunque il motore successivo su errori temporanei
+        continue
       }
     }
 

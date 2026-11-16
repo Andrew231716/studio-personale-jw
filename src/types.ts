@@ -425,15 +425,15 @@ export interface CloudSyncSettings {
 }
 
 /**
- * Motore AI gratuito:
- * - free: Gemini se c’è chiave AI Studio, altrimenti Pollinations senza chiave
- * - gemini: Google Gemini (richiede chiave free)
+ * Motore AI gratuito (catena automatica):
+ * - free: prova Gemini → Groq → OpenRouter → Pollinations
+ * - gemini: preferisci Gemini, poi gli altri se fallback attivo
  */
 export type AiProviderPref = 'free' | 'gemini'
 
 export type GeminiModelPref = 'gemini-3.1-flash-lite' | 'gemini-2.0-flash' | 'gemini-2.0-flash-lite' | 'gemini-2.5-flash'
 
-/** Impostazioni AI (solo motori gratuiti). */
+/** Impostazioni AI (solo motori con piani free). */
 export interface AiSettings {
   provider?: AiProviderPref
   /** Chiave gratuita Google AI Studio (Gemini). */
@@ -442,6 +442,12 @@ export interface AiSettings {
   geminiApiKeys?: string[]
   /** Modello Gemini. Default: gemini-3.1-flash-lite. */
   geminiModel?: GeminiModelPref
+  /** Chiave Groq free (testo + Whisper trascrizione). */
+  groqApiKey?: string
+  groqApiKeys?: string[]
+  /** Chiave OpenRouter (modelli :free). */
+  openRouterApiKey?: string
+  openRouterApiKeys?: string[]
 }
 
 export type NarrationVoicePref =

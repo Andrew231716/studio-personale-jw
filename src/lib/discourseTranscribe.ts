@@ -103,6 +103,7 @@ async function transcribeClip(
         provider: extras.provider,
         model: 'gemini-2.5-flash',
         geminiApiKeys: extras.geminiKeys,
+        groqApiKeys: extras.groqKeys,
       }),
     })
     if (res.ok) {

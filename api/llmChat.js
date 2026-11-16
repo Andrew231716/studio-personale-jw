@@ -1,5 +1,6 @@
 /**
- * Chat Completions gratuiti: Gemini (chiave free AI Studio) o Pollinations (senza chiave).
+ * Chat Completions free in catena:
+ * Gemini → Groq → OpenRouter (:free) → Pollinations.
  * Token di output limitati per restare nel piano free.
  */
 
@@ -21,8 +22,42 @@ export function resolveProvider(req, body = {}) {
     .trim()
     .toLowerCase()
   if (raw === 'gemini') return 'gemini'
+  if (raw === 'groq') return 'groq'
+  if (raw === 'openrouter') return 'openrouter'
   if (raw === 'pollinations') return 'pollinations'
   return 'free'
+}
+
+function uniqKeys(values) {
+  const out = []
+  const seen = new Set()
+  for (const value of values) {
+    const key = String(value || '').trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(key)
+  }
+  return out
+}
+
+function splitKeys(value) {
+  if (Array.isArray(value)) return value.map((s) => String(s || '').trim()).filter(Boolean)
+  return String(value || '')
+    .split(/[,;\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function resolveKeysFrom(req, body, spec) {
+  const headers = req?.headers || {}
+  return uniqKeys([
+    headers[spec.header] || headers[spec.headerAlt],
+    body[spec.bodyPrimary],
+    ...splitKeys(headers[spec.headerList] || headers[spec.headerListAlt]),
+    ...splitKeys(body[spec.bodyList]),
+    process.env[spec.env],
+    ...splitKeys(process.env[spec.envList]),
+  ])
 }
 
 export function resolveGeminiKey(req, body = {}) {
@@ -31,37 +66,45 @@ export function resolveGeminiKey(req, body = {}) {
 
 /** Tutte le chiavi Gemini disponibili (rotazione su 429). */
 export function resolveGeminiKeys(req, body = {}) {
-  const headers = req?.headers || {}
-  const fromHeader = String(
-    headers['x-gemini-key'] || headers['X-Gemini-Key'] || '',
-  ).trim()
-  const fromHeaderList = String(
-    headers['x-gemini-keys'] || headers['X-Gemini-Keys'] || '',
-  )
-    .split(/[,;\n]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const fromBodyPrimary = String(body.geminiApiKey || body.apiKey || '').trim()
-  const fromBodyList = Array.isArray(body.geminiApiKeys)
-    ? body.geminiApiKeys.map((s) => String(s || '').trim()).filter(Boolean)
-    : String(body.geminiApiKeys || '')
-        .split(/[,;\n]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-  const fromEnv = String(process.env.GEMINI_API_KEY || '').trim()
-  const fromEnvList = String(process.env.GEMINI_API_KEYS || '')
-    .split(/[,;\n]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const all = [fromHeader, fromBodyPrimary, ...fromHeaderList, ...fromBodyList, fromEnv, ...fromEnvList]
-  const out = []
-  const seen = new Set()
-  for (const key of all) {
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    out.push(key)
-  }
-  return out
+  return resolveKeysFrom(req, body, {
+    header: 'x-gemini-key',
+    headerAlt: 'X-Gemini-Key',
+    headerList: 'x-gemini-keys',
+    headerListAlt: 'X-Gemini-Keys',
+    bodyPrimary: 'geminiApiKey',
+    bodyList: 'geminiApiKeys',
+    env: 'GEMINI_API_KEY',
+    envList: 'GEMINI_API_KEYS',
+  }).concat(
+    // compat vecchio campo apiKey solo se sembra Gemini
+    String(body.apiKey || '').startsWith('AIza') ? [String(body.apiKey).trim()] : [],
+  ).filter((key, i, arr) => arr.indexOf(key) === i)
+}
+
+export function resolveGroqKeys(req, body = {}) {
+  return resolveKeysFrom(req, body, {
+    header: 'x-groq-key',
+    headerAlt: 'X-Groq-Key',
+    headerList: 'x-groq-keys',
+    headerListAlt: 'X-Groq-Keys',
+    bodyPrimary: 'groqApiKey',
+    bodyList: 'groqApiKeys',
+    env: 'GROQ_API_KEY',
+    envList: 'GROQ_API_KEYS',
+  })
+}
+
+export function resolveOpenRouterKeys(req, body = {}) {
+  return resolveKeysFrom(req, body, {
+    header: 'x-openrouter-key',
+    headerAlt: 'X-OpenRouter-Key',
+    headerList: 'x-openrouter-keys',
+    headerListAlt: 'X-OpenRouter-Keys',
+    bodyPrimary: 'openRouterApiKey',
+    bodyList: 'openRouterApiKeys',
+    env: 'OPENROUTER_API_KEY',
+    envList: 'OPENROUTER_API_KEYS',
+  })
 }
 
 function extractOpenAiStyleContent(payload) {
@@ -181,10 +224,10 @@ async function chatPollinations({ messages, temperature, maxTokens }) {
     if (upstream.status === 402 || upstream.status === 429) {
       return apiKey
         ? failure(engine, 429, 'Limite del motore AI raggiunto. Riprova più tardi.')
-        : failure(engine, 429, 'Il motore gratuito ha raggiunto il limite condiviso. Riprova fra circa un minuto oppure configura Gemini in Impostazioni → Motore AI.')
+        : failure(engine, 429, 'Il motore gratuito ha raggiunto il limite condiviso. Riprova fra circa un minuto oppure configura altre chiavi in Impostazioni → Motore AI.')
     }
     if (!upstream.ok) {
-      return failure(engine, 502, 'Il motore gratuito non è disponibile. Riprova tra poco oppure configura Gemini in Impostazioni → Motore AI.')
+      return failure(engine, 502, 'Il motore gratuito non è disponibile. Riprova tra poco oppure configura altre chiavi in Impostazioni → Motore AI.')
     }
 
     const raw = (await upstream.text()).trim()
@@ -207,20 +250,95 @@ async function chatPollinations({ messages, temperature, maxTokens }) {
   }
 }
 
+async function chatOpenAiCompatible({
+  engine,
+  url,
+  apiKey,
+  messages,
+  temperature,
+  maxTokens,
+  model,
+  extraHeaders = {},
+}) {
+  try {
+    const upstream = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        ...extraHeaders,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    })
+    const data = await upstream.json().catch(() => null)
+    if (!upstream.ok) {
+      if (upstream.status === 401 || upstream.status === 403) {
+        return failure(engine, upstream.status, `${engine} ha rifiutato la chiave. Controllala in Impostazioni → Motore AI.`)
+      }
+      if (upstream.status === 429) {
+        return failure(engine, 429, `Limite ${engine} raggiunto. Riprova più tardi o usa un’altra chiave.`)
+      }
+      return failure(
+        engine,
+        502,
+        String(data?.error?.message || `${engine} non ha accettato la richiesta.`).slice(0, 220),
+      )
+    }
+    const text = extractOpenAiStyleContent(data)
+    if (!text) {
+      return failure(engine, 502, `${engine} non ha restituito una risposta utilizzabile.`)
+    }
+    return { ok: true, status: 200, engine, text, model }
+  } catch (error) {
+    return connectionFailure(engine, error)
+  }
+}
+
+function chatGroq({ messages, temperature, maxTokens, apiKey }) {
+  return chatOpenAiCompatible({
+    engine: 'groq',
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    apiKey,
+    messages,
+    temperature,
+    maxTokens,
+    model: 'llama-3.1-8b-instant',
+  })
+}
+
+function chatOpenRouter({ messages, temperature, maxTokens, apiKey }) {
+  return chatOpenAiCompatible({
+    engine: 'openrouter',
+    url: 'https://openrouter.ai/api/v1/chat/completions',
+    apiKey,
+    messages,
+    temperature,
+    maxTokens,
+    model: 'meta-llama/llama-3.3-70b-instruct:free',
+    extraHeaders: {
+      'HTTP-Referer': 'https://studio-personale-jw.vercel.app',
+      'X-Title': 'Studio personale JW',
+    },
+  })
+}
+
 function clampOutTokens(n) {
   if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) return DEFAULT_OUT_TOKENS
   return Math.min(Math.floor(n), MAX_OUT_TOKENS)
 }
 
+function isRotatable(result) {
+  return result.status === 429 || result.status === 401 || result.status === 403 || result.status === 502 || result.status === 504
+}
+
 /**
- * @param {{
- *   messages: Array<{ role: string, content: string }>,
- *   temperature?: number,
- *   max_tokens?: number,
- *   model?: string,
- *   geminiApiKey?: string,
- *   provider?: string,
- * }} opts
+ * Catena free: Gemini → Groq → OpenRouter → Pollinations.
  */
 export async function chatCompletion(opts) {
   const messages = Array.isArray(opts.messages) ? opts.messages : []
@@ -235,35 +353,87 @@ export async function chatCompletion(opts) {
   const maxTokens = clampOutTokens(opts.max_tokens)
   const provider = String(opts.provider || 'free').toLowerCase()
   const model = String(opts.model || '').trim()
-  const keys = resolveGeminiKeys({ headers: {} }, {
+  const allowFreeFallback = opts.fallbackFree !== false
+  const emptyReq = { headers: {} }
+
+  const geminiKeys = resolveGeminiKeys(emptyReq, {
     geminiApiKey: opts.geminiApiKey,
     geminiApiKeys: opts.geminiApiKeys,
   })
-  // Compat: se arriva solo geminiApiKey stringa
-  if (!keys.length && String(opts.geminiApiKey || '').trim()) {
-    keys.push(String(opts.geminiApiKey).trim())
-  }
-  const allowFreeFallback = opts.fallbackFree !== false
+  const groqKeys = resolveGroqKeys(emptyReq, {
+    groqApiKey: opts.groqApiKey,
+    groqApiKeys: opts.groqApiKeys,
+  })
+  const openRouterKeys = resolveOpenRouterKeys(emptyReq, {
+    openRouterApiKey: opts.openRouterApiKey,
+    openRouterApiKeys: opts.openRouterApiKeys,
+  })
 
-  if (provider === 'gemini' || (provider === 'free' && keys.length)) {
-    if (!keys.length) {
-      return failure('gemini', 400, 'Inserisci la chiave Gemini in Impostazioni → Motore AI.')
+  const steps = []
+  const pushGemini = () => {
+    for (const apiKey of geminiKeys) {
+      steps.push(() => chatGemini({ messages, temperature, maxTokens, model, apiKey }))
     }
-    let last = failure('gemini', 429, 'Limite Gemini raggiunto. Controlla la quota in Google AI Studio o riprova più tardi.')
-    for (const apiKey of keys) {
-      const result = await chatGemini({ messages, temperature, maxTokens, model, apiKey })
-      if (result.ok) return result
-      last = result
-      // Ruota solo su quota / chiave rifiutata; altri errori si fermano
-      if (result.status !== 429 && result.status !== 401 && result.status !== 403) {
-        break
-      }
-    }
-    if (allowFreeFallback) {
-      const free = await chatPollinations({ messages, temperature, maxTokens })
-      if (free.ok) return free
-    }
-    return last
   }
-  return chatPollinations({ messages, temperature, maxTokens })
+  const pushGroq = () => {
+    for (const apiKey of groqKeys) {
+      steps.push(() => chatGroq({ messages, temperature, maxTokens, apiKey }))
+    }
+  }
+  const pushOpenRouter = () => {
+    for (const apiKey of openRouterKeys) {
+      steps.push(() => chatOpenRouter({ messages, temperature, maxTokens, apiKey }))
+    }
+  }
+  const pushPollinations = () => {
+    if (allowFreeFallback) steps.push(() => chatPollinations({ messages, temperature, maxTokens }))
+  }
+
+  if (provider === 'gemini') {
+    pushGemini()
+    if (allowFreeFallback) {
+      pushGroq()
+      pushOpenRouter()
+      pushPollinations()
+    }
+  } else if (provider === 'groq') {
+    pushGroq()
+    if (allowFreeFallback) {
+      pushGemini()
+      pushOpenRouter()
+      pushPollinations()
+    }
+  } else if (provider === 'openrouter') {
+    pushOpenRouter()
+    if (allowFreeFallback) {
+      pushGemini()
+      pushGroq()
+      pushPollinations()
+    }
+  } else if (provider === 'pollinations') {
+    pushPollinations()
+  } else {
+    // free / auto
+    pushGemini()
+    pushGroq()
+    pushOpenRouter()
+    pushPollinations()
+  }
+
+  if (!steps.length) {
+    return failure(
+      'none',
+      400,
+      'Nessun motore AI configurato. Aggiungi chiavi Gemini/Groq/OpenRouter in Impostazioni → Motore AI.',
+    )
+  }
+
+  let last = failure('none', 502, 'Nessun motore AI ha risposto.')
+  for (const step of steps) {
+    const result = await step()
+    if (result.ok) return result
+    last = result
+    if (!isRotatable(result)) continue
+  }
+  return last
 }

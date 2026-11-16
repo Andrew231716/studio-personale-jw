@@ -8,7 +8,11 @@ import type {
   JwResult,
   StudyTopic,
 } from '../types'
-import { collectGeminiKeys } from './aiKeys'
+import {
+  collectGeminiKeys,
+  collectGroqKeys,
+  collectOpenRouterKeys,
+} from './aiKeys'
 import { uid } from './id'
 import { useAppStore } from '../store/useAppStore'
 
@@ -18,8 +22,8 @@ export const GEMINI_MODEL_OPTIONS: Array<{ id: GeminiModelPref; label: string }>
 ]
 
 export const AI_PROVIDER_OPTIONS: Array<{ id: AiProviderPref; label: string }> = [
-  { id: 'free', label: 'Automatico (senza chiave, limite condiviso)' },
-  { id: 'gemini', label: 'Google Gemini (con chiave free)' },
+  { id: 'free', label: 'Automatico (Gemini → Groq → OpenRouter → free)' },
+  { id: 'gemini', label: 'Preferisci Gemini (poi gli altri)' },
 ]
 
 export function supportedGeminiModel(model?: GeminiModelPref): GeminiModelPref {
@@ -36,11 +40,17 @@ function readAiSettings(): AiSettings {
     geminiApiKey: (cur?.geminiApiKey || legacy?.geminiApiKey || '').trim(),
     geminiApiKeys: cur?.geminiApiKeys,
   })
+  const groqKeys = collectGroqKeys(cur)
+  const openRouterKeys = collectOpenRouterKeys(cur)
   return {
     provider,
     geminiApiKey: keys[0] || '',
     geminiApiKeys: keys.slice(1),
     geminiModel: supportedGeminiModel(cur?.geminiModel || legacy?.geminiModel),
+    groqApiKey: groqKeys[0] || '',
+    groqApiKeys: groqKeys.slice(1),
+    openRouterApiKey: openRouterKeys[0] || '',
+    openRouterApiKeys: openRouterKeys.slice(1),
   }
 }
 
@@ -63,10 +73,14 @@ export function aiRequestExtras(): {
   provider: AiProviderPref
   model: string
   geminiKeys: string[]
+  groqKeys: string[]
+  openRouterKeys: string[]
 } {
   const cfg = readAiSettings()
   const provider = cfg.provider || 'free'
   const geminiKeys = collectGeminiKeys(cfg)
+  const groqKeys = collectGroqKeys(cfg)
+  const openRouterKeys = collectOpenRouterKeys(cfg)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -74,12 +88,18 @@ export function aiRequestExtras(): {
   }
   if (geminiKeys[0]) headers['x-gemini-key'] = geminiKeys[0]
   if (geminiKeys.length > 1) headers['x-gemini-keys'] = geminiKeys.join(',')
+  if (groqKeys[0]) headers['x-groq-key'] = groqKeys[0]
+  if (groqKeys.length > 1) headers['x-groq-keys'] = groqKeys.join(',')
+  if (openRouterKeys[0]) headers['x-openrouter-key'] = openRouterKeys[0]
+  if (openRouterKeys.length > 1) headers['x-openrouter-keys'] = openRouterKeys.join(',')
 
   return {
     headers,
     provider,
     model: supportedGeminiModel(cfg.geminiModel),
     geminiKeys,
+    groqKeys,
+    openRouterKeys,
   }
 }
 
@@ -157,6 +177,8 @@ async function requestAi(
         provider: extras.provider,
         model: extras.model,
         geminiApiKeys: extras.geminiKeys,
+        groqApiKeys: extras.groqKeys,
+        openRouterApiKeys: extras.openRouterKeys,
         temperature: 0.25,
         max_tokens: maxTokens,
         fallbackFree: true,
