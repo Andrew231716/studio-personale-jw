@@ -6,6 +6,8 @@ import { aiRequestExtras } from './ai'
 const MAX_BYTES = 3_500_000
 const CLIP_SECONDS = 90
 const SAMPLE_RATE = 16_000
+const CLIP_GAP_MS = 1800
+const MAX_RETRIES = 5
 
 export interface TranscriptSegment {
   start: number
@@ -18,6 +20,24 @@ export interface TranscriptProgress {
   nextPart: number
   total: number
   segments: TranscriptSegment[]
+}
+
+function sleep(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason || new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      window.clearTimeout(timer)
+      reject(signal?.reason || new DOMException('Aborted', 'AbortError'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 function wavClip(audio: AudioBuffer, start: number, end: number) {
@@ -56,6 +76,10 @@ function blobToBase64(blob: Blob): Promise<string> {
   })
 }
 
+function isQuotaError(message: string, status?: number) {
+  return status === 429 || /limite gemini|quota|rate limit|riprova più tardi/i.test(message)
+}
+
 async function transcribeClip(
   blob: Blob,
   opts: { language?: string; signal?: AbortSignal },
@@ -63,29 +87,49 @@ async function transcribeClip(
 ) {
   const audioBase64 = await blobToBase64(blob)
   const extras = aiRequestExtras()
-  const res = await fetch('/api/ai-transcribe', {
-    method: 'POST',
-    headers: extras.headers,
-    signal: opts?.signal || AbortSignal.timeout(95_000),
-    body: JSON.stringify({
-      audioBase64,
-      mimeType: blob.type || 'audio/webm',
-      language: opts.language || 'auto',
-      speakerOffset,
-      provider: extras.provider,
-      model: 'gemini-2.5-flash',
-    }),
-  })
-  if (!res.ok) {
+  let lastError = 'Trascrizione non riuscita.'
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    opts.signal?.throwIfAborted()
+    const res = await fetch('/api/ai-transcribe', {
+      method: 'POST',
+      headers: extras.headers,
+      signal: opts.signal || AbortSignal.timeout(95_000),
+      body: JSON.stringify({
+        audioBase64,
+        mimeType: blob.type || 'audio/webm',
+        language: opts.language || 'auto',
+        speakerOffset,
+        provider: extras.provider,
+        model: 'gemini-2.5-flash',
+        geminiApiKeys: extras.geminiKeys,
+      }),
+    })
+    if (res.ok) {
+      return (await res.json()) as { text: string; segments: TranscriptSegment[]; engine: string }
+    }
     const detail = (await res.text().catch(() => '')).trim()
-    throw new Error(detail || `Trascrizione non riuscita (HTTP ${res.status}).`)
+    lastError = detail || `Trascrizione non riuscita (HTTP ${res.status}).`
+    if (!isQuotaError(lastError, res.status) || attempt === MAX_RETRIES - 1) {
+      throw new Error(lastError)
+    }
+    // Backoff: 8s, 16s, 32s, 48s…
+    await sleep(Math.min(60_000, 8000 * 2 ** attempt), opts.signal)
   }
-  return await res.json() as { text: string; segments: TranscriptSegment[]; engine: string }
+  throw new Error(lastError)
 }
 
 export async function transcribeDiscourseAudio(
   blob: Blob,
-  opts: { language?: string; signal?: AbortSignal; durationMs?: number; forceDecode?: boolean; onProgress?: (part: number, total: number) => void; resume?: TranscriptProgress; saveProgress?: (progress: TranscriptProgress) => Promise<void> } = {},
+  opts: {
+    language?: string
+    signal?: AbortSignal
+    durationMs?: number
+    forceDecode?: boolean
+    onProgress?: (part: number, total: number) => void
+    resume?: TranscriptProgress
+    saveProgress?: (progress: TranscriptProgress) => Promise<void>
+  } = {},
 ) {
   if (!navigator.onLine) throw new Error('Serve connessione per trascrivere la registrazione.')
   let segments: TranscriptSegment[]
@@ -109,12 +153,18 @@ export async function transcribeDiscourseAudio(
       const start = part * clipSize
       opts.signal?.throwIfAborted()
       opts.onProgress?.(part + 1, total)
+      if (part > (resume?.nextPart ?? 0)) {
+        await sleep(CLIP_GAP_MS, opts.signal)
+      }
       const clip = wavClip(audio, start, Math.min(audio.length, start + clipSize))
       const result = await transcribeClip(clip, opts, speakerOffset)
       for (const segment of result.segments) {
         segments.push({ ...segment, start: start / SAMPLE_RATE + segment.start })
       }
-      speakerOffset = Math.max(speakerOffset, ...result.segments.map((segment) => Number(segment.speaker.split(' ').at(-1)) || 0))
+      speakerOffset = Math.max(
+        speakerOffset,
+        ...result.segments.map((segment) => Number(segment.speaker.split(' ').at(-1)) || 0),
+      )
       await opts.saveProgress?.({ language, nextPart: part + 1, total, segments })
     }
   }

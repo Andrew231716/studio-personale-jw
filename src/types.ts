@@ -438,6 +438,8 @@ export interface AiSettings {
   provider?: AiProviderPref
   /** Chiave gratuita Google AI Studio (Gemini). */
   geminiApiKey?: string
+  /** Chiavi Gemini aggiuntive (rotazione quando una va in limite 429). */
+  geminiApiKeys?: string[]
   /** Modello Gemini. Default: gemini-3.1-flash-lite. */
   geminiModel?: GeminiModelPref
 }

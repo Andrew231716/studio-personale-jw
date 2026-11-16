@@ -1,4 +1,4 @@
-import { chatCompletion, resolveGeminiKey, resolveProvider } from './llmChat.js'
+import { chatCompletion, resolveGeminiKeys, resolveProvider } from './llmChat.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -14,13 +14,16 @@ export default async function handler(req, res) {
     }
 
     const provider = resolveProvider(req, body)
+    const geminiApiKeys = resolveGeminiKeys(req, body)
     const result = await chatCompletion({
       messages,
       temperature: body.temperature,
       max_tokens: body.max_tokens,
       model: body.model,
       provider,
-      geminiApiKey: resolveGeminiKey(req, body),
+      geminiApiKey: geminiApiKeys[0],
+      geminiApiKeys,
+      fallbackFree: body.fallbackFree !== false,
     })
 
     if (!result.ok) {

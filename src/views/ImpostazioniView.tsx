@@ -18,6 +18,7 @@ import {
   getOfflineBibleStats,
 } from '../lib/bibleText'
 import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS, probeAiEngine, supportedGeminiModel } from '../lib/ai'
+import { parseGeminiKeysText } from '../lib/aiKeys'
 import { NARRATION_VOICES } from '../lib/speechNarration'
 import type {
   AiProviderPref,
@@ -294,6 +295,7 @@ export function ImpostazioniView() {
                     ai: {
                       provider: e.target.value as AiProviderPref,
                       geminiApiKey: settings.ai?.geminiApiKey || '',
+                      geminiApiKeys: settings.ai?.geminiApiKeys || [],
                       geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
                     },
                     openAi: undefined,
@@ -321,6 +323,29 @@ export function ImpostazioniView() {
                     ai: {
                       provider: settings.ai?.provider || 'free',
                       geminiApiKey: e.target.value,
+                      geminiApiKeys: settings.ai?.geminiApiKeys || [],
+                      geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
+                    },
+                    openAi: undefined,
+                  })
+                }
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="gemini-keys-extra">Altre chiavi Gemini (rotazione anti-limite)</label>
+              <textarea
+                id="gemini-keys-extra"
+                rows={3}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={'Una chiave per riga (AIza…)\nCrea più progetti free su AI Studio'}
+                value={(settings.ai?.geminiApiKeys || []).join('\n')}
+                onChange={(e) =>
+                  updateSettings({
+                    ai: {
+                      provider: settings.ai?.provider || 'free',
+                      geminiApiKey: settings.ai?.geminiApiKey || '',
+                      geminiApiKeys: parseGeminiKeysText(e.target.value),
                       geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
                     },
                     openAi: undefined,
@@ -338,6 +363,7 @@ export function ImpostazioniView() {
                     ai: {
                       provider: settings.ai?.provider || 'free',
                       geminiApiKey: settings.ai?.geminiApiKey || '',
+                      geminiApiKeys: settings.ai?.geminiApiKeys || [],
                       geminiModel: e.target.value as GeminiModelPref,
                     },
                     openAi: undefined,
@@ -352,12 +378,12 @@ export function ImpostazioniView() {
               </select>
             </div>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Senza chiave l’app usa un motore gratuito con un limite condiviso. Per usare la tua quota
-              Gemini, crea una chiave da{' '}
+              Su limite Gemini l’app ruota le chiavi e, per l’analisi testo, passa al motore gratuito.
+              La trascrizione audio resta su Gemini: più chiavi = più pezzi. Crea chiavi da{' '}
               <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
                 Google AI Studio
-              </a>{' '}
-              e incollala qui. Usa un progetto sul piano gratuito se vuoi evitare addebiti.
+              </a>
+              .
             </p>
             <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
               <button

@@ -108,6 +108,7 @@ const defaultSettings: AppSettings = {
   ai: {
     provider: 'free',
     geminiApiKey: '',
+    geminiApiKeys: [],
     geminiModel: 'gemini-3.1-flash-lite',
   },
 }
@@ -316,8 +317,18 @@ export function mergeAppSettings(
     ai: (() => {
       const fromNew = incoming.ai
       const fromLegacy = incoming.openAi
-      const baseAi = base.ai || { provider: 'free' as const, geminiApiKey: '', geminiModel: 'gemini-3.1-flash-lite' as const }
+      const baseAi = base.ai || {
+        provider: 'free' as const,
+        geminiApiKey: '',
+        geminiApiKeys: [] as string[],
+        geminiModel: 'gemini-3.1-flash-lite' as const,
+      }
       const providerRaw = fromNew?.provider || fromLegacy?.provider || baseAi.provider || 'free'
+      const extraKeys = Array.isArray(fromNew?.geminiApiKeys)
+        ? fromNew.geminiApiKeys.map((k) => String(k || '').trim()).filter(Boolean)
+        : Array.isArray(baseAi.geminiApiKeys)
+          ? baseAi.geminiApiKeys
+          : []
       return {
         provider: (providerRaw === 'gemini' ? 'gemini' : 'free') as 'free' | 'gemini',
         geminiApiKey:
@@ -325,6 +336,7 @@ export function mergeAppSettings(
           (fromLegacy?.geminiApiKey || '').trim() ||
           baseAi.geminiApiKey ||
           '',
+        geminiApiKeys: extraKeys,
         geminiModel:
           fromNew?.geminiModel ||
           fromLegacy?.geminiModel ||
@@ -976,6 +988,11 @@ export const useAppStore = create<AppState>()(
               const cur = current.settings.ai
               const providerRaw =
                 fromNew?.provider || fromLegacy?.provider || cur?.provider || 'free'
+              const extraKeys = Array.isArray(fromNew?.geminiApiKeys)
+                ? fromNew.geminiApiKeys.map((k) => String(k || '').trim()).filter(Boolean)
+                : Array.isArray(cur?.geminiApiKeys)
+                  ? cur.geminiApiKeys
+                  : []
               return {
                 provider: (providerRaw === 'gemini' ? 'gemini' : 'free') as 'free' | 'gemini',
                 geminiApiKey:
@@ -983,6 +1000,7 @@ export const useAppStore = create<AppState>()(
                   (fromLegacy?.geminiApiKey || '').trim() ||
                   cur?.geminiApiKey ||
                   '',
+                geminiApiKeys: extraKeys,
                 geminiModel:
                   fromNew?.geminiModel ||
                   fromLegacy?.geminiModel ||
