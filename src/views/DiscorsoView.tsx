@@ -543,7 +543,14 @@ export function DiscorsoView() {
       saveProgress,
       durationMs: recording?.durationMs,
       forceDecode: Boolean(recording?.fileName),
-      onProgress: (part, total) => setRecHint(`Trascrivo parte ${part} di ${total}…`),
+      onProgress: (part, total, info) =>
+        setRecHint(
+          info
+            ? `Trascrivo ${info.doneMin}/${info.totalMin} min (pezzo ${part}/${total})…`
+            : `Trascrivo parte ${part} di ${total}…`,
+        ),
+      onWait: (seconds) =>
+        setRecHint(`Limite AI: attendo ${seconds}s poi riprendo (progresso salvato)…`),
     })
     const saved = await updateDiscourseRecording(id, {
       transcript: text, segments, summary: undefined, translation: undefined, progress: undefined,
