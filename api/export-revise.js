@@ -3,7 +3,13 @@
  * Non inventa contenuti; corregge solo forma e chiarezza.
  */
 
-import { chatCompletion, resolveGeminiKeys, resolveProvider } from './llmChat.js'
+import {
+  chatCompletion,
+  resolveGeminiKeys,
+  resolveGroqKeys,
+  resolveOpenRouterKeys,
+  resolveProvider,
+} from './llmChat.js'
 
 const MAX_PIECES = 40
 const MAX_CHARS_TOTAL = 14000
@@ -105,6 +111,10 @@ ${payload}`
     provider: opts?.provider || 'free',
     geminiApiKey: opts?.geminiApiKey,
     geminiApiKeys: opts?.geminiApiKeys,
+    groqApiKey: opts?.groqApiKey,
+    groqApiKeys: opts?.groqApiKeys,
+    openRouterApiKey: opts?.openRouterApiKey,
+    openRouterApiKeys: opts?.openRouterApiKeys,
     fallbackFree: true,
   })
 
@@ -138,6 +148,8 @@ export default async function handler(req, res) {
     let revised = local
     const provider = resolveProvider(req, body)
     const geminiApiKeys = resolveGeminiKeys(req, body)
+    const groqApiKeys = resolveGroqKeys(req, body)
+    const openRouterApiKeys = resolveOpenRouterKeys(req, body)
     const model = String(body.model || '').trim() || undefined
 
     try {
@@ -145,6 +157,10 @@ export default async function handler(req, res) {
         provider,
         geminiApiKey: geminiApiKeys[0],
         geminiApiKeys,
+        groqApiKey: groqApiKeys[0],
+        groqApiKeys,
+        openRouterApiKey: openRouterApiKeys[0],
+        openRouterApiKeys,
         model,
       })
       const parsed = parseAiPieces(aiRaw, null)

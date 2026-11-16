@@ -18,10 +18,11 @@ import {
   getOfflineBibleStats,
 } from '../lib/bibleText'
 import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS, probeAiEngine, supportedGeminiModel } from '../lib/ai'
-import { parseGeminiKeysText } from '../lib/aiKeys'
+import { parseKeysText } from '../lib/aiKeys'
 import { NARRATION_VOICES } from '../lib/speechNarration'
 import type {
   AiProviderPref,
+  AiSettings,
   GeminiModelPref,
   NarrationEnginePref,
   NarrationVoicePref,
@@ -84,6 +85,23 @@ export function ImpostazioniView() {
   })
   const fullAbortRef = useRef<AbortController | null>(null)
   const language = settings.language
+
+  function patchAi(partial: Partial<AiSettings>) {
+    updateSettings({
+      ai: {
+        provider: settings.ai?.provider || 'free',
+        geminiApiKey: settings.ai?.geminiApiKey || '',
+        geminiApiKeys: settings.ai?.geminiApiKeys || [],
+        geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
+        groqApiKey: settings.ai?.groqApiKey || '',
+        groqApiKeys: settings.ai?.groqApiKeys || [],
+        openRouterApiKey: settings.ai?.openRouterApiKey || '',
+        openRouterApiKeys: settings.ai?.openRouterApiKeys || [],
+        ...partial,
+      },
+      openAi: undefined,
+    })
+  }
 
   async function refreshBibleStats() {
     const stats = await getOfflineBibleStats(language)
@@ -286,21 +304,11 @@ export function ImpostazioniView() {
               Discorso, Ministero ed esportazioni.
             </p>
             <div className="field">
-              <label htmlFor="ai-provider">Provider</label>
+              <label htmlFor="ai-provider">Provider preferito</label>
               <select
                 id="ai-provider"
                 value={settings.ai?.provider || 'free'}
-                onChange={(e) =>
-                  updateSettings({
-                    ai: {
-                      provider: e.target.value as AiProviderPref,
-                      geminiApiKey: settings.ai?.geminiApiKey || '',
-                      geminiApiKeys: settings.ai?.geminiApiKeys || [],
-                      geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
-                    },
-                    openAi: undefined,
-                  })
-                }
+                onChange={(e) => patchAi({ provider: e.target.value as AiProviderPref })}
               >
                 {AI_PROVIDER_OPTIONS.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -310,7 +318,7 @@ export function ImpostazioniView() {
               </select>
             </div>
             <div className="field">
-              <label htmlFor="gemini-key">Chiave Gemini (opzionale, gratuita)</label>
+              <label htmlFor="gemini-key">Gemini — chiave principale</label>
               <input
                 id="gemini-key"
                 type="password"
@@ -318,39 +326,19 @@ export function ImpostazioniView() {
                 spellCheck={false}
                 placeholder="AIza…"
                 value={settings.ai?.geminiApiKey || ''}
-                onChange={(e) =>
-                  updateSettings({
-                    ai: {
-                      provider: settings.ai?.provider || 'free',
-                      geminiApiKey: e.target.value,
-                      geminiApiKeys: settings.ai?.geminiApiKeys || [],
-                      geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
-                    },
-                    openAi: undefined,
-                  })
-                }
+                onChange={(e) => patchAi({ geminiApiKey: e.target.value })}
               />
             </div>
             <div className="field">
-              <label htmlFor="gemini-keys-extra">Altre chiavi Gemini (rotazione anti-limite)</label>
+              <label htmlFor="gemini-keys-extra">Gemini — altre chiavi</label>
               <textarea
                 id="gemini-keys-extra"
-                rows={3}
+                rows={2}
                 autoComplete="off"
                 spellCheck={false}
-                placeholder={'Una chiave per riga (AIza…)\nCrea più progetti free su AI Studio'}
+                placeholder="Una AIza… per riga"
                 value={(settings.ai?.geminiApiKeys || []).join('\n')}
-                onChange={(e) =>
-                  updateSettings({
-                    ai: {
-                      provider: settings.ai?.provider || 'free',
-                      geminiApiKey: settings.ai?.geminiApiKey || '',
-                      geminiApiKeys: parseGeminiKeysText(e.target.value),
-                      geminiModel: settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
-                    },
-                    openAi: undefined,
-                  })
-                }
+                onChange={(e) => patchAi({ geminiApiKeys: parseKeysText(e.target.value) })}
               />
             </div>
             <div className="field">
@@ -358,17 +346,7 @@ export function ImpostazioniView() {
               <select
                 id="gemini-model"
                 value={supportedGeminiModel(settings.ai?.geminiModel)}
-                onChange={(e) =>
-                  updateSettings({
-                    ai: {
-                      provider: settings.ai?.provider || 'free',
-                      geminiApiKey: settings.ai?.geminiApiKey || '',
-                      geminiApiKeys: settings.ai?.geminiApiKeys || [],
-                      geminiModel: e.target.value as GeminiModelPref,
-                    },
-                    openAi: undefined,
-                  })
-                }
+                onChange={(e) => patchAi({ geminiModel: e.target.value as GeminiModelPref })}
               >
                 {GEMINI_MODEL_OPTIONS.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -377,13 +355,69 @@ export function ImpostazioniView() {
                 ))}
               </select>
             </div>
+            <div className="field">
+              <label htmlFor="groq-key">Groq — chiave (testo + Whisper)</label>
+              <input
+                id="groq-key"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="gsk_…"
+                value={settings.ai?.groqApiKey || ''}
+                onChange={(e) => patchAi({ groqApiKey: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="groq-keys-extra">Groq — altre chiavi</label>
+              <textarea
+                id="groq-keys-extra"
+                rows={2}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Una gsk_… per riga"
+                value={(settings.ai?.groqApiKeys || []).join('\n')}
+                onChange={(e) => patchAi({ groqApiKeys: parseKeysText(e.target.value) })}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="openrouter-key">OpenRouter — chiave (modelli :free)</label>
+              <input
+                id="openrouter-key"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="sk-or-…"
+                value={settings.ai?.openRouterApiKey || ''}
+                onChange={(e) => patchAi({ openRouterApiKey: e.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="openrouter-keys-extra">OpenRouter — altre chiavi</label>
+              <textarea
+                id="openrouter-keys-extra"
+                rows={2}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="Una sk-or-… per riga"
+                value={(settings.ai?.openRouterApiKeys || []).join('\n')}
+                onChange={(e) => patchAi({ openRouterApiKeys: parseKeysText(e.target.value) })}
+              />
+            </div>
             <p className="muted" style={{ margin: '0.35rem 0 0' }}>
-              Su limite Gemini l’app ruota le chiavi e, per l’analisi testo, passa al motore gratuito.
-              La trascrizione audio resta su Gemini: più chiavi = più pezzi. Crea chiavi da{' '}
+              Catena testo: Gemini → Groq → OpenRouter → motore free. Trascrizione: Gemini → Groq
+              Whisper. Chiavi:{' '}
               <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">
-                Google AI Studio
+                Gemini
               </a>
-              .
+              {' · '}
+              <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">
+                Groq
+              </a>
+              {' · '}
+              <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
+                OpenRouter
+              </a>
+              . Ogni servizio free ha comunque una quota propria.
             </p>
             <div className="row" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: 8 }}>
               <button

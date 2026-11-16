@@ -110,6 +110,10 @@ const defaultSettings: AppSettings = {
     geminiApiKey: '',
     geminiApiKeys: [],
     geminiModel: 'gemini-3.1-flash-lite',
+    groqApiKey: '',
+    groqApiKeys: [],
+    openRouterApiKey: '',
+    openRouterApiKeys: [],
   },
 }
 
@@ -322,13 +326,16 @@ export function mergeAppSettings(
         geminiApiKey: '',
         geminiApiKeys: [] as string[],
         geminiModel: 'gemini-3.1-flash-lite' as const,
+        groqApiKey: '',
+        groqApiKeys: [] as string[],
+        openRouterApiKey: '',
+        openRouterApiKeys: [] as string[],
       }
       const providerRaw = fromNew?.provider || fromLegacy?.provider || baseAi.provider || 'free'
-      const extraKeys = Array.isArray(fromNew?.geminiApiKeys)
-        ? fromNew.geminiApiKeys.map((k) => String(k || '').trim()).filter(Boolean)
-        : Array.isArray(baseAi.geminiApiKeys)
-          ? baseAi.geminiApiKeys
-          : []
+      const list = (value: unknown, fallback: string[] = []) =>
+        Array.isArray(value)
+          ? value.map((k) => String(k || '').trim()).filter(Boolean)
+          : fallback
       return {
         provider: (providerRaw === 'gemini' ? 'gemini' : 'free') as 'free' | 'gemini',
         geminiApiKey:
@@ -336,12 +343,17 @@ export function mergeAppSettings(
           (fromLegacy?.geminiApiKey || '').trim() ||
           baseAi.geminiApiKey ||
           '',
-        geminiApiKeys: extraKeys,
+        geminiApiKeys: list(fromNew?.geminiApiKeys, baseAi.geminiApiKeys || []),
         geminiModel:
           fromNew?.geminiModel ||
           fromLegacy?.geminiModel ||
           baseAi.geminiModel ||
           'gemini-3.1-flash-lite',
+        groqApiKey: (fromNew?.groqApiKey || '').trim() || baseAi.groqApiKey || '',
+        groqApiKeys: list(fromNew?.groqApiKeys, baseAi.groqApiKeys || []),
+        openRouterApiKey:
+          (fromNew?.openRouterApiKey || '').trim() || baseAi.openRouterApiKey || '',
+        openRouterApiKeys: list(fromNew?.openRouterApiKeys, baseAi.openRouterApiKeys || []),
       }
     })(),
     navOrder: Array.isArray(incoming.navOrder) && incoming.navOrder.length
@@ -988,11 +1000,10 @@ export const useAppStore = create<AppState>()(
               const cur = current.settings.ai
               const providerRaw =
                 fromNew?.provider || fromLegacy?.provider || cur?.provider || 'free'
-              const extraKeys = Array.isArray(fromNew?.geminiApiKeys)
-                ? fromNew.geminiApiKeys.map((k) => String(k || '').trim()).filter(Boolean)
-                : Array.isArray(cur?.geminiApiKeys)
-                  ? cur.geminiApiKeys
-                  : []
+              const list = (value: unknown, fallback: string[] = []) =>
+                Array.isArray(value)
+                  ? value.map((k) => String(k || '').trim()).filter(Boolean)
+                  : fallback
               return {
                 provider: (providerRaw === 'gemini' ? 'gemini' : 'free') as 'free' | 'gemini',
                 geminiApiKey:
@@ -1000,12 +1011,20 @@ export const useAppStore = create<AppState>()(
                   (fromLegacy?.geminiApiKey || '').trim() ||
                   cur?.geminiApiKey ||
                   '',
-                geminiApiKeys: extraKeys,
+                geminiApiKeys: list(fromNew?.geminiApiKeys, cur?.geminiApiKeys || []),
                 geminiModel:
                   fromNew?.geminiModel ||
                   fromLegacy?.geminiModel ||
                   cur?.geminiModel ||
                   'gemini-3.1-flash-lite',
+                groqApiKey: (fromNew?.groqApiKey || '').trim() || cur?.groqApiKey || '',
+                groqApiKeys: list(fromNew?.groqApiKeys, cur?.groqApiKeys || []),
+                openRouterApiKey:
+                  (fromNew?.openRouterApiKey || '').trim() || cur?.openRouterApiKey || '',
+                openRouterApiKeys: list(
+                  fromNew?.openRouterApiKeys,
+                  cur?.openRouterApiKeys || [],
+                ),
               }
             })(),
             navOrder: (() => {

@@ -70,6 +70,10 @@ function snapshotFromStore(): ICloudSnapshot {
       geminiApiKey: '',
       geminiApiKeys: [],
       geminiModel: s.settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
+      groqApiKey: '',
+      groqApiKeys: [],
+      openRouterApiKey: '',
+      openRouterApiKeys: [],
     },
     openAi: undefined,
   }

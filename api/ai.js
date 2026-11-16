@@ -1,4 +1,10 @@
-import { chatCompletion, resolveGeminiKeys, resolveProvider } from './llmChat.js'
+import {
+  chatCompletion,
+  resolveGeminiKeys,
+  resolveGroqKeys,
+  resolveOpenRouterKeys,
+  resolveProvider,
+} from './llmChat.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -15,6 +21,8 @@ export default async function handler(req, res) {
 
     const provider = resolveProvider(req, body)
     const geminiApiKeys = resolveGeminiKeys(req, body)
+    const groqApiKeys = resolveGroqKeys(req, body)
+    const openRouterApiKeys = resolveOpenRouterKeys(req, body)
     const result = await chatCompletion({
       messages,
       temperature: body.temperature,
@@ -23,6 +31,10 @@ export default async function handler(req, res) {
       provider,
       geminiApiKey: geminiApiKeys[0],
       geminiApiKeys,
+      groqApiKey: groqApiKeys[0],
+      groqApiKeys,
+      openRouterApiKey: openRouterApiKeys[0],
+      openRouterApiKeys,
       fallbackFree: body.fallbackFree !== false,
     })
 
