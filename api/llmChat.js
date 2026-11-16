@@ -26,13 +26,42 @@ export function resolveProvider(req, body = {}) {
 }
 
 export function resolveGeminiKey(req, body = {}) {
+  return resolveGeminiKeys(req, body)[0] || ''
+}
+
+/** Tutte le chiavi Gemini disponibili (rotazione su 429). */
+export function resolveGeminiKeys(req, body = {}) {
   const headers = req?.headers || {}
   const fromHeader = String(
     headers['x-gemini-key'] || headers['X-Gemini-Key'] || '',
   ).trim()
-  const fromBody = String(body.geminiApiKey || body.apiKey || '').trim()
+  const fromHeaderList = String(
+    headers['x-gemini-keys'] || headers['X-Gemini-Keys'] || '',
+  )
+    .split(/[,;\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const fromBodyPrimary = String(body.geminiApiKey || body.apiKey || '').trim()
+  const fromBodyList = Array.isArray(body.geminiApiKeys)
+    ? body.geminiApiKeys.map((s) => String(s || '').trim()).filter(Boolean)
+    : String(body.geminiApiKeys || '')
+        .split(/[,;\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
   const fromEnv = String(process.env.GEMINI_API_KEY || '').trim()
-  return fromHeader || fromBody || fromEnv || ''
+  const fromEnvList = String(process.env.GEMINI_API_KEYS || '')
+    .split(/[,;\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const all = [fromHeader, fromBodyPrimary, ...fromHeaderList, ...fromBodyList, fromEnv, ...fromEnvList]
+  const out = []
+  const seen = new Set()
+  for (const key of all) {
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(key)
+  }
+  return out
 }
 
 function extractOpenAiStyleContent(payload) {
@@ -205,14 +234,36 @@ export async function chatCompletion(opts) {
       : 0.25
   const maxTokens = clampOutTokens(opts.max_tokens)
   const provider = String(opts.provider || 'free').toLowerCase()
-  const geminiKey = String(opts.geminiApiKey || '').trim()
   const model = String(opts.model || '').trim()
+  const keys = resolveGeminiKeys({ headers: {} }, {
+    geminiApiKey: opts.geminiApiKey,
+    geminiApiKeys: opts.geminiApiKeys,
+  })
+  // Compat: se arriva solo geminiApiKey stringa
+  if (!keys.length && String(opts.geminiApiKey || '').trim()) {
+    keys.push(String(opts.geminiApiKey).trim())
+  }
+  const allowFreeFallback = opts.fallbackFree !== false
 
-  if (provider === 'gemini' || (provider === 'free' && geminiKey)) {
-    if (!geminiKey) {
+  if (provider === 'gemini' || (provider === 'free' && keys.length)) {
+    if (!keys.length) {
       return failure('gemini', 400, 'Inserisci la chiave Gemini in Impostazioni → Motore AI.')
     }
-    return chatGemini({ messages, temperature, maxTokens, model, apiKey: geminiKey })
+    let last = failure('gemini', 429, 'Limite Gemini raggiunto. Controlla la quota in Google AI Studio o riprova più tardi.')
+    for (const apiKey of keys) {
+      const result = await chatGemini({ messages, temperature, maxTokens, model, apiKey })
+      if (result.ok) return result
+      last = result
+      // Ruota solo su quota / chiave rifiutata; altri errori si fermano
+      if (result.status !== 429 && result.status !== 401 && result.status !== 403) {
+        break
+      }
+    }
+    if (allowFreeFallback) {
+      const free = await chatPollinations({ messages, temperature, maxTokens })
+      if (free.ok) return free
+    }
+    return last
   }
   return chatPollinations({ messages, temperature, maxTokens })
 }

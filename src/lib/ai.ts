@@ -8,6 +8,7 @@ import type {
   JwResult,
   StudyTopic,
 } from '../types'
+import { collectGeminiKeys } from './aiKeys'
 import { uid } from './id'
 import { useAppStore } from '../store/useAppStore'
 
@@ -31,9 +32,14 @@ function readAiSettings(): AiSettings {
   const cur = s.ai
   const providerRaw = cur?.provider || legacy?.provider || 'free'
   const provider: AiProviderPref = providerRaw === 'gemini' ? 'gemini' : 'free'
+  const keys = collectGeminiKeys({
+    geminiApiKey: (cur?.geminiApiKey || legacy?.geminiApiKey || '').trim(),
+    geminiApiKeys: cur?.geminiApiKeys,
+  })
   return {
     provider,
-    geminiApiKey: (cur?.geminiApiKey || legacy?.geminiApiKey || '').trim(),
+    geminiApiKey: keys[0] || '',
+    geminiApiKeys: keys.slice(1),
     geminiModel: supportedGeminiModel(cur?.geminiModel || legacy?.geminiModel),
   }
 }
@@ -56,21 +62,24 @@ export function aiRequestExtras(): {
   headers: Record<string, string>
   provider: AiProviderPref
   model: string
+  geminiKeys: string[]
 } {
   const cfg = readAiSettings()
   const provider = cfg.provider || 'free'
-  const geminiApiKey = (cfg.geminiApiKey || '').trim()
+  const geminiKeys = collectGeminiKeys(cfg)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-ai-provider': provider,
   }
-  if (geminiApiKey) headers['x-gemini-key'] = geminiApiKey
+  if (geminiKeys[0]) headers['x-gemini-key'] = geminiKeys[0]
+  if (geminiKeys.length > 1) headers['x-gemini-keys'] = geminiKeys.join(',')
 
   return {
     headers,
     provider,
     model: supportedGeminiModel(cfg.geminiModel),
+    geminiKeys,
   }
 }
 
@@ -147,8 +156,10 @@ async function requestAi(
         messages,
         provider: extras.provider,
         model: extras.model,
+        geminiApiKeys: extras.geminiKeys,
         temperature: 0.25,
         max_tokens: maxTokens,
+        fallbackFree: true,
       }),
     })
     if (!res.ok) {

@@ -300,22 +300,38 @@ export function DiscorsoView() {
     setPolishHint('')
     let failed = 0
     try {
-      for (const section of candidates) {
+      for (let i = 0; i < candidates.length; i++) {
+        const section = candidates[i]
         const recording = latest.get(section.id)
-        try {
-          const input = recording
-            ? recording.transcript || await readRecordingTranscript(recording.id)
-            : section.body
-          const result = await polishDiscourseText(input, { forceLocal: !online })
-          patchSavedSection(noteId, section.id, {
-            revision: { ...result, recordingId: recording?.id },
-          })
-        } catch {
-          failed++
+        let done = false
+        for (let attempt = 0; attempt < 3 && !done; attempt++) {
+          try {
+            if (i > 0 || attempt > 0) {
+              await new Promise((r) => window.setTimeout(r, attempt === 0 ? 900 : 4000 * attempt))
+            }
+            setPolishHint(
+              `Sistemo blocco ${i + 1}/${candidates.length}${attempt ? ` · tentativo ${attempt + 1}` : ''}…`,
+            )
+            const input = recording
+              ? recording.transcript || await readRecordingTranscript(recording.id)
+              : section.body
+            const result = await polishDiscourseText(input, { forceLocal: !online })
+            patchSavedSection(noteId, section.id, {
+              revision: { ...result, recordingId: recording?.id },
+            })
+            done = true
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : ''
+            const quota = /limite|429|quota|riprova/i.test(msg)
+            if (!quota || attempt === 2) {
+              failed++
+              done = true
+            }
+          }
         }
       }
       setPolishHint(failed
-        ? `${failed} blocchi da riprovare. Controlla la connessione e la disponibilità della trascrizione AI.`
+        ? `${failed} blocchi da riprovare. Aggiungi altre chiavi Gemini in Impostazioni o riprova tra poco (fallback automatico attivo).`
         : 'Revisioni pronte nei riquadri dei blocchi.')
     } finally {
       setPolishBusy(false)
