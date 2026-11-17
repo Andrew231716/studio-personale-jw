@@ -16,6 +16,11 @@ export interface DictationHandlers {
 
 type Recog = SpeechRecognition
 
+/** Pausa corta → virgola; pausa lunga → punto (ms di silenzio). */
+const SHORT_PAUSE_MS = 550
+const LONG_PAUSE_MS = 1400
+const SILENCE_RMS = 0.018
+
 export function speechDictationSupported(): boolean {
   if (typeof window === 'undefined') return false
   return Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -60,6 +65,10 @@ export function createDictation(lang = 'it-IT'): {
   let finishStop: (() => void) | null = null
   let stopTimeout = 0
   let handlersRef: DictationHandlers | null = null
+  let lastFinalAt = 0
+  let silenceStartedAt = 0
+  let pendingSilenceMs = 0
+  let speaking = false
 
   function stopLevelMeter(stopTracks: boolean) {
     if (levelRaf) cancelAnimationFrame(levelRaf)
@@ -82,7 +91,6 @@ export function createDictation(lang = 'it-IT'): {
   }
 
   function startLevelMeter(stream: MediaStream, onLevel?: (n: number) => void) {
-    if (!onLevel) return
     try {
       audioCtx = new AudioContext()
       const src = audioCtx.createMediaStreamSource(stream)
@@ -99,7 +107,17 @@ export function createDictation(lang = 'it-IT'): {
           sum += v * v
         }
         const rms = Math.sqrt(sum / data.length)
-        onLevel(Math.min(1, rms * 4))
+        onLevel?.(Math.min(1, rms * 4))
+        // Traccia silenzi per virgole / punti in dettatura
+        if (rms < SILENCE_RMS) {
+          if (!silenceStartedAt && speaking) silenceStartedAt = Date.now()
+        } else {
+          if (silenceStartedAt) {
+            pendingSilenceMs = Math.max(pendingSilenceMs, Date.now() - silenceStartedAt)
+          }
+          silenceStartedAt = 0
+          speaking = true
+        }
         levelRaf = requestAnimationFrame(tick)
       }
       tick()
@@ -108,22 +126,47 @@ export function createDictation(lang = 'it-IT'): {
     }
   }
 
+  function pauseGapMs(): number {
+    const now = Date.now()
+    if (silenceStartedAt) {
+      pendingSilenceMs = Math.max(pendingSilenceMs, now - silenceStartedAt)
+      silenceStartedAt = now
+    }
+    const sinceFinal = lastFinalAt ? now - lastFinalAt : 0
+    const gap = Math.max(pendingSilenceMs, sinceFinal)
+    pendingSilenceMs = 0
+    return gap
+  }
+
+  function emitFinal(raw: string) {
+    if (!handlersRef) return
+    const gap = lastFinalAt ? pauseGapMs() : 0
+    lastFinalAt = Date.now()
+    speaking = true
+    const piece = applyPausePunctuation(raw, gap)
+    if (piece) handlersRef.onFinal(piece)
+  }
+
   function flushInterim() {
     const piece = lastInterim.trim()
     lastInterim = ''
-    if (piece && handlersRef) handlersRef.onFinal(piece)
+    if (piece) emitFinal(piece)
   }
 
   function start(handlers: DictationHandlers) {
     stopped = false
     lastInterim = ''
+    lastFinalAt = 0
+    silenceStartedAt = 0
+    pendingSilenceMs = 0
+    speaking = false
     handlersRef = handlers
     recog?.abort()
     stopLevelMeter(true)
 
     const boot = async () => {
       let stream = handlers.stream || null
-      if (!stream && handlers.onLevel && navigator.mediaDevices?.getUserMedia) {
+      if (!stream && navigator.mediaDevices?.getUserMedia) {
         try {
           ownedStream = await navigator.mediaDevices.getUserMedia({ audio: true })
           stream = ownedStream
@@ -135,6 +178,7 @@ export function createDictation(lang = 'it-IT'): {
         stopLevelMeter(Boolean(ownedStream))
         return
       }
+      // Livello + silenzio anche senza onLevel UI (serve per la punteggiatura)
       if (stream) startLevelMeter(stream, handlers.onLevel)
 
       recog = new Ctor()
@@ -165,7 +209,7 @@ export function createDictation(lang = 'it-IT'): {
           if (result.isFinal) finals.push(piece)
           else interim.push(piece)
         }
-        if (finals.length) handlers.onFinal(finals.join(' '))
+        if (finals.length) emitFinal(finals.join(' '))
         lastInterim = interim.join(' ')
         handlers.onPartial(lastInterim)
       }
@@ -256,14 +300,60 @@ export function createDictation(lang = 'it-IT'): {
 }
 
 /**
+ * In base alla pausa: corta → «, …»; lunga → «. …» con maiuscola.
+ * Se il motore ha già messo punteggiatura, non ne aggiunge altra.
+ */
+export function applyPausePunctuation(chunk: string, pauseMs: number): string {
+  let text = chunk.replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  if (pauseMs < SHORT_PAUSE_MS) return text
+  // Già inizia con punteggiatura (motore o pezzo precedente)
+  if (/^[.,;:!?…]/.test(text)) {
+    if (pauseMs >= LONG_PAUSE_MS) {
+      text = text.replace(/^[.,;:!?…]+\s*/, '')
+      if (!text) return ''
+      text = capitalizeLeading(text)
+      return `. ${text}`
+    }
+    return text
+  }
+  if (pauseMs >= LONG_PAUSE_MS) {
+    return `. ${capitalizeLeading(text)}`
+  }
+  return `, ${text}`
+}
+
+function capitalizeLeading(text: string): string {
+  return text.replace(/^(\p{L})/u, (ch) => ch.toLocaleUpperCase('it-IT'))
+}
+
+/**
  * Inserisce il pezzo in coda al testo della sezione (dettatura automatica).
  * Non dipende dal cursore: evita perdite mentre scorrono le interim.
  */
 export function appendDictatedChunk(value: string, chunk: string): string {
-  const piece = chunk.trim()
+  let piece = chunk.trim()
   if (!piece) return value
-  const base = value.replace(/\s+$/, '')
-  if (!base) return `${normalizeSpokenScriptureReferences(piece)} `
+  let base = value.replace(/\s+$/, '')
+  if (!base) {
+    // Prima frase: togli punteggiatura iniziale da pausa e capitalizza
+    piece = piece.replace(/^[.,;:!?…]+\s*/, '')
+    piece = capitalizeLeading(piece)
+    return piece ? `${normalizeSpokenScriptureReferences(piece)} ` : value
+  }
+  // Evita «parola..» / «parola,,»
+  if (/[.,;:!?…]$/.test(base) && /^[.,;:!?…]/.test(piece)) {
+    const lead = piece.match(/^[.,;:!?…]+/)?.[0] || ''
+    piece = piece.replace(/^[.,;:!?…]+\s*/, '')
+    if (!piece) return `${base} `
+    if (lead.includes('.') || lead.includes('!') || lead.includes('?') || lead.includes('…')) {
+      piece = capitalizeLeading(piece)
+    }
+    const needsSpace = !/\s$/.test(base)
+    return `${normalizeSpokenScriptureReferences(
+      `${base}${needsSpace ? ' ' : ''}${piece}`,
+    )} `
+  }
   const needsSpace = !/\s$/.test(base) && !/^[.,;:!?]/.test(piece)
   return `${normalizeSpokenScriptureReferences(
     `${base}${needsSpace ? ' ' : ''}${piece}`,
