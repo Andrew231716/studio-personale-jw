@@ -1343,7 +1343,7 @@ export function DiscorsoView() {
               {listening && (
                 <p className="muted">
                   {online
-                    ? 'Microfono attivo: testo in automatico nella sezione selezionata; audio salvato in locale.'
+                    ? 'Microfono attivo: testo automatico; pause corte → virgola, pause più lunghe → punto. Audio salvato in locale.'
                     : 'Offline: sto registrando l’audio in locale. Al termine riascoltalo o attendi la rete per trascrivere.'}
                 </p>
               )}
