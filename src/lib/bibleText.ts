@@ -108,8 +108,31 @@ function chapterKey(language: string, book: number, chapter: number) {
   return `${language}:${book}:${chapter}`
 }
 
+/** Atomo versetto: `1`, `3-6`, `5–7`. */
+const VERSE_ATOM = String.raw`\d{1,3}(?:\s*[-–—]\s*\d{1,3})?`
+/** Lista: `1,2` · `3-6` · `1-2,3` · `4,5-7`. */
+const VERSE_LIST = `${VERSE_ATOM}(?:\\s*,\\s*${VERSE_ATOM})*`
+
+/** Spezza `1,2` / `3-6` / `1-2,3` / `4,5-7` in atomi verso. */
+export function parseVerseList(raw: string): { verse: number; verseEnd?: number }[] {
+  const out: { verse: number; verseEnd?: number }[] = []
+  for (const part of raw.split(/\s*,\s*/)) {
+    const m = part.trim().match(/^(\d{1,3})(?:\s*[-–—]\s*(\d{1,3}))?$/)
+    if (!m) continue
+    const verse = Number(m[1])
+    const verseEnd = m[2] ? Number(m[2]) : undefined
+    if (!verse) continue
+    out.push({
+      verse,
+      verseEnd: verseEnd && verseEnd !== verse ? verseEnd : undefined,
+    })
+  }
+  return out
+}
+
 /**
- * Trova riferimenti: nomi completi, short e abbreviazioni (Pr 14:12, 1Co 13:4-7, Mt 24:14).
+ * Trova riferimenti: nomi completi, short e abbreviazioni
+ * (Pr 14:12, Salmo 28:1,2, Giacomo 3:4,5-7, Mt 24:14).
  */
 export function findScriptureRefsInText(text: string, includeRepeats = false): ParsedScriptureRef[] {
   if (!text) return []
@@ -122,44 +145,56 @@ export function findScriptureRefsInText(text: string, includeRepeats = false): P
     for (const name of names) {
       const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')
       const re = new RegExp(
-        `(^|[^\\wÀ-ÿ])(${escaped})\\.?\\s+(\\d{1,3})\\s*:\\s*(\\d{1,3})(?:\\s*[-–—]\\s*(\\d{1,3}))?`,
+        `(^|[^\\wÀ-ÿ])(${escaped})\\.?\\s+(\\d{1,3})\\s*:\\s*(${VERSE_LIST})`,
         'gi',
       )
       let m: RegExpExecArray | null
       while ((m = re.exec(text))) {
-        pushRef(out, seen, {
-          book,
-          includeRepeats,
-          chapter: Number(m[3]),
-          verse: Number(m[4]),
-          verseEnd: m[5] ? Number(m[5]) : undefined,
-          index: m.index + m[1].length,
-          matched: m[0].slice(m[1].length).trim(),
+        const index = m.index + m[1].length
+        const matched = m[0].slice(m[1].length).trim()
+        const atoms = parseVerseList(m[4])
+        atoms.forEach((atom, i) => {
+          pushRef(out, seen, {
+            book,
+            includeRepeats,
+            chapter: Number(m![3]),
+            verse: atom.verse,
+            verseEnd: atom.verseEnd,
+            index,
+            // Solo il primo atomo porta il match intero (per evidenziare «Salmo 28:1,2»).
+            matched: i === 0 ? matched : '',
+          })
         })
       }
     }
   }
 
-  // 2) Abbreviazioni compatte: Pr 14:12, 1Co 13:4, Mt24:14
-  const abbrRe =
-    /(^|[^\wÀ-ÿ])((?:\d\s*)?[A-Za-zÀ-ÿ]{1,8})\.?\s*(\d{1,3})\s*:\s*(\d{1,3})(?:\s*[-–—]\s*(\d{1,3}))?/gi
+  // 2) Abbreviazioni compatte: Pr 14:12, Gc 2:1-2,3, Mt24:14
+  const abbrRe = new RegExp(
+    `(^|[^\\wÀ-ÿ])((?:\\d\\s*)?[A-Za-zÀ-ÿ]{1,8})\\.?\\s*(\\d{1,3})\\s*:\\s*(${VERSE_LIST})`,
+    'gi',
+  )
   let m: RegExpExecArray | null
   while ((m = abbrRe.exec(text))) {
     const book = resolveBookToken(m[2])
     if (!book) continue
-    // Evita doppi match già presi come nome lungo
-    pushRef(out, seen, {
-      book,
-      includeRepeats,
-      chapter: Number(m[3]),
-      verse: Number(m[4]),
-      verseEnd: m[5] ? Number(m[5]) : undefined,
-      index: m.index + m[1].length,
-      matched: m[0].slice(m[1].length).trim(),
+    const index = m.index + m[1].length
+    const matched = m[0].slice(m[1].length).trim()
+    const atoms = parseVerseList(m[4])
+    atoms.forEach((atom, i) => {
+      pushRef(out, seen, {
+        book,
+        includeRepeats,
+        chapter: Number(m![3]),
+        verse: atom.verse,
+        verseEnd: atom.verseEnd,
+        index,
+        matched: i === 0 ? matched : '',
+      })
     })
   }
 
-  return out.sort((a, b) => a.index - b.index)
+  return out.sort((a, b) => a.index - b.index || a.verse - b.verse)
 }
 
 function pushRef(
