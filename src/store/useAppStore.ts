@@ -354,6 +354,10 @@ export function mergeAppSettings(
         openRouterApiKey:
           (fromNew?.openRouterApiKey || '').trim() || baseAi.openRouterApiKey || '',
         openRouterApiKeys: list(fromNew?.openRouterApiKeys, baseAi.openRouterApiKeys || []),
+        syncAcrossDevices:
+          typeof fromNew?.syncAcrossDevices === 'boolean'
+            ? fromNew.syncAcrossDevices
+            : baseAi.syncAcrossDevices === true,
       }
     })(),
     navOrder: Array.isArray(incoming.navOrder) && incoming.navOrder.length
@@ -1025,6 +1029,10 @@ export const useAppStore = create<AppState>()(
                   fromNew?.openRouterApiKeys,
                   cur?.openRouterApiKeys || [],
                 ),
+                syncAcrossDevices:
+                  typeof fromNew?.syncAcrossDevices === 'boolean'
+                    ? fromNew.syncAcrossDevices
+                    : cur?.syncAcrossDevices === true,
               }
             })(),
             navOrder: (() => {

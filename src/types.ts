@@ -448,6 +448,11 @@ export interface AiSettings {
   /** Chiave OpenRouter (modelli :free). */
   openRouterApiKey?: string
   openRouterApiKeys?: string[]
+  /**
+   * Se true, le chiavi AI viaggiano con Sync cloud / iCloud
+   * (stesso account/chiave JWS su telefono, iPad, ecc.). Default: false.
+   */
+  syncAcrossDevices?: boolean
 }
 
 export type NarrationVoicePref =
