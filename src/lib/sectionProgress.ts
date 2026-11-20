@@ -186,7 +186,7 @@ export function getSectionProgress(
         ],
         hint: discourseNotes.length
           ? 'Dettatura, correzione sintassi e popup scritture da jw.org.'
-          : 'Crea una bozza: scrivi o detta col microfono.',
+          : 'Crea un discorso: scrivi o detta col microfono.',
       }
     case 'decisioni':
       return {

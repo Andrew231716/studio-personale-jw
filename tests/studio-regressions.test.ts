@@ -133,3 +133,31 @@ test('il popup può rilevare due inserimenti dello stesso Salmo', () => {
   assert.equal(references[0].bible, references[1].bible)
   assert.equal(references[1].index, text.lastIndexOf('Salmo'))
 })
+
+test('riconosce liste e range misti di versetti', () => {
+  const a = findScriptureRefsInText('Leggiamo Salmo 28:1,2 oggi.')
+  assert.equal(a.length, 2)
+  assert.equal(a[0].verse, 1)
+  assert.equal(a[1].verse, 2)
+  assert.equal(a[0].matched, 'Salmo 28:1,2')
+  assert.equal(a[1].matched, '')
+
+  const b = findScriptureRefsInText('Salmo 25:3-6')
+  assert.equal(b.length, 1)
+  assert.equal(b[0].verse, 3)
+  assert.equal(b[0].verseEnd, 6)
+
+  const c = findScriptureRefsInText('Giacomo 2:1-2,3')
+  assert.equal(c.length, 2)
+  assert.equal(c[0].verse, 1)
+  assert.equal(c[0].verseEnd, 2)
+  assert.equal(c[1].verse, 3)
+  assert.equal(c[0].matched, 'Giacomo 2:1-2,3')
+
+  const d = findScriptureRefsInText('Giacomo 3:4,5-7')
+  assert.equal(d.length, 2)
+  assert.equal(d[0].verse, 4)
+  assert.equal(d[0].verseEnd, undefined)
+  assert.equal(d[1].verse, 5)
+  assert.equal(d[1].verseEnd, 7)
+})

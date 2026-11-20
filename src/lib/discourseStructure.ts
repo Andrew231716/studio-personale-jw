@@ -2,7 +2,7 @@ import { uid } from './id'
 import type { DiscourseNote, DiscourseSection, DiscourseSectionKind } from '../types'
 
 export const SECTION_KIND_LABEL: Record<DiscourseSectionKind, string> = {
-  libera: 'Bozza',
+  libera: 'Blocco',
   introduzione: 'Introduzione',
   punto: 'Punto',
   conclusione: 'Conclusione',

@@ -66,8 +66,11 @@ function buildLinkedParts(text: string): Part[] {
   const parts: Part[] = []
   let cursor = 0
   for (const ref of refs) {
+    // Atomi successivi di una lista (matched vuoto / stesso span) → salta.
+    if (!ref.matched) continue
     const start = ref.index
-    const end = start + (ref.matched?.length || ref.label.length)
+    if (start < cursor) continue
+    const end = start + ref.matched.length
     if (start > cursor) {
       parts.push({ type: 'text', value: text.slice(cursor, start) })
     }

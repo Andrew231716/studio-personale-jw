@@ -2093,10 +2093,39 @@ img {
   }
 }
 
+.discourse-title-input {
+  width: 100%;
+  min-height: 2.75rem;
+  resize: vertical;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  field-sizing: content;
+}
+
 .discourse-editor {
   min-height: 9rem;
   font-size: 1.05rem;
   line-height: 1.55;
+}
+
+.discourse-scripture-live {
+  margin-top: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface, #fff) 88%, var(--accent, #2a6) 12%);
+  border: 1px solid var(--line);
+}
+
+.discourse-scripture-live-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+}
+
+.scripture-linked-text {
+  white-space: pre-wrap;
+  line-height: 1.55;
+  font-size: 0.98rem;
 }
 
 @media (min-width: 901px) {

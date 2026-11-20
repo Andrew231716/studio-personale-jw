@@ -8,6 +8,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Save,
   Sparkles,
   Timer,
   Trash2,
@@ -24,6 +25,7 @@ import {
   ScriptureAssist,
   type ScriptureAssistHandle,
 } from '../components/ScriptureAssist'
+import { ScriptureLinkedText } from '../components/ScriptureLinkedText'
 import { SectionProgress } from '../components/SectionProgress'
 import {
   TOTAL_BIBLE_CHAPTERS,
@@ -114,6 +116,7 @@ export function DiscorsoView() {
   const [sections, setSections] = useState<DiscourseSection[]>([])
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [saveHint, setSaveHint] = useState('')
   const [listening, setListening] = useState(false)
   useEffect(() => {
     if (!listening) return
@@ -180,6 +183,19 @@ export function DiscorsoView() {
         .join('\n\n'),
     [sections],
   )
+
+  /** Testo per popup/evidenziazioni, inclusa la dettatura in corso. */
+  const scriptureLiveText = useMemo(() => {
+    if (!listening || !captureSectionId || !partial.trim()) return bodyJoined
+    return sections
+      .map((s) => {
+        if (s.id !== captureSectionId) return s.body
+        const base = s.body.trimEnd()
+        return base ? `${base} ${partial.trim()}` : partial.trim()
+      })
+      .filter(Boolean)
+      .join('\n\n')
+  }, [bodyJoined, sections, listening, captureSectionId, partial])
 
   const filteredNotes = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -530,7 +546,7 @@ export function DiscorsoView() {
         forceLocal: !online,
       })
         if (visibleNoteId.current !== note?.id || sectionsRef.current !== startingSections) {
-        setPolishHint('La bozza è cambiata. Avvia di nuovo l’analisi.')
+        setPolishHint('Il discorso è cambiato. Avvia di nuovo l’analisi.')
         return
       }
       persistSections(next)
@@ -703,10 +719,16 @@ export function DiscorsoView() {
       const doubtful = reference.chapter > chaptersForBook(reference.bookNum)
         || (reference.verseEnd ?? reference.verse) > 176
         || (reference.verseEnd != null && reference.verseEnd < reference.verse)
-      return <button key={reference.index} type="button" className="btn secondary small"
-        onClick={() => scriptureAssistRef.current?.openRef(reference)}>
-        {reference.label}{doubtful ? ' · Da verificare' : ' · Verifica'}
-      </button>
+      return (
+        <button
+          key={`${reference.index}-${reference.label}-${reference.matched || 'atom'}`}
+          type="button"
+          className="btn secondary small"
+          onClick={() => scriptureAssistRef.current?.openRef(reference)}
+        >
+          {reference.label}{doubtful ? ' · Da verificare' : ' · Verifica'}
+        </button>
+      )
     })
   }
 
@@ -944,6 +966,22 @@ export function DiscorsoView() {
     const id = addNote('Nuovo discorso')
     setActive(id)
     setPolishHint('')
+    setSaveHint('')
+  }
+
+  function saveDiscourse() {
+    if (!note) return
+    const title = titleDraft.trim() || 'Nuovo discorso'
+    const nextSections = sectionsRef.current
+    setTitleDraft(title)
+    updateNote(note.id, {
+      title,
+      sections: nextSections,
+      body: joinSections(nextSections),
+      estimatedMinutes: totalMinutes(nextSections),
+    })
+    setSaveHint('Discorso salvato.')
+    window.setTimeout(() => setSaveHint(''), 2500)
   }
 
   function fromMinistry(id: string) {
@@ -962,7 +1000,7 @@ export function DiscorsoView() {
     updateTopic(id, {
       interest: body.slice(0, 1200),
       reflections: [
-        { id: uid('ref'), prompt: 'Bozza discorso', response: body },
+        { id: uid('ref'), prompt: 'Testo discorso', response: body },
       ],
       status: 'da_iniziare',
     })
@@ -1073,19 +1111,27 @@ export function DiscorsoView() {
           <div className="discourse-toolbar">
             <div className="discourse-toolbar-copy">
               <p className="section-kicker">Discorso</p>
-              <h2>Bozza libera, dettatura e scritture</h2>
+              <h2>Testo, dettatura e scritture</h2>
             </div>
-            <button className="btn accent" type="button" onClick={createNew} disabled={captureSectionId != null}>
-              <Plus size={16} /> Nuovo
-            </button>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              {note && (
+                <button className="btn accent" type="button" onClick={saveDiscourse} disabled={captureSaving}>
+                  <Save size={16} /> Salva
+                </button>
+              )}
+              <button className="btn secondary" type="button" onClick={createNew} disabled={captureSectionId != null}>
+                <Plus size={16} /> Nuovo
+              </button>
+            </div>
           </div>
 
           {!online && (
             <p className="muted" style={{ margin: '0 0 0.75rem' }}>
               <WifiOff size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-              Offline: bozza e sezioni ok. AI remota no; versetti solo da cache/pacchetto.
+              Offline: discorso e blocchi ok. AI remota no; versetti solo da cache/pacchetto.
             </p>
           )}
+          {saveHint && <p className="muted" style={{ margin: '0 0 0.75rem' }}>{saveHint}</p>}
           {supportNote && !micOk && <p className="muted">{supportNote}</p>}
 
           {!note ? (
@@ -1101,14 +1147,16 @@ export function DiscorsoView() {
             <div className="stack discourse-editor-stack">
               <div className="field">
                 <label htmlFor="discorso-title">Titolo</label>
-                <input
+                <textarea
                   id="discorso-title"
+                  className="discourse-title-input"
+                  rows={2}
                   value={titleDraft}
                   onChange={(e) => {
                     setTitleDraft(e.target.value)
                     updateNote(note.id, { title: e.target.value })
                   }}
-                  placeholder="Es. Rafforzare la fede come Abramo"
+                  placeholder={'Es. Rafforzare la fede\ncome Abramo'}
                 />
               </div>
 
@@ -1300,6 +1348,42 @@ export function DiscorsoView() {
                           patchSection(s.id, { body: e.target.value })
                         }}
                       />
+                      {(s.body.trim() || (listening && captureSectionId === s.id && partial.trim())) && (
+                        <div className="discourse-scripture-live">
+                          <p className="muted discourse-scripture-live-label">
+                            Scritture evidenziate · clicca per aprire o riaprire il popup
+                          </p>
+                          <ScriptureLinkedText
+                            text={
+                              listening && captureSectionId === s.id && partial.trim()
+                                ? `${s.body.trimEnd()}${s.body.trim() ? ' ' : ''}${partial.trim()}`
+                                : s.body
+                            }
+                            onOpenRef={(ref, anchor) => {
+                              setActiveSectionId(s.id)
+                              scriptureAssistRef.current?.openRef(ref, anchor)
+                            }}
+                            emptyLabel=""
+                          />
+                          <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                            {transcriptScriptures(
+                              listening && captureSectionId === s.id && partial.trim()
+                                ? `${s.body.trimEnd()}${s.body.trim() ? ' ' : ''}${partial.trim()}`
+                                : s.body,
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      <div className="row" style={{ marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
+                        <button
+                          className="btn accent small"
+                          type="button"
+                          onClick={saveDiscourse}
+                          disabled={captureSaving}
+                        >
+                          <Save size={14} /> Salva discorso
+                        </button>
+                      </div>
                     </div>
                     <div className="stack discourse-comparison-result discourse-version" data-active={tab === 1} data-paired={view.compare === 1}>
                       <strong>{s.revision?.source === 'local' ? 'Revisione locale' : 'Versione sistemata con AI'}</strong>
@@ -1482,7 +1566,7 @@ export function DiscorsoView() {
             </div>
             <div className="list">
               {filteredNotes.length === 0 && (
-                <div className="empty">Nessuna bozza trovata.</div>
+                <div className="empty">Nessun discorso trovato.</div>
               )}
               {filteredNotes.map((n) => (
                 <div
@@ -1514,10 +1598,10 @@ export function DiscorsoView() {
           {note && (
             <ScriptureAssist
               ref={scriptureAssistRef}
-              text={bodyJoined}
+              text={scriptureLiveText}
               language={language}
               resetKey={note.id}
-              compact
+              autoOpenOnType
               onInsert={(snippet) => {
                 const sid = activeSectionIdRef.current || sectionsRef.current[0]?.id
                 if (!sid) return
@@ -1532,7 +1616,7 @@ export function DiscorsoView() {
             <section className="panel discourse-side-compact">
               <h3>Da Ministero</h3>
               <p className="muted" style={{ marginTop: 0 }}>
-                Crea una bozza da una scheda già preparata.
+                Crea un discorso da una scheda già preparata.
               </p>
               <div className="list">
                 {ministryNotes.slice(0, 8).map((m) => (
