@@ -82,7 +82,8 @@ export function ICloudSyncPanel() {
       </div>
       <p className="lede">
         Argomenti, sessioni, diario, decisioni e impostazioni restano nel tuo database privato
-        iCloud (CloudKit) e si aggiornano su tutti i dispositivi dove accedi con lo stesso Apple ID.
+        iCloud (CloudKit). Con lo stesso Apple ID puoi anche salvare le{' '}
+        <strong>registrazioni audio del Discorso</strong> (spazio iCloud del tuo account).
       </p>
 
       <div className="field">
@@ -150,6 +151,14 @@ export function ICloudSyncPanel() {
             In Schema → Record Types crea <code>StudioData</code> con campi{' '}
             <code>payload</code> (String), <code>revision</code> (Int64),{' '}
             <code>updatedAt</code> (String).
+          </li>
+          <li>
+            Per gli audio Discorso crea anche <code>DiscourseAudio</code> con:{' '}
+            <code>localId</code>, <code>discourseId</code>, <code>createdAt</code>,{' '}
+            <code>mimeType</code>, <code>title</code>, <code>label</code>,{' '}
+            <code>sectionId</code>, <code>syncedAt</code> (String),{' '}
+            <code>durationMs</code>, <code>byteLength</code> (Int64),{' '}
+            <code>audio</code> (Asset). Poi Deploy Schema se usi Production.
           </li>
           <li>
             In API Access crea un API Token e autorizza il dominio{' '}
