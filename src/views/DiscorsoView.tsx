@@ -16,6 +16,9 @@ import {
   Download,
   ListTree,
   Subtitles,
+  CloudUpload,
+  CloudDownload,
+  Cloud,
 } from 'lucide-react'
 import {
   ScriptureAssist,
@@ -60,6 +63,14 @@ import {
   updateDiscourseRecording,
   type DiscourseRecordingMeta,
 } from '../lib/discourseRecordings'
+import {
+  deleteICloudDiscourseRecording,
+  downloadICloudDiscourseAudio,
+  iCloudAudioAvailable,
+  mergeLocalAndICloudRecordings,
+  syncDiscourseRecordingsToICloud,
+  uploadDiscourseRecordingToICloud,
+} from '../lib/icloud'
 import { transcribeDiscourseAudio, type TranscriptSegment } from '../lib/discourseTranscribe'
 import {
   appendDictatedChunk,
@@ -236,11 +247,9 @@ export function DiscorsoView() {
     playUrlRef.current = null
     setPlayId(null)
     setPlayUrl(null)
-    void listDiscourseRecordings(note.id).then((items) => {
-      if (active) setRecordings((current) => [
-        ...current,
-        ...items.filter((item) => !current.some((saved) => saved.id === item.id)),
-      ])
+    void listDiscourseRecordings(note.id).then(async (items) => {
+      const merged = await mergeLocalAndICloudRecordings(note.id, items)
+      if (active) setRecordings(merged)
     })
     return () => { active = false }
   }, [note?.id])
@@ -456,6 +465,19 @@ export function DiscorsoView() {
   }
 
   async function removeRecording(id: string) {
+    const recording = recordings.find((item) => item.id === id)
+    if (recording?.iCloudRecordName && iCloudAudioAvailable()) {
+      const alsoCloud = window.confirm(
+        'Eliminare anche la copia su iCloud? Annulla per toglierla solo da questo dispositivo.',
+      )
+      if (alsoCloud) {
+        try {
+          await deleteICloudDiscourseRecording(recording.iCloudRecordName)
+        } catch (e) {
+          setRecHint(e instanceof Error ? e.message : 'Eliminazione iCloud non riuscita')
+        }
+      }
+    }
     await deleteDiscourseRecording(id)
     setRecordings((prev) => prev.filter((r) => r.id !== id))
     if (playId === id) {
@@ -706,13 +728,63 @@ export function DiscorsoView() {
     }
   }
 
+  async function uploadRecordingToICloud(recording: DiscourseRecordingMeta) {
+    setRecHint('Carico audio su iCloud…')
+    try {
+      const saved = await uploadDiscourseRecordingToICloud(recording)
+      setRecordings((items) => items.map((item) => (item.id === saved.id ? saved : item)))
+      setRecHint('Audio salvato su iCloud. Lo ritrovi sugli altri dispositivi con lo stesso Apple ID.')
+    } catch (e) {
+      setRecHint(e instanceof Error ? e.message : 'Upload iCloud non riuscito')
+    }
+  }
+
+  async function downloadRecordingFromICloud(recording: DiscourseRecordingMeta) {
+    if (!recording.iCloudRecordName) {
+      setRecHint('Questa registrazione non ha un riferimento iCloud.')
+      return
+    }
+    setRecHint('Scarico audio da iCloud…')
+    try {
+      const saved = await downloadICloudDiscourseAudio(recording.iCloudRecordName)
+      setRecordings((items) => {
+        const without = items.filter((item) => item.id !== saved.id && item.iCloudRecordName !== saved.iCloudRecordName)
+        return [saved, ...without]
+      })
+      setRecHint('Audio scaricato su questo dispositivo.')
+    } catch (e) {
+      setRecHint(e instanceof Error ? e.message : 'Download iCloud non riuscito')
+    }
+  }
+
+  async function syncAllRecordingsToICloud() {
+    if (!note) return
+    setRecHint('Sincronizzo gli audio con iCloud…')
+    try {
+      const result = await syncDiscourseRecordingsToICloud(recordings, (done, total) => {
+        setRecHint(`Carico su iCloud ${done}/${total}…`)
+      })
+      const local = await listDiscourseRecordings(note.id)
+      setRecordings(await mergeLocalAndICloudRecordings(note.id, local))
+      setRecHint(result.message)
+    } catch (e) {
+      setRecHint(e instanceof Error ? e.message : 'Sync audio iCloud non riuscita')
+    }
+  }
+
   function renderRecording(recording: DiscourseRecordingMeta, unlinked: boolean) {
     const speakers = [...new Set(recording.segments?.map((segment) => segment.speaker) || [])]
     const transcriptLocked = !!transcribeBusyId || polishBusy || analysisBusy
+    const remoteOnly = Boolean(recording.iCloudRemoteOnly)
+    const icloudOk = iCloudAudioAvailable()
     return (
       <div className="stack list-item" key={recording.id}>
         <strong>{recording.title || new Date(recording.createdAt).toLocaleString('it-IT')}</strong>
         <small>{formatRecordingDuration(recording.durationMs)}</small>
+        {recording.iCloudSyncedAt && !remoteOnly && (
+          <small>Su iCloud · {new Date(recording.iCloudSyncedAt).toLocaleString('it-IT')}</small>
+        )}
+        {remoteOnly && <small>Solo su iCloud — scaricala per ascoltarla qui</small>}
         {recording.progress && <small>Parti salvate {recording.progress.nextPart}/{recording.progress.total}</small>}
         {unlinked && (
           <select aria-label="Collega registrazione a un blocco" value=""
@@ -724,19 +796,37 @@ export function DiscorsoView() {
           </select>
         )}
         <div className="row discourse-recording-actions">
-          <button className="btn secondary small" type="button" onClick={() => void playRecording(recording.id)}>
-            <Play size={14} /> {playId === recording.id ? 'Chiudi' : 'Ascolta'}
-          </button>
-          <button className="btn secondary small" type="button"
-            disabled={!online || !!transcribeBusyId || polishBusy}
-            onClick={() => void transcribeRecording(recording.id)}>
-            <Subtitles size={14} />
-            {transcribeBusyId === recording.id ? 'Trascrivo…' : recording.progress ? 'Riprendi' : recording.transcript ? 'Ritrascrivi' : 'Trascrivi'}
-          </button>
-          <button className="btn secondary small" type="button" aria-label="Scarica registrazione"
-            onClick={() => void downloadRecording(recording.id)}>
-            <Download size={14} />
-          </button>
+          {!remoteOnly && (
+            <button className="btn secondary small" type="button" onClick={() => void playRecording(recording.id)}>
+              <Play size={14} /> {playId === recording.id ? 'Chiudi' : 'Ascolta'}
+            </button>
+          )}
+          {!remoteOnly && (
+            <button className="btn secondary small" type="button"
+              disabled={!online || !!transcribeBusyId || polishBusy}
+              onClick={() => void transcribeRecording(recording.id)}>
+              <Subtitles size={14} />
+              {transcribeBusyId === recording.id ? 'Trascrivo…' : recording.progress ? 'Riprendi' : recording.transcript ? 'Ritrascrivi' : 'Trascrivi'}
+            </button>
+          )}
+          {icloudOk && remoteOnly && recording.iCloudRecordName && (
+            <button className="btn secondary small" type="button"
+              onClick={() => void downloadRecordingFromICloud(recording)}>
+              <CloudDownload size={14} /> Scarica da iCloud
+            </button>
+          )}
+          {icloudOk && !remoteOnly && !recording.iCloudSyncedAt && (
+            <button className="btn secondary small" type="button"
+              onClick={() => void uploadRecordingToICloud(recording)}>
+              <CloudUpload size={14} /> Salva su iCloud
+            </button>
+          )}
+          {!remoteOnly && (
+            <button className="btn secondary small" type="button" aria-label="Scarica registrazione"
+              onClick={() => void downloadRecording(recording.id)}>
+              <Download size={14} />
+            </button>
+          )}
           <button className="btn secondary small" type="button" aria-label="Elimina registrazione"
             disabled={polishBusy || transcribeBusyId === recording.id}
             onClick={() => void removeRecording(recording.id)}>
@@ -1332,6 +1422,13 @@ export function DiscorsoView() {
 
               {micError && <p className="error-text">{micError}</p>}
               {recHint && <p className="muted">{recHint}</p>}
+              {iCloudAudioAvailable() && recordings.some((r) => !r.iCloudSyncedAt && !r.iCloudRemoteOnly) && (
+                <div className="row" style={{ marginTop: '0.5rem' }}>
+                  <button className="btn secondary small" type="button" onClick={() => void syncAllRecordingsToICloud()}>
+                    <Cloud size={14} /> Carica audio locali su iCloud
+                  </button>
+                </div>
+              )}
               <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: '0.85rem' }}>
                 EPUB: i popup dei versetti funzionano meglio in Apple Books o Thorium; altri
                 lettori possono mostrare solo il testo senza interazione.
@@ -1350,7 +1447,18 @@ export function DiscorsoView() {
 
               {recordings.some((item) => !sections.some((section) => section.id === item.sectionId)) && (
                 <div className="stack">
-                  <h3>Registrazioni da collegare</h3>
+                  <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                    <h3 style={{ margin: 0 }}>Registrazioni da collegare</h3>
+                    {iCloudAudioAvailable() && (
+                      <button
+                        className="btn secondary small"
+                        type="button"
+                        onClick={() => void syncAllRecordingsToICloud()}
+                      >
+                        <Cloud size={14} /> Carica audio su iCloud
+                      </button>
+                    )}
+                  </div>
                   {recordings.filter((item) => !sections.some((section) => section.id === item.sectionId)).map((item) =>
                     renderRecording(item, true),
                   )}

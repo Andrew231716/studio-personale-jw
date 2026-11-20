@@ -14,4 +14,13 @@ export {
   subscribeICloudSync,
   syncICloudNow,
 } from './sync'
+export {
+  deleteICloudDiscourseRecording,
+  downloadICloudDiscourseAudio,
+  iCloudAudioAvailable,
+  listICloudDiscourseRecordings,
+  mergeLocalAndICloudRecordings,
+  syncDiscourseRecordingsToICloud,
+  uploadDiscourseRecordingToICloud,
+} from './audioAssets'
 export type { ICloudConfig, ICloudSnapshot, ICloudSyncStatus } from './types'

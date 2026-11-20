@@ -4,7 +4,7 @@ import { uid } from './id'
 import type { TranscriptProgress, TranscriptSegment } from './discourseTranscribe'
 
 const DB_NAME = 'jw-studio-discourse-recordings'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'recordings'
 
 export interface DiscourseRecordingMeta {
@@ -24,10 +24,15 @@ export interface DiscourseRecordingMeta {
   summary?: string
   translation?: string
   fileName?: string
+  /** Record name CloudKit (DiscourseAudio). */
+  iCloudRecordName?: string
+  iCloudSyncedAt?: string
+  /** Presente su iCloud ma blob non ancora scaricato in locale. */
+  iCloudRemoteOnly?: boolean
 }
 
 interface RecordingRow extends DiscourseRecordingMeta {
-  blob: Blob
+  blob?: Blob
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -68,6 +73,27 @@ export function mediaRecorderSupported(): boolean {
   )
 }
 
+async function putRow(row: RecordingRow): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).put(row)
+    tx.oncomplete = () => {
+      db.close()
+      resolve()
+    }
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
+function metaOf(row: RecordingRow): DiscourseRecordingMeta {
+  const { blob: _b, ...meta } = row
+  return {
+    ...meta,
+    iCloudRemoteOnly: Boolean(meta.iCloudRemoteOnly) || !row.blob || row.blob.size === 0,
+  }
+}
+
 export async function saveDiscourseRecording(params: {
   discourseId: string
   blob: Blob
@@ -89,17 +115,24 @@ export async function saveDiscourseRecording(params: {
     title: params.title,
     fileName: params.fileName,
     byteLength: params.blob.size,
+    iCloudRemoteOnly: false,
   }
-  const db = await openDb()
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite')
-    tx.objectStore(STORE).put({ ...meta, blob: params.blob } satisfies RecordingRow)
-    tx.oncomplete = () => {
-      db.close()
-      resolve()
-    }
-    tx.onerror = () => reject(tx.error)
-  })
+  await putRow({ ...meta, blob: params.blob })
+  return meta
+}
+
+/** Salva/aggiorna una registrazione scaricata da iCloud. */
+export async function saveDiscourseRecordingFromRemote(
+  params: DiscourseRecordingMeta & { blob: Blob },
+): Promise<DiscourseRecordingMeta> {
+  const meta: DiscourseRecordingMeta = {
+    ...params,
+    byteLength: params.blob.size,
+    mimeType: params.mimeType || params.blob.type || 'audio/webm',
+    iCloudRemoteOnly: false,
+  }
+  const { blob, ...rest } = { ...meta, blob: params.blob }
+  await putRow({ ...rest, blob })
   return meta
 }
 
@@ -116,7 +149,7 @@ export async function listDiscourseRecordings(
         const rows = (req.result || []) as RecordingRow[]
         resolve(
           rows
-            .map(({ blob: _b, ...meta }) => meta)
+            .map((row) => metaOf(row))
             .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         )
       }
@@ -136,7 +169,7 @@ export async function getDiscourseRecordingBlob(id: string): Promise<Blob | null
       const req = tx.objectStore(STORE).get(id)
       req.onsuccess = () => {
         const row = req.result as RecordingRow | undefined
-        resolve(row?.blob || null)
+        resolve(row?.blob && row.blob.size > 0 ? row.blob : null)
       }
       req.onerror = () => reject(req.error)
       tx.oncomplete = () => db.close()
@@ -159,9 +192,26 @@ export async function deleteDiscourseRecording(id: string): Promise<void> {
   })
 }
 
+type RecordingPatch = Partial<
+  Pick<
+    DiscourseRecordingMeta,
+    | 'transcript'
+    | 'sectionId'
+    | 'segments'
+    | 'summary'
+    | 'translation'
+    | 'progress'
+    | 'iCloudRecordName'
+    | 'iCloudSyncedAt'
+    | 'iCloudRemoteOnly'
+    | 'title'
+    | 'label'
+  >
+>
+
 export async function updateDiscourseRecording(
   id: string,
-  patch: Pick<DiscourseRecordingMeta, 'transcript' | 'sectionId' | 'segments' | 'summary' | 'translation' | 'progress'>,
+  patch: RecordingPatch,
 ): Promise<DiscourseRecordingMeta | null> {
   const db = await openDb()
   return await new Promise((resolve, reject) => {
@@ -177,8 +227,7 @@ export async function updateDiscourseRecording(
       }
       const next: RecordingRow = { ...row, ...patch }
       store.put(next)
-      const { blob: _b, ...meta } = next
-      saved = meta
+      saved = metaOf(next)
     }
     tx.onabort = () => {
       db.close()

@@ -59,6 +59,9 @@ export type ICloudSyncStatus =
 export const ICLOUD_RECORD_TYPE = 'StudioData'
 export const ICLOUD_RECORD_NAME = 'jw-studio-snapshot'
 
+/** Record type CloudKit per audio Discorso (campo ASSET `audio`). */
+export const ICLOUD_AUDIO_RECORD_TYPE = 'DiscourseAudio'
+
 declare global {
   interface Window {
     CloudKit?: CloudKitGlobal
@@ -89,6 +92,31 @@ export interface CloudKitUserIdentity {
 export interface CloudKitDatabase {
   fetchRecords: (names: string | string[]) => Promise<CloudKitRecordsResponse>
   saveRecords: (records: CloudKitRecord | CloudKitRecord[]) => Promise<CloudKitRecordsResponse>
+  deleteRecords?: (
+    names: string | string[],
+    options?: { force?: boolean },
+  ) => Promise<CloudKitRecordsResponse>
+  performQuery?: (
+    query: CloudKitQuery,
+    options?: { resultsLimit?: number },
+  ) => Promise<CloudKitRecordsResponse>
+}
+
+export interface CloudKitQuery {
+  recordType: string
+  filterBy?: Array<{
+    fieldName: string
+    comparator: string
+    fieldValue: { value: unknown }
+  }>
+  sortBy?: Array<{ fieldName: string; ascending?: boolean }>
+}
+
+export interface CloudKitAssetValue {
+  downloadURL?: string
+  fileChecksum?: string
+  size?: number
+  receipt?: string
 }
 
 export interface CloudKitRecord {
