@@ -1,3 +1,4 @@
+import { aiSettingsForSync } from '../aiKeys'
 import { repairBiblePlanTitle } from '../biblePlanTitle'
 import type { AppSettings } from '../../types'
 import {
@@ -69,6 +70,7 @@ export function resolveICloudConfig(settings: AppSettings): ICloudConfig {
 
 function snapshotFromStore(): ICloudSnapshot {
   const s = useAppStore.getState()
+  const syncKeys = s.settings.ai?.syncAcrossDevices === true
   return {
     version: 1,
     updatedAt: new Date().toISOString(),
@@ -77,7 +79,7 @@ function snapshotFromStore(): ICloudSnapshot {
       cloudSync: undefined,
       iCloud: undefined,
       openAi: undefined,
-      ai: { provider: s.settings.ai?.provider, geminiModel: s.settings.ai?.geminiModel },
+      ai: aiSettingsForSync(s.settings.ai, syncKeys),
     },
     syncMetadata: s.syncMetadata,
     topics: s.topics,
@@ -104,10 +106,11 @@ function applySnapshot(snapshot: ICloudSnapshot) {
     const cur = useAppStore.getState()
     useAppStore.setState({
       settings: {
-        ...mergeAppSettings(cur.settings, { ...snapshot.settings, openAi: undefined, ai: {
-          provider: snapshot.settings.ai?.provider,
-          geminiModel: snapshot.settings.ai?.geminiModel,
-        } }),
+        ...mergeAppSettings(cur.settings, {
+          ...snapshot.settings,
+          openAi: undefined,
+          ai: snapshot.settings.ai,
+        }),
         cloudSync: cur.settings.cloudSync,
         iCloud: cur.settings.iCloud,
       },

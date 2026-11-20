@@ -1,3 +1,4 @@
+import { aiSettingsForSync } from './aiKeys'
 import { repairBiblePlanTitle } from './biblePlanTitle'
 import type { AppSettings } from '../types'
 import {
@@ -60,21 +61,13 @@ export function isValidSyncKey(key: string): boolean {
 
 function snapshotFromStore(): ICloudSnapshot {
   const s = useAppStore.getState()
-  // Non sincronizzare le chiavi AI sul cloud (restano solo sul dispositivo).
+  const syncKeys = s.settings.ai?.syncAcrossDevices === true
   const settings: AppSettings = {
     ...s.settings,
     cloudSync: undefined,
     iCloud: undefined,
-    ai: {
-      provider: s.settings.ai?.provider || 'free',
-      geminiApiKey: '',
-      geminiApiKeys: [],
-      geminiModel: s.settings.ai?.geminiModel || 'gemini-3.1-flash-lite',
-      groqApiKey: '',
-      groqApiKeys: [],
-      openRouterApiKey: '',
-      openRouterApiKeys: [],
-    },
+    // Di default le chiavi restano sul dispositivo; con syncAcrossDevices viaggiano sul cloud.
+    ai: aiSettingsForSync(s.settings.ai, syncKeys),
     openAi: undefined,
   }
   return {

@@ -98,6 +98,7 @@ export function ImpostazioniView() {
         groqApiKeys: settings.ai?.groqApiKeys || [],
         openRouterApiKey: settings.ai?.openRouterApiKey || '',
         openRouterApiKeys: settings.ai?.openRouterApiKeys || [],
+        syncAcrossDevices: settings.ai?.syncAcrossDevices === true,
         ...partial,
       },
       openAi: undefined,
@@ -404,6 +405,20 @@ export function ImpostazioniView() {
                 onChange={(e) => patchAi({ openRouterApiKeys: parseKeysText(e.target.value) })}
               />
             </div>
+            <label className="row list-item" style={{ cursor: 'pointer', marginTop: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={settings.ai?.syncAcrossDevices === true}
+                onChange={(e) => patchAi({ syncAcrossDevices: e.target.checked })}
+              />
+              <span>
+                Sincronizza chiavi AI tra dispositivi (iPhone, iPad, …)
+                <span className="muted" style={{ display: 'block', fontSize: '0.85rem' }}>
+                  Richiede Sync cloud (o iCloud) attivo con la stessa chiave. Le chiavi viaggiano
+                  cifrate nel tuo spazio sync: attiva solo se ti fidi di quel canale.
+                </span>
+              </span>
+            </label>
             {(() => {
               const cap = estimateTranscribeCapacity(settings.ai)
               return (

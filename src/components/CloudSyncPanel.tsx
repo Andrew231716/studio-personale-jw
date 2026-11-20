@@ -133,7 +133,8 @@ export function CloudSyncPanel({ compact = false }: { compact?: boolean }) {
       <p className="lede">
         Se attivi il cloud, l’app salva online appunti, diario, chat AI, bozze, materiali
         e impostazioni di studio per ritrovarli sugli altri dispositivi. Conserva la chiave
-        di sincronizzazione in un posto sicuro.
+        di sincronizzazione in un posto sicuro. Le chiavi API (Gemini/Groq/…) si sincronizzano
+        solo se le attivi in Impostazioni → Motore AI.
       </p>
 
       {hasSavedKey ? (

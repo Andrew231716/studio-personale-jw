@@ -1,5 +1,37 @@
 import type { AiSettings } from '../types'
 
+/** Snapshot AI per sync: con o senza segreti. */
+export function aiSettingsForSync(
+  ai?: AiSettings | null,
+  syncKeys = false,
+): AiSettings {
+  const base: AiSettings = {
+    provider: ai?.provider || 'free',
+    geminiModel: ai?.geminiModel || 'gemini-3.1-flash-lite',
+    syncAcrossDevices: ai?.syncAcrossDevices === true,
+  }
+  if (!syncKeys) {
+    return {
+      ...base,
+      geminiApiKey: '',
+      geminiApiKeys: [],
+      groqApiKey: '',
+      groqApiKeys: [],
+      openRouterApiKey: '',
+      openRouterApiKeys: [],
+    }
+  }
+  return {
+    ...base,
+    geminiApiKey: ai?.geminiApiKey || '',
+    geminiApiKeys: [...(ai?.geminiApiKeys || [])],
+    groqApiKey: ai?.groqApiKey || '',
+    groqApiKeys: [...(ai?.groqApiKeys || [])],
+    openRouterApiKey: ai?.openRouterApiKey || '',
+    openRouterApiKeys: [...(ai?.openRouterApiKeys || [])],
+  }
+}
+
 function uniqKeys(values: Array<string | undefined | null>): string[] {
   const out: string[] = []
   const seen = new Set<string>()
