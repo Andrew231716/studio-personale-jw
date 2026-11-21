@@ -54,7 +54,7 @@ function readAiSettings(): AiSettings {
   }
 }
 
-/** Output token sempre bassi (piano free / risparmio). */
+/** Default basso per chat breve; le operazioni discorso possono alzarlo. */
 export const AI_MAX_OUT_TOKENS = 768
 const CONTEXT_CHAR_LIMIT = 12_000
 const HISTORY_MSG_LIMIT = 2
@@ -132,9 +132,25 @@ export async function askAi(params: {
   context?: string
   allowedUrls?: string[]
   signal?: AbortSignal
+  /** Override token di uscita (es. polish / struttura discorso). */
+  maxTokens?: number
+  promptCharLimit?: number
+  contextCharLimit?: number
+  /** Se false, non aggiunge «risposta breve» (testi lunghi). */
+  concise?: boolean
 }): Promise<string> {
-  const { prompt, history = [], context = '', allowedUrls = [], signal } = params
-  const clippedContext = clipText(context, CONTEXT_CHAR_LIMIT)
+  const {
+    prompt,
+    history = [],
+    context = '',
+    allowedUrls = [],
+    signal,
+    maxTokens = AI_MAX_OUT_TOKENS,
+    promptCharLimit = PROMPT_CHAR_LIMIT,
+    contextCharLimit = CONTEXT_CHAR_LIMIT,
+    concise = true,
+  } = params
+  const clippedContext = clipText(context, contextCharLimit)
   const messages = [
     {
       role: 'system',
@@ -151,12 +167,12 @@ export async function askAi(params: {
     {
       role: 'user',
       content:
-        clipText(prompt, PROMPT_CHAR_LIMIT) +
-        '\n\n(Solo fonti del contesto; terminologia JW; risposta breve.)',
+        clipText(prompt, promptCharLimit) +
+        (concise ? '\n\n(Solo fonti del contesto; terminologia JW; risposta breve.)' : ''),
     },
   ]
 
-  const result = await requestAi(messages, AI_MAX_OUT_TOKENS, signal)
+  const result = await requestAi(messages, maxTokens, signal)
   return enforceGrounding(result.text, allowedUrls)
 }
 

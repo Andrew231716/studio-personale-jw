@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict'
 import { findScriptureRefsInText } from '../src/lib/bibleText.ts'
+import {
+  flattenSectionBodies,
+  parseStructurePlan,
+  sectionsFromUnits,
+  splitDiscourseUnits,
+  splitForPolish,
+  structurePreservesContent,
+} from '../src/lib/discourseStructure.ts'
 import test from 'node:test'
 import { buildBibleReadingGuide, getBibleReadingStatus } from '../src/lib/bibleReadingGuide.ts'
 import { readBiblePlanTitle, repairBiblePlanTitle } from '../src/lib/biblePlanTitle.ts'
@@ -160,4 +168,37 @@ test('riconosce liste e range misti di versetti', () => {
   assert.equal(d[0].verseEnd, undefined)
   assert.equal(d[1].verse, 5)
   assert.equal(d[1].verseEnd, 7)
+})
+
+test('l’analisi struttura ricopia tutto il testo originale senza tagli', () => {
+  const original = [
+    'Apriamo con una domanda sulla fede.',
+    'Primo esempio pratico con Abramo e Geova.',
+    'Secondo esempio con la predicazione quotidiana.',
+    'Chiudiamo applicando Salmo 28:1,2 nella vita.',
+  ].join('\n\n')
+  const units = splitDiscourseUnits(original)
+  assert.equal(units.length, 4)
+  const plan = parseStructurePlan(
+    JSON.stringify({
+      introduzione: [0],
+      punti: [
+        { title: 'Fede di Abramo', units: [1] },
+        { title: 'Predicazione', units: [2] },
+      ],
+      conclusione: [3],
+    }),
+    units.length,
+  )
+  assert.ok(plan)
+  const sections = sectionsFromUnits(units, plan!)
+  assert.equal(structurePreservesContent(original, sections), true)
+  assert.equal(flattenSectionBodies(sections), original)
+})
+
+test('il polish spezza i testi lunghi senza perdere caratteri', () => {
+  const text = Array.from({ length: 40 }, (_, i) => `Frase numero ${i + 1} del discorso.`).join(' ')
+  const chunks = splitForPolish(text, 120)
+  assert.ok(chunks.length > 1)
+  assert.equal(chunks.join(' ').replace(/\s+/g, ' ').trim(), text.replace(/\s+/g, ' ').trim())
 })

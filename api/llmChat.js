@@ -12,7 +12,8 @@ const GEMINI_MODELS = new Set([DEFAULT_GEMINI_MODEL, 'gemini-2.5-flash'])
 const REQUEST_TIMEOUT = 42_000
 
 /** Cap output: sempre pochi token (free tier / risparmio). */
-const MAX_OUT_TOKENS = 768
+/** Discorsi lunghi (polish a chunk / JSON struttura) richiedono più di 768. */
+const MAX_OUT_TOKENS = 4096
 const DEFAULT_OUT_TOKENS = 512
 
 export function resolveProvider(req, body = {}) {
