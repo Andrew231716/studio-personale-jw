@@ -7,6 +7,9 @@ import {
   resolveGroqKeys,
   resolveProvider,
 } from './llmChat.js'
+import { parseTranscriptSegments } from './transcriptParse.js'
+
+export { parseTranscriptSegments } from './transcriptParse.js'
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
 const DEFAULT_MODEL = 'gemini-2.5-flash'
@@ -14,9 +17,14 @@ const REQUEST_TIMEOUT = 90_000
 const MAX_BASE64_CHARS = 6_000_000
 
 async function transcribeGemini({ apiKey, model, mimeType, audioBase64, language, offset }) {
-  const prompt = `Transcribe all audible speech faithfully, without translating or summarizing. Language hint: ${language}.
+  const prompt = `Transcribe ALL audible speech in this clip faithfully, without translating or summarizing. Language hint: ${language}.
 Return JSON as {"segments":[{"start":0,"speaker":"1","text":"..."}]}.
-Use seconds relative to this clip, in chronological order. Start a segment at every speaker change and at natural breaks in long turns. Use consistent numeric speaker labels within this clip. Leave segments empty for silence. Never invent speech. Format Bible citations with a colon, e.g. John 3:16.`
+Use seconds relative to this clip (0 = start of clip), in chronological order.
+Start a segment at every speaker change and at natural breaks in long turns.
+Use consistent numeric speaker labels within this clip.
+Leave segments empty for silence. Never invent speech.
+Include the entire clip — do not stop early.
+Format Bible citations with a colon, e.g. John 3:16 or Salmo 28:1.`
 
   const upstream = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
     method: 'POST',
@@ -59,31 +67,24 @@ Use seconds relative to this clip, in chronological order. Start a segment at ev
   }
 
   const parts = data?.candidates?.[0]?.content?.parts
-  const text = Array.isArray(parts)
+  const raw = Array.isArray(parts)
     ? parts
         .filter((p) => !p?.thought && typeof p?.text === 'string')
         .map((p) => p.text)
         .join('')
         .trim()
     : ''
-  try {
-    const segments = JSON.parse(text).segments.filter(
-      (item) => Number.isFinite(item?.start) && item.start >= 0 && item.start <= 120 && typeof item.text === 'string' && item.text.trim(),
-    ).map((item) => ({
-      start: item.start,
-      speaker: `Relatore ${offset + (Number.isSafeInteger(Number(item.speaker)) && Number(item.speaker) > 0 ? Number(item.speaker) : 1)}`,
-      text: item.text.trim(),
-    })).sort((a, b) => a.start - b.start)
-    return {
-      ok: true,
-      status: 200,
-      engine: 'gemini',
-      text: segments.map((segment) => segment.text).join('\n'),
-      segments,
-      model,
-    }
-  } catch {
+  const segments = parseTranscriptSegments(raw, offset)
+  if (!segments.length) {
     return { ok: false, status: 502, text: 'Il motore ha restituito una trascrizione incompleta. Riprova.' }
+  }
+  return {
+    ok: true,
+    status: 200,
+    engine: 'gemini',
+    text: segments.map((segment) => segment.text).join('\n'),
+    segments,
+    model,
   }
 }
 
@@ -123,14 +124,18 @@ async function transcribeGroq({ apiKey, mimeType, audioBase64, language, offset 
     }
   }
 
-  const chunks = Array.isArray(data?.segments) ? data.segments : []
-  let segments = chunks
-    .filter((item) => typeof item?.text === 'string' && item.text.trim())
-    .map((item) => ({
-      start: Math.max(0, Number(item.start) || 0),
-      speaker: `Relatore ${offset + 1}`,
-      text: String(item.text).trim(),
-    }))
+  let segments = parseTranscriptSegments(
+    JSON.stringify({
+      segments: Array.isArray(data?.segments)
+        ? data.segments.map((item) => ({
+            start: item?.start ?? 0,
+            speaker: '1',
+            text: item?.text,
+          }))
+        : [],
+    }),
+    offset,
+  )
   if (!segments.length && typeof data?.text === 'string' && data.text.trim()) {
     segments = [{ start: 0, speaker: `Relatore ${offset + 1}`, text: data.text.trim() }]
   }
@@ -198,8 +203,8 @@ export default async function handler(req, res) {
         )
       }
     }
-    // File lunghi: Whisper Groq prima (più adatto ai minuti); altrimenti Gemini → Groq
-    if (provider === 'groq' || longForm) {
+    // Preferisci Whisper quando c’è Groq (più fedele su clip lunghi); altrimenti Gemini → Groq
+    if (provider === 'groq' || longForm || groqKeys.length) {
       pushGroq()
       pushGemini()
     } else {
@@ -215,7 +220,6 @@ export default async function handler(req, res) {
         return
       }
       if (last.status !== 429 && last.status !== 401 && last.status !== 403) {
-        // prova comunque il motore successivo su errori temporanei
         continue
       }
     }

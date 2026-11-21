@@ -8,6 +8,8 @@ import {
   splitForPolish,
   structurePreservesContent,
 } from '../src/lib/discourseStructure.ts'
+import { filterOverlapSegments } from '../src/lib/transcriptClips.ts'
+import { parseTranscriptSegments } from '../api/transcriptParse.js'
 import test from 'node:test'
 import { buildBibleReadingGuide, getBibleReadingStatus } from '../src/lib/bibleReadingGuide.ts'
 import { readBiblePlanTitle, repairBiblePlanTitle } from '../src/lib/biblePlanTitle.ts'
@@ -201,4 +203,37 @@ test('il polish spezza i testi lunghi senza perdere caratteri', () => {
   const chunks = splitForPolish(text, 120)
   assert.ok(chunks.length > 1)
   assert.equal(chunks.join(' ').replace(/\s+/g, ' ').trim(), text.replace(/\s+/g, ' ').trim())
+})
+
+test('la trascrizione recupera segmenti anche da JSON parziale e non scarta start>120', () => {
+  const full = parseTranscriptSegments(
+    JSON.stringify({
+      segments: [
+        { start: 0, speaker: '1', text: 'Inizio del discorso.' },
+        { start: 150, speaker: '1', text: 'Parte oltre i due minuti del clip.' },
+      ],
+    }),
+  )
+  assert.equal(full.length, 2)
+  assert.equal(full[1].start, 150)
+
+  const partial = parseTranscriptSegments(
+    '{"segments":[{"start":0,"speaker":"1","text":"Prima frase salva."},{"start":12,"speaker":"1","text":"Seconda frase tagli',
+  )
+  assert.ok(partial.length >= 1)
+  assert.match(partial[0].text, /Prima frase/)
+})
+
+test('i pezzi audio successivi scartano solo la zona di overlap', () => {
+  const kept = filterOverlapSegments(
+    [
+      { start: 0.5, speaker: 'Relatore 1', text: 'Ripetuto' },
+      { start: 2.4, speaker: 'Relatore 1', text: 'Nuovo' },
+    ],
+    1,
+    2.5,
+  )
+  assert.equal(kept.length, 1)
+  assert.equal(kept[0].text, 'Nuovo')
+  assert.equal(filterOverlapSegments(kept, 0).length, 1)
 })
