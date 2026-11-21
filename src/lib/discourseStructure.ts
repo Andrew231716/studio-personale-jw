@@ -234,3 +234,185 @@ export function structurePreservesContent(
   for (const w of o) if (j.has(w)) hit++
   return hit / o.length >= 0.85
 }
+
+/** Unità del discorso (paragrafi o frasi) da assegnare senza riscrivere il testo. */
+export function splitDiscourseUnits(fullText: string): string[] {
+  const text = fullText.trim()
+  if (!text) return []
+  const paras = text
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+  if (paras.length >= 2) return paras
+  const sentences = text.split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter(Boolean)
+  if (sentences.length >= 3) return sentences
+  return [text]
+}
+
+/** Spezza in pezzi ai confini di frase/paragrafo senza perdere testo. */
+export function splitForPolish(text: string, maxChars = 2800): string[] {
+  const trimmed = text.trim()
+  if (!trimmed) return []
+  if (trimmed.length <= maxChars) return [trimmed]
+
+  const parts: string[] = []
+  let rest = trimmed
+  while (rest.length > maxChars) {
+    const window = rest.slice(0, maxChars)
+    let cut =
+      Math.max(
+        window.lastIndexOf('\n\n'),
+        window.lastIndexOf('. '),
+        window.lastIndexOf('! '),
+        window.lastIndexOf('? '),
+        window.lastIndexOf('… '),
+      ) + 1
+    if (cut < maxChars * 0.4) cut = maxChars
+    parts.push(rest.slice(0, cut).trim())
+    rest = rest.slice(cut).trim()
+  }
+  if (rest) parts.push(rest)
+  return parts
+}
+
+export type StructurePlan = {
+  introduzione: number[]
+  punti: Array<{ title: string; units: number[] }>
+  conclusione: number[]
+}
+
+function normalizeIndexList(raw: unknown, unitCount: number): number[] {
+  if (!Array.isArray(raw)) return []
+  const out: number[] = []
+  for (const item of raw) {
+    const n = Number(item)
+    if (!Number.isInteger(n) || n < 0 || n >= unitCount) continue
+    if (!out.includes(n)) out.push(n)
+  }
+  return out.sort((a, b) => a - b)
+}
+
+/** Interpreta il JSON di indici prodotto dall’AI. */
+export function parseStructurePlan(raw: string, unitCount: number): StructurePlan | null {
+  const match = raw.match(/\{[\s\S]*\}/)
+  if (!match) return null
+  try {
+    const data = JSON.parse(match[0]) as {
+      introduzione?: number[]
+      punti?: Array<{ title?: string; units?: number[]; paras?: number[] } | number[]>
+      conclusione?: number[]
+    }
+    const intro = normalizeIndexList(data.introduzione, unitCount)
+    const concl = normalizeIndexList(data.conclusione, unitCount)
+    const puntiRaw = Array.isArray(data.punti) ? data.punti : []
+    const punti: Array<{ title: string; units: number[] }> = []
+    puntiRaw.forEach((p, i) => {
+      if (Array.isArray(p)) {
+        const units = normalizeIndexList(p, unitCount)
+        if (units.length) punti.push({ title: `Punto ${i + 1}`, units })
+        return
+      }
+      const units = normalizeIndexList(p?.units || p?.paras, unitCount)
+      if (!units.length) return
+      punti.push({
+        title: String(p?.title || `Punto ${i + 1}`).trim() || `Punto ${i + 1}`,
+        units,
+      })
+    })
+
+    const used = new Set<number>([...intro, ...concl, ...punti.flatMap((p) => p.units)])
+    const missing: number[] = []
+    for (let i = 0; i < unitCount; i++) if (!used.has(i)) missing.push(i)
+    if (missing.length) {
+      if (punti.length) {
+        punti[punti.length - 1].units = [...punti[punti.length - 1].units, ...missing].sort(
+          (a, b) => a - b,
+        )
+      } else if (concl.length) {
+        concl.push(...missing)
+        concl.sort((a, b) => a - b)
+      } else {
+        intro.push(...missing)
+        intro.sort((a, b) => a - b)
+      }
+    }
+
+    const seen = new Set<number>()
+    const take = (list: number[]) => {
+      const out: number[] = []
+      for (const i of list) {
+        if (seen.has(i)) continue
+        seen.add(i)
+        out.push(i)
+      }
+      return out
+    }
+    return {
+      introduzione: take(intro),
+      punti: punti
+        .map((p, i) => ({ title: p.title || `Punto ${i + 1}`, units: take(p.units) }))
+        .filter((p) => p.units.length),
+      conclusione: take(concl),
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Ricopia le unità originali nelle sezioni secondo il piano AI. */
+export function sectionsFromUnits(
+  units: string[],
+  plan: StructurePlan,
+): DiscourseSection[] {
+  const join = (idxs: number[]) =>
+    idxs
+      .map((i) => units[i])
+      .filter(Boolean)
+      .join('\n\n')
+      .trim()
+
+  const sections: DiscourseSection[] = []
+  sections.push({
+    id: uid('dsec'),
+    kind: 'introduzione',
+    title: 'Introduzione',
+    body: join(plan.introduzione),
+    minutes: 2,
+  })
+  plan.punti.forEach((p, i) => {
+    const body = join(p.units)
+    if (!body) return
+    sections.push({
+      id: uid('dsec'),
+      kind: 'punto',
+      title: p.title || `Punto ${i + 1}`,
+      body,
+      minutes: 4,
+    })
+  })
+  sections.push({
+    id: uid('dsec'),
+    kind: 'conclusione',
+    title: 'Conclusione',
+    body: join(plan.conclusione),
+    minutes: 2,
+  })
+
+  const covered = new Set([
+    ...plan.introduzione,
+    ...plan.conclusione,
+    ...plan.punti.flatMap((p) => p.units),
+  ])
+  const leftover = units
+    .map((u, i) => (covered.has(i) ? '' : u))
+    .filter(Boolean)
+    .join('\n\n')
+    .trim()
+  if (leftover) {
+    const last = sections[sections.length - 1]
+    last.body = `${last.body.trim()}\n\n${leftover}`.trim()
+  }
+
+  if (!flattenSectionBodies(sections).trim()) return []
+  return sections
+}

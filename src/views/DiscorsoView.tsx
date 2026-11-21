@@ -533,36 +533,56 @@ export function DiscorsoView() {
 
   async function runStructureAnalyze() {
     const startingSections = sectionsRef.current
-    const full = flattenSectionBodies(sections) || joinSections(sections)
+    const full =
+      flattenSectionBodies(startingSections) || joinSections(startingSections)
     if (!full.trim()) {
       setPolishHint('Scrivi o detta qualcosa prima di analizzare la struttura.')
       return
     }
     if (structureBusy) return
     setStructureBusy(true)
-    setPolishHint('Analizzo la struttura (introduzione, punti, conclusione)…')
+    setPolishHint(
+      `Analizzo tutto il testo (${full.trim().split(/\s+/).length} parole) in introduzione, punti e conclusione…`,
+    )
     try {
       const { sections: next, source } = await structureDiscourseWithAi(full, {
         forceLocal: !online,
       })
-        if (visibleNoteId.current !== note?.id || sectionsRef.current !== startingSections) {
+      if (visibleNoteId.current !== note?.id || sectionsRef.current !== startingSections) {
         setPolishHint('Il discorso è cambiato. Avvia di nuovo l’analisi.')
         return
       }
       persistSections(next)
       setActiveSectionId(next[0]?.id || null)
+      const outWords = flattenSectionBodies(next).split(/\s+/).filter(Boolean).length
+      const inWords = full.trim().split(/\s+/).filter(Boolean).length
       setPolishHint(
         source === 'ai'
-          ? 'Struttura applicata con AI. Il contenuto è stato conservato.'
+          ? `Struttura AI applicata · ${outWords}/${inWords} parole conservate. Puoi modificare i blocchi e premere Salva.`
           : online
-            ? 'Struttura locale applicata (contenuto conservato).'
-            : 'Offline: struttura locale. Contenuto conservato.',
+            ? `Struttura locale · ${outWords}/${inWords} parole conservate. Puoi modificare e salvare.`
+            : 'Offline: struttura locale. Contenuto conservato. Puoi modificare e salvare.',
       )
     } catch (e) {
       setPolishHint(e instanceof Error ? e.message : 'Analisi non riuscita')
     } finally {
       setStructureBusy(false)
     }
+  }
+
+  function saveRevision(sectionId: string) {
+    const section = sectionsRef.current.find((item) => item.id === sectionId)
+    const text = section?.revision?.text?.trim()
+    if (!section || !text) {
+      setPolishHint('Nessuna revisione da salvare in questo blocco.')
+      return
+    }
+    patchSection(sectionId, {
+      body: text,
+      revision: { ...section.revision!, text },
+    })
+    setSaveHint('Revisione salvata nel testo originale del blocco.')
+    window.setTimeout(() => setSaveHint(''), 2500)
   }
 
   async function readRecordingTranscript(id: string) {
@@ -1387,10 +1407,56 @@ export function DiscorsoView() {
                     </div>
                     <div className="stack discourse-comparison-result discourse-version" data-active={tab === 1} data-paired={view.compare === 1}>
                       <strong>{s.revision?.source === 'local' ? 'Revisione locale' : 'Versione sistemata con AI'}</strong>
-                      <p>{s.revision?.text || 'Premi «Sistema ora» per confrontare la revisione.'}</p>
-                      <button type="button" className="btn secondary small"
-                        disabled={polishBusy || listening || captureSaving || !!transcribeBusyId || structureBusy}
-                        onClick={() => void runPolish(s.id)}>{polishBusy ? 'Sistemo…' : 'Sistema ora'}</button>
+                      {s.revision?.text ? (
+                        <>
+                          <textarea
+                            className="discourse-editor"
+                            aria-label="Testo revisione modificabile"
+                            rows={idx === 0 ? 8 : 6}
+                            value={s.revision.text}
+                            onFocus={() => setActiveSectionId(s.id)}
+                            onChange={(e) => {
+                              setActiveSectionId(s.id)
+                              patchSection(s.id, {
+                                revision: {
+                                  ...s.revision!,
+                                  text: e.target.value,
+                                },
+                              })
+                            }}
+                          />
+                          <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                            <button
+                              type="button"
+                              className="btn accent small"
+                              disabled={captureSaving || !s.revision.text.trim()}
+                              onClick={() => saveRevision(s.id)}
+                            >
+                              <Save size={14} /> Salva nel testo originale
+                            </button>
+                            <button
+                              type="button"
+                              className="btn secondary small"
+                              disabled={polishBusy || listening || captureSaving || !!transcribeBusyId || structureBusy}
+                              onClick={() => void runPolish(s.id)}
+                            >
+                              {polishBusy ? 'Sistemo…' : 'Sistema di nuovo'}
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="muted">Premi «Sistema ora» per confrontare la revisione, poi puoi modificarla e salvarla.</p>
+                          <button
+                            type="button"
+                            className="btn secondary small"
+                            disabled={polishBusy || listening || captureSaving || !!transcribeBusyId || structureBusy}
+                            onClick={() => void runPolish(s.id)}
+                          >
+                            {polishBusy ? 'Sistemo…' : 'Sistema ora'}
+                          </button>
+                        </>
+                      )}
                       {s.revision?.recordingId && <small>{recordings.find((item) => item.id === s.revision?.recordingId)?.title}</small>}
                     </div>
                     <div className="stack discourse-comparison-result discourse-version" data-active={tab === 2} data-paired={view.compare === 2}>

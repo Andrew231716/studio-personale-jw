@@ -1,12 +1,24 @@
 import { askAi } from './ai'
 import {
-  flattenSectionBodies,
   localStructureSections,
+  parseStructurePlan,
+  sectionsFromUnits,
+  splitDiscourseUnits,
+  splitForPolish,
   structurePreservesContent,
 } from './discourseStructure'
-import { uid } from './id'
 import { normalizeJwItalian } from './jwItalianTerms'
 import type { DiscourseSection } from '../types'
+
+export {
+  parseStructurePlan,
+  sectionsFromUnits,
+  splitDiscourseUnits,
+  splitForPolish,
+} from './discourseStructure'
+
+/** Contesto struttura: tutto il discorso numerato. */
+const STRUCTURE_CONTEXT_CHARS = 80_000
 
 /** Correzione locale (offline): terminologia JW + punteggiatura base. */
 export function localPolishDiscourse(raw: string): string {
@@ -16,14 +28,13 @@ export function localPolishDiscourse(raw: string): string {
   s = s.replace(/[ \t]{2,}/g, ' ')
   s = s.replace(/\s+([,.;:!?])/g, '$1')
   s = s.replace(/([.!?…])\s*([a-zàèéìòù])/g, (_, p, c) => `${p} ${c.toUpperCase()}`)
-  // Capitalizza inizio testo / dopo a capo
   s = s.replace(/(^|\n)([a-zàèéìòù])/g, (_, a, c) => `${a}${c.toUpperCase()}`)
   return s.trim()
 }
 
 /**
  * Sistema sintassi e chiarezza del discorso senza inventare contenuti.
- * Online usa AI; offline (o errore) usa polish locale.
+ * Online usa AI a chunk (testo intero); offline (o errore) usa polish locale.
  */
 export async function polishDiscourseText(
   text: string,
@@ -31,39 +42,54 @@ export async function polishDiscourseText(
 ): Promise<{ text: string; source: 'ai' | 'local' }> {
   const input = text.trim()
   if (!input) return { text: '', source: 'local' }
-  if (opts?.forceLocal || typeof navigator !== 'undefined' && !navigator.onLine) {
+  if (opts?.forceLocal || (typeof navigator !== 'undefined' && !navigator.onLine)) {
     return { text: localPolishDiscourse(input), source: 'local' }
   }
 
-  const prompt = `Sei un correttore di bozze per un discorso pubblico di un Testimone di Geova.
+  const chunks = splitForPolish(input)
+  const out: string[] = []
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]
+      const prompt = `Sei un correttore di bozze per un discorso pubblico di un Testimone di Geova.
 Compito: sistema SOLO sintassi, ortografia, punteggiatura e fluidità in italiano.
 Regole strette:
 - Non aggiungere idee, esempi, citazioni o paragrafi nuovi.
 - Non togliere il senso: resta fedele al contenuto dell’utente.
 - Conserva i riferimenti biblici così come scritti (es. Proverbi 14:12).
 - Usa terminologia jw.org (ministero, congregazione, 1 Corinti, Rivelazione, ecc.).
-- Restituisci SOLO il testo corretto, senza prefazioni né markdown.
+- Restituisci SOLO il testo corretto di QUESTO pezzo (${i + 1}/${chunks.length}), senza prefazioni né markdown.
 
 Testo da correggere:
 """
-${input.slice(0, 6000)}
+${chunk}
 """`
-
-  try {
-    const answer = await askAi({ prompt })
-    const cleaned = normalizeJwItalian(answer.trim())
-    if (!cleaned || cleaned.length < input.length * 0.4) {
+      const answer = await askAi({
+        prompt,
+        maxTokens: 2048,
+        promptCharLimit: 12_000,
+        concise: false,
+      })
+      const cleaned = normalizeJwItalian(answer.trim())
+      if (!cleaned || cleaned.length < chunk.length * 0.35) {
+        out.push(localPolishDiscourse(chunk))
+      } else {
+        out.push(cleaned)
+      }
+    }
+    const joined = out.join('\n\n').trim()
+    if (!joined || joined.length < input.length * 0.4) {
       return { text: localPolishDiscourse(input), source: 'local' }
     }
-    return { text: cleaned, source: 'ai' }
+    return { text: joined, source: 'ai' }
   } catch {
     return { text: localPolishDiscourse(input), source: 'local' }
   }
 }
 
 /**
- * Analisi AI: suddivide in Introduzione / Punti / Conclusione
- * senza eliminare informazioni. Se l’AI perde contenuto → struttura locale.
+ * Analisi AI: chiede solo l’assegnazione delle unità, poi ricopia il testo originale.
+ * Così non si tagliano pezzi per limiti di token in uscita.
  */
 export async function structureDiscourseWithAi(
   fullText: string,
@@ -81,131 +107,42 @@ export async function structureDiscourseWithAi(
     return local()
   }
 
-  const prompt = `Suddividi il discorso nel contesto in sezioni.
+  const units = splitDiscourseUnits(input)
+  if (units.length <= 2) {
+    return local()
+  }
+
+  const numbered = units
+    .map((u, i) => `[${i}]\n${u}`)
+    .join('\n\n')
+    .slice(0, STRUCTURE_CONTEXT_CHARS)
+
+  const prompt = `Assegna ogni unità numerata [0]…[${units.length - 1}] a Introduzione, Punti (1–5) o Conclusione.
 Restituisci SOLO JSON valido, senza markdown:
-{"introduzione":"...","punti":[{"title":"Punto 1","body":"..."}],"conclusione":"..."}
-Regole: NON eliminare idee/esempi/scritture; ogni contenuto deve ricomparire; 1–5 punti; italiano JW.`
+{"introduzione":[0],"punti":[{"title":"Punto 1","units":[1,2]}],"conclusione":[${units.length - 1}]}
+Regole:
+- Ogni indice da 0 a ${units.length - 1} compare ESATTAMENTE una volta.
+- Gli indici in ogni lista sono in ordine crescente.
+- Non riscrivere il testo: solo indici e titoli brevi dei punti.
+- Italiano JW; 1–5 punti.`
 
   try {
     const answer = await askAi({
       prompt,
-      context: `## Discorso da strutturare\n${input.slice(0, 10_000)}`,
+      context: `## Unità del discorso (testo originale)\n${numbered}`,
+      maxTokens: 1024,
+      promptCharLimit: 2500,
+      contextCharLimit: STRUCTURE_CONTEXT_CHARS,
+      concise: false,
     })
-    const parsed = parseStructureJson(answer)
-    if (!parsed) return local()
-    const sections = parsed
-    if (!structurePreservesContent(input, sections)) {
-      // Conserva tutto: usa locale (nessuna perdita) invece della risposta incompleta
+    const plan = parseStructurePlan(answer, units.length)
+    if (!plan) return local()
+    const sections = sectionsFromUnits(units, plan)
+    if (!sections.length || !structurePreservesContent(input, sections)) {
       return local()
-    }
-    // Se resta testo non coperto, appendi alla conclusione
-    const leftover = findMissingTail(input, sections)
-    if (leftover) {
-      const last = sections[sections.length - 1]
-      if (last) last.body = `${last.body.trim()}\n\n${leftover}`.trim()
-      else
-        sections.push({
-          id: uid('dsec'),
-          kind: 'conclusione',
-          title: 'Conclusione',
-          body: leftover,
-          minutes: 2,
-        })
     }
     return { sections, source: 'ai' }
   } catch {
     return local()
   }
-}
-
-function parseStructureJson(raw: string): DiscourseSection[] | null {
-  const match = raw.match(/\{[\s\S]*\}/)
-  if (!match) return null
-  try {
-    const data = JSON.parse(match[0]) as {
-      introduzione?: string
-      punti?: Array<{ title?: string; body?: string } | string>
-      conclusione?: string
-    }
-    const sections: DiscourseSection[] = []
-    const intro = String(data.introduzione || '').trim()
-    if (intro) {
-      sections.push({
-        id: uid('dsec'),
-        kind: 'introduzione',
-        title: 'Introduzione',
-        body: normalizeJwItalian(intro),
-        minutes: 2,
-      })
-    }
-    const points = Array.isArray(data.punti) ? data.punti : []
-    points.forEach((p, i) => {
-      const body = normalizeJwItalian(
-        typeof p === 'string' ? p : String(p?.body || ''),
-      ).trim()
-      if (!body) return
-      const title =
-        typeof p === 'string'
-          ? `Punto ${i + 1}`
-          : String(p?.title || `Punto ${i + 1}`).trim() || `Punto ${i + 1}`
-      sections.push({
-        id: uid('dsec'),
-        kind: 'punto',
-        title,
-        body,
-        minutes: 4,
-      })
-    })
-    const concl = String(data.conclusione || '').trim()
-    if (concl) {
-      sections.push({
-        id: uid('dsec'),
-        kind: 'conclusione',
-        title: 'Conclusione',
-        body: normalizeJwItalian(concl),
-        minutes: 2,
-      })
-    }
-    if (!sections.length) return null
-    if (!sections.some((s) => s.kind === 'introduzione')) {
-      sections.unshift({
-        id: uid('dsec'),
-        kind: 'introduzione',
-        title: 'Introduzione',
-        body: '',
-        minutes: 2,
-      })
-    }
-    if (!sections.some((s) => s.kind === 'conclusione')) {
-      sections.push({
-        id: uid('dsec'),
-        kind: 'conclusione',
-        title: 'Conclusione',
-        body: '',
-        minutes: 2,
-      })
-    }
-    return sections
-  } catch {
-    return null
-  }
-}
-
-function findMissingTail(original: string, sections: DiscourseSection[]): string {
-  const joined = flattenSectionBodies(sections)
-  const oWords = original.trim().split(/\s+/).filter(Boolean)
-  const jSet = new Set(
-    joined
-      .toLowerCase()
-      .split(/\s+/)
-      .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))
-      .filter(Boolean),
-  )
-  const missing: string[] = []
-  for (const w of oWords) {
-    const key = w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
-    if (key && !jSet.has(key)) missing.push(w)
-  }
-  if (missing.length < 8) return ''
-  return missing.join(' ')
 }
