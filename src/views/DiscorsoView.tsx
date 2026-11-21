@@ -660,17 +660,30 @@ export function DiscorsoView() {
     setAnalysisBusy(true)
     setRecHint('')
     try {
-      const parts = recording.transcript.match(/[\s\S]{1,11000}(?:\s|$)|[\s\S]{1,11000}/g) || []
+      const parts = recording.transcript.match(/[\s\S]{1,14000}(?:\s|$)|[\s\S]{1,14000}/g) || []
       const answers: string[] = []
       for (const context of parts) {
-        answers.push(await askAi({ prompt, context }))
+        answers.push(
+          await askAi({
+            prompt,
+            context,
+            maxTokens: 2048,
+            promptCharLimit: 4000,
+            contextCharLimit: 16_000,
+            concise: false,
+          }),
+        )
       }
       const combined = answers.join('\n\n')
-      const answer = answers.length === 1 || field === 'translation' || combined.length > 12_000
+      const answer = answers.length === 1 || field === 'translation' || combined.length > 16_000
         ? combined
         : await askAi({
             prompt: `${prompt}\nUnisci i risultati parziali qui sotto ed elimina le ripetizioni.`,
             context: combined,
+            maxTokens: 2048,
+            promptCharLimit: 4000,
+            contextCharLimit: 20_000,
+            concise: false,
           })
       if (field) {
         const saved = await updateDiscourseRecording(recording.id, { [field]: answer })
@@ -877,7 +890,7 @@ export function DiscorsoView() {
         </div>
         {recording.transcript && (
             <details className="stack" open>
-            <summary>Leggi e analizza la trascrizione</summary>
+            <summary>Leggi, modifica e analizza la trascrizione</summary>
             <label className="field">
               <span>Velocità di ascolto</span>
               <select value={playbackRate} onChange={(event) => {
@@ -888,6 +901,48 @@ export function DiscorsoView() {
                 <option value={0.75}>0,75×</option><option value={1}>1×</option><option value={1.25}>1,25×</option>
               </select>
             </label>
+            <form
+              className="stack"
+              onSubmit={(event) => {
+                event.preventDefault()
+                const text = String(new FormData(event.currentTarget).get('fullTranscript')).trim()
+                if (!text) return
+                // Testo intero modificato: un solo segmento per restare coerenti
+                void saveTranscriptEdit(recording, text, [
+                  { start: 0, speaker: speakers[0] || 'Relatore 1', text },
+                ])
+              }}
+            >
+              <label className="field">
+                <span>Trascrizione completa (modificabile)</span>
+                <textarea
+                  key={`full-${recording.id}-${recording.transcript.length}`}
+                  name="fullTranscript"
+                  className="discourse-editor"
+                  defaultValue={recording.transcript}
+                  aria-label="Trascrizione completa"
+                  required
+                  rows={8}
+                />
+              </label>
+              <div className="row discourse-recording-actions">
+                <button className="btn accent small" type="submit" disabled={transcriptLocked}>
+                  <Save size={14} /> Salva trascrizione
+                </button>
+                {!unlinked && (
+                  <button
+                    type="button"
+                    className="btn secondary small"
+                    onClick={() => insertTranscriptPassage(recording, recording.transcript || '')}
+                  >
+                    Usa nel blocco
+                  </button>
+                )}
+              </div>
+              <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+                {transcriptScriptures(recording.transcript)}
+              </div>
+            </form>
             {!!speakers.length && (
               <form className="stack" onSubmit={(event) => {
                 event.preventDefault()
@@ -905,45 +960,57 @@ export function DiscorsoView() {
                 <button className="btn secondary small" disabled={transcriptLocked}>Rinomina o unisci relatore</button>
               </form>
             )}
-            {recording.segments?.length ? recording.segments.map((segment, index) => (
-              <div className="stack" key={index}>
-                <button type="button" className="btn secondary small"
-                  onClick={() => void playRecording(recording.id, segment.start)}>
-                  {formatTime(Math.floor(segment.start))} · {segment.speaker}
-                </button>
-                <p>{segment.text}</p>
-                <div className="row discourse-recording-actions">
-                  {!unlinked && <button type="button" className="btn secondary small"
-                    onClick={() => insertTranscriptPassage(recording, segment.text)}>Usa nel blocco</button>}
-                  {transcriptScriptures(segment.text)}
-                </div>
-                <details>
-                <summary>Modifica passaggio</summary>
-                <form className="stack" onSubmit={(event) => {
-                  event.preventDefault()
-                  const text = String(new FormData(event.currentTarget).get('passage')).trim()
-                  if (!text) return
-                  const segments = recording.segments?.map((item, position) => position === index ? { ...item, text } : item)
-                  if (segments) void saveTranscriptEdit(recording, segments.map((item) => item.text).join('\n'), segments)
-                }}>
-                  <textarea key={segment.text} name="passage" defaultValue={segment.text} aria-label="Testo del passaggio" required rows={3} />
-                  <div className="row discourse-recording-actions">
-                    <button className="btn secondary small" disabled={transcriptLocked}>Salva correzione</button>
+            {!!recording.segments?.length && recording.segments.length > 1 && (
+              <details>
+                <summary>Passaggi timed ({recording.segments.length})</summary>
+                {recording.segments.map((segment, index) => (
+                  <div className="stack" key={`${segment.start}-${index}`}>
+                    <button type="button" className="btn secondary small"
+                      onClick={() => void playRecording(recording.id, segment.start)}>
+                      {formatTime(Math.floor(segment.start))} · {segment.speaker}
+                    </button>
+                    <form className="stack" onSubmit={(event) => {
+                      event.preventDefault()
+                      const text = String(new FormData(event.currentTarget).get('passage')).trim()
+                      if (!text) return
+                      const segments = recording.segments?.map((item, position) =>
+                        position === index ? { ...item, text } : item)
+                      if (segments) {
+                        void saveTranscriptEdit(
+                          recording,
+                          segments.map((item) => item.text).join('\n'),
+                          segments,
+                        )
+                      }
+                    }}>
+                      <textarea
+                        key={segment.text}
+                        name="passage"
+                        defaultValue={segment.text}
+                        aria-label="Testo del passaggio"
+                        required
+                        rows={3}
+                      />
+                      <div className="row discourse-recording-actions">
+                        <button className="btn secondary small" disabled={transcriptLocked}>
+                          Salva passaggio
+                        </button>
+                        {!unlinked && (
+                          <button
+                            type="button"
+                            className="btn secondary small"
+                            onClick={() => insertTranscriptPassage(recording, segment.text)}
+                          >
+                            Usa nel blocco
+                          </button>
+                        )}
+                        {transcriptScriptures(segment.text)}
+                      </div>
+                    </form>
                   </div>
-                </form>
-                </details>
-              </div>
-            )) : <form className="stack" onSubmit={(event) => {
-              event.preventDefault()
-              const text = String(new FormData(event.currentTarget).get('passage')).trim()
-              if (text) void saveTranscriptEdit(recording, text)
-            }}>
-              <textarea key={recording.transcript} name="passage" defaultValue={recording.transcript} aria-label="Trascrizione" required rows={5} />
-              <button className="btn secondary small" disabled={transcriptLocked}>Salva correzione</button>
-              {!unlinked && <button type="button" className="btn secondary small"
-                onClick={() => insertTranscriptPassage(recording, recording.transcript || '')}>Usa nel blocco</button>}
-              {transcriptScriptures(recording.transcript)}
-            </form>}
+                ))}
+              </details>
+            )}
             <div className="row discourse-recording-actions">
               <button type="button" className="btn secondary small" onClick={() => exportTranscript(recording, 'txt')}>TXT</button>
               {!!recording.segments?.length && <button type="button" className="btn secondary small" onClick={() => exportTranscript(recording, 'srt')}>SRT</button>}

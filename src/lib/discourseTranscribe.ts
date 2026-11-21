@@ -5,11 +5,21 @@
 
 import { aiRequestExtras } from './ai'
 import { TRANSCRIBE_TARGET_MINUTES } from './transcribeCapacity'
+import {
+  CLIP_HOP_SECONDS,
+  CLIP_SECONDS,
+  filterOverlapSegments,
+} from './transcriptClips'
+
+export {
+  CLIP_HOP_SECONDS,
+  CLIP_OVERLAP_SECONDS,
+  CLIP_SECONDS,
+  filterOverlapSegments,
+} from './transcriptClips'
 
 /** Limite pratico body JSON / Vercel (~4.5 MB). */
 const MAX_BYTES = 3_500_000
-/** 16 kHz mono 16-bit ≈ 3.2 MB / 100s — sotto il tetto proxy. */
-const CLIP_SECONDS = 100
 const SAMPLE_RATE = 16_000
 const CLIP_GAP_MS = 2200
 const MAX_RETRIES_SHORT = 5
@@ -193,8 +203,9 @@ export async function transcribeDiscourseAudio(
         `Audio di ~${Math.round(durationMin)} min: il tetto supportato è ${TRANSCRIBE_TARGET_MINUTES} minuti.`,
       )
     }
-    const clipSize = CLIP_SECONDS * SAMPLE_RATE
-    const total = Math.ceil(audio.length / clipSize)
+    const clipSize = Math.floor(CLIP_SECONDS * SAMPLE_RATE)
+    const hopSize = Math.floor(CLIP_HOP_SECONDS * SAMPLE_RATE)
+    const total = Math.max(1, Math.ceil(audio.length / hopSize))
     const language = opts.language || 'auto'
     const resume = opts.resume?.language === language && opts.resume.total === total ? opts.resume : undefined
     segments = [...(resume?.segments || [])]
@@ -204,9 +215,10 @@ export async function transcribeDiscourseAudio(
     )
     const startPart = resume?.nextPart ?? 0
     for (let part = startPart; part < total; part++) {
-      const start = part * clipSize
+      const start = part * hopSize
+      if (start >= audio.length) break
       opts.signal?.throwIfAborted()
-      const doneMin = Math.round(((part * CLIP_SECONDS) / 60) * 10) / 10
+      const doneMin = Math.round(((start / SAMPLE_RATE) / 60) * 10) / 10
       const totalMin = Math.round((audio.duration / 60) * 10) / 10
       opts.onProgress?.(part + 1, total, { doneMin, totalMin })
       if (part > startPart) {
@@ -224,7 +236,8 @@ export async function transcribeDiscourseAudio(
         },
         speakerOffset,
       )
-      for (const segment of result.segments) {
+      const kept = filterOverlapSegments(result.segments, part)
+      for (const segment of kept) {
         segments.push({ ...segment, start: start / SAMPLE_RATE + segment.start })
       }
       speakerOffset = Math.max(
