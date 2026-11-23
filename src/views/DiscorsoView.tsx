@@ -74,6 +74,7 @@ import {
   uploadDiscourseRecordingToICloud,
 } from '../lib/icloud'
 import { transcribeDiscourseAudio, type TranscriptSegment } from '../lib/discourseTranscribe'
+import { refineDiscourseSpeechText } from '../lib/discourseTextRefine'
 import {
   appendDictatedChunk,
   speechDictationSupportNote,
@@ -425,11 +426,20 @@ export function DiscorsoView() {
       },
       onWarning: (msg) => setRecHint(msg),
       onEnd: () => {
+        // Passata finale: scritture dette a pezzi + termini JW + punteggiatura
+        const current = sectionsRef.current.find((item) => item.id === sectionId)?.body || ''
+        const refined = refineDiscourseSpeechText(current)
+        if (refined && refined !== current.trim()) {
+          patchSavedSection(noteId, sectionId, { body: refined })
+        }
         setCaptureSaving(false)
         setCaptureSectionId(null)
         setListening(false)
         setPartial('')
         setMicLevel(0)
+        setRecHint((hint) =>
+          hint || 'Dettatura terminata: testo raffinato (punteggiatura, termini JW, scritture).',
+        )
       },
       onDuration: (durationMs) => patchSavedSection(noteId, sectionId, { recordedDurationMs: durationMs }),
       onRecordingSaved: (meta) => {
@@ -704,7 +714,9 @@ export function DiscorsoView() {
     setRecHint('Trascrivo la registrazione…')
     try {
       await readRecordingTranscript(id)
-      setRecHint('Trascrizione salvata nel riquadro della registrazione.')
+      setRecHint(
+        'Trascrizione salvata e raffinata (grammatica di base, termini JW, scritture). Puoi modificarla e premere Salva, oppure «Sistema» per una correzione AI più ampia.',
+      )
     } catch (e) {
       setRecHint(e instanceof Error ? e.message : 'Trascrizione non riuscita')
     } finally {

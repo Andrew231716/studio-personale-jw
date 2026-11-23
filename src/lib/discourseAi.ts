@@ -7,7 +7,10 @@ import {
   splitForPolish,
   structurePreservesContent,
 } from './discourseStructure'
-import { normalizeJwItalian } from './jwItalianTerms'
+import {
+  DISCOURSE_PROOFREAD_RULES,
+  refineDiscourseSpeechText,
+} from './discourseTextRefine'
 import type { DiscourseSection } from '../types'
 
 export {
@@ -20,27 +23,20 @@ export {
 /** Contesto struttura: tutto il discorso numerato. */
 const STRUCTURE_CONTEXT_CHARS = 80_000
 
-/** Correzione locale (offline): terminologia JW + punteggiatura base. */
+/** Correzione locale (offline): scritture dette, termini JW, punteggiatura. */
 export function localPolishDiscourse(raw: string): string {
-  let s = normalizeJwItalian(raw || '')
-  s = s.replace(/[ \t]+\n/g, '\n')
-  s = s.replace(/\n{3,}/g, '\n\n')
-  s = s.replace(/[ \t]{2,}/g, ' ')
-  s = s.replace(/\s+([,.;:!?])/g, '$1')
-  s = s.replace(/([.!?…])\s*([a-zàèéìòù])/g, (_, p, c) => `${p} ${c.toUpperCase()}`)
-  s = s.replace(/(^|\n)([a-zàèéìòù])/g, (_, a, c) => `${a}${c.toUpperCase()}`)
-  return s.trim()
+  return refineDiscourseSpeechText(raw)
 }
 
 /**
- * Sistema sintassi e chiarezza del discorso senza inventare contenuti.
- * Online usa AI a chunk (testo intero); offline (o errore) usa polish locale.
+ * Sistema grammatica, sintassi, senso e punteggiatura senza inventare contenuti.
+ * Online usa AI a chunk; offline (o errore) usa polish locale.
  */
 export async function polishDiscourseText(
   text: string,
   opts?: { forceLocal?: boolean },
 ): Promise<{ text: string; source: 'ai' | 'local' }> {
-  const input = text.trim()
+  const input = refineDiscourseSpeechText(text)
   if (!input) return { text: '', source: 'local' }
   if (opts?.forceLocal || (typeof navigator !== 'undefined' && !navigator.onLine)) {
     return { text: localPolishDiscourse(input), source: 'local' }
@@ -51,14 +47,9 @@ export async function polishDiscourseText(
   try {
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i]
-      const prompt = `Sei un correttore di bozze per un discorso pubblico di un Testimone di Geova.
-Compito: sistema SOLO sintassi, ortografia, punteggiatura e fluidità in italiano.
-Regole strette:
-- Non aggiungere idee, esempi, citazioni o paragrafi nuovi.
-- Non togliere il senso: resta fedele al contenuto dell’utente.
-- Conserva i riferimenti biblici così come scritti (es. Proverbi 14:12).
-- Usa terminologia jw.org (ministero, congregazione, 1 Corinti, Rivelazione, ecc.).
-- Restituisci SOLO il testo corretto di QUESTO pezzo (${i + 1}/${chunks.length}), senza prefazioni né markdown.
+      const prompt = `${DISCOURSE_PROOFREAD_RULES}
+
+Questo è il pezzo ${i + 1}/${chunks.length}.
 
 Testo da correggere:
 """
@@ -67,10 +58,10 @@ ${chunk}
       const answer = await askAi({
         prompt,
         maxTokens: 2048,
-        promptCharLimit: 12_000,
+        promptCharLimit: 14_000,
         concise: false,
       })
-      const cleaned = normalizeJwItalian(answer.trim())
+      const cleaned = refineDiscourseSpeechText(answer)
       if (!cleaned || cleaned.length < chunk.length * 0.35) {
         out.push(localPolishDiscourse(chunk))
       } else {
@@ -95,11 +86,16 @@ export async function structureDiscourseWithAi(
   fullText: string,
   opts?: { forceLocal?: boolean },
 ): Promise<{ sections: DiscourseSection[]; source: 'ai' | 'local' }> {
-  const input = fullText.trim()
+  // Prima raffina scritture dette / termini JW, poi struttura
+  const input = refineDiscourseSpeechText(fullText)
   if (!input) return { sections: localStructureSections(''), source: 'local' }
 
   const local = () => ({
-    sections: localStructureSections(input),
+    sections: localStructureSections(input).map((section) => ({
+      ...section,
+      body: refineDiscourseSpeechText(section.body),
+      title: section.title,
+    })),
     source: 'local' as const,
   })
 
@@ -137,7 +133,10 @@ Regole:
     })
     const plan = parseStructurePlan(answer, units.length)
     if (!plan) return local()
-    const sections = sectionsFromUnits(units, plan)
+    const sections = sectionsFromUnits(units, plan).map((section) => ({
+      ...section,
+      body: refineDiscourseSpeechText(section.body),
+    }))
     if (!sections.length || !structurePreservesContent(input, sections)) {
       return local()
     }

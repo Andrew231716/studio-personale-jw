@@ -17,14 +17,16 @@ const REQUEST_TIMEOUT = 90_000
 const MAX_BASE64_CHARS = 6_000_000
 
 async function transcribeGemini({ apiKey, model, mimeType, audioBase64, language, offset }) {
-  const prompt = `Transcribe ALL audible speech in this clip faithfully, without translating or summarizing. Language hint: ${language}.
+  const prompt = `Transcribe ALL audible speech in this clip faithfully. Language hint: ${language}.
 Return JSON as {"segments":[{"start":0,"speaker":"1","text":"..."}]}.
-Use seconds relative to this clip (0 = start of clip), in chronological order.
-Start a segment at every speaker change and at natural breaks in long turns.
-Use consistent numeric speaker labels within this clip.
-Leave segments empty for silence. Never invent speech.
-Include the entire clip — do not stop early.
-Format Bible citations with a colon, e.g. John 3:16 or Salmo 28:1.`
+Rules:
+- Seconds relative to this clip; chronological order; speaker change → new segment.
+- Never invent speech; include the entire clip.
+- Punctuation from meaning AND voice tone: rising/questioning intonation → ? ; strong emphasis → ! ; short pause → comma ; clear end of thought → period.
+- Fix only clear grammar so each sentence makes sense; do not add new ideas.
+- JW / jw.org Italian terms when spoken that way: Geova, congregazione, ministero, Sala del Regno, 1 Corinti / 2 Corinti (not Corinzi), Rivelazione (not Apocalisse).
+- Bible refs in written form with colon: «Salmo 5:5-7», «Giacomo 2:1-2,3».
+  If the speaker says «Salmo capitolo 5 versetto 6» or «versetti 5 6 e 7» / «5/6 e 7», write «Salmo 5:6» or «Salmo 5:5-7».`
 
   const upstream = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
     method: 'POST',
