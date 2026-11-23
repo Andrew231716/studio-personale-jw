@@ -1,5 +1,10 @@
-import { BIBLE_CHAPTER_COUNTS } from './bibleChapterCounts'
-import { BIBLE_BOOKS } from './bibleRefs'
+import {
+  looksLikeExclamation,
+  looksLikeQuestion,
+  refineDiscourseSpeechText,
+} from './discourseTextRefine'
+
+export { normalizeSpokenScriptureReferences } from './discourseTextRefine'
 
 /** Tipi minimi Web Speech API (Chrome / Safari). */
 export interface DictationHandlers {
@@ -20,6 +25,7 @@ type Recog = SpeechRecognition
 const SHORT_PAUSE_MS = 550
 const LONG_PAUSE_MS = 1400
 const SILENCE_RMS = 0.018
+const ENERGY_EXCLAIM = 0.12
 
 export function speechDictationSupported(): boolean {
   if (typeof window === 'undefined') return false
@@ -69,6 +75,10 @@ export function createDictation(lang = 'it-IT'): {
   let silenceStartedAt = 0
   let pendingSilenceMs = 0
   let speaking = false
+  let recentCentroids: number[] = []
+  let recentRms: number[] = []
+  let lastContour: 'rising' | 'falling' | 'flat' = 'flat'
+  let lastEnergyHigh = false
 
   function stopLevelMeter(stopTracks: boolean) {
     if (levelRaf) cancelAnimationFrame(levelRaf)
@@ -90,33 +100,69 @@ export function createDictation(lang = 'it-IT'): {
     analyser = null
   }
 
+  function samplePitchContour(): 'rising' | 'falling' | 'flat' {
+    if (recentCentroids.length < 8) return 'flat'
+    const mid = Math.floor(recentCentroids.length / 2)
+    const avg = (arr: number[]) => arr.reduce((a, b) => a + b, 0) / arr.length
+    const a = avg(recentCentroids.slice(0, mid))
+    const b = avg(recentCentroids.slice(mid))
+    if (b > a * 1.1) return 'rising'
+    if (b < a * 0.9) return 'falling'
+    return 'flat'
+  }
+
+  function sampleEnergyHigh(): boolean {
+    if (recentRms.length < 4) return false
+    const peak = Math.max(...recentRms)
+    return peak >= ENERGY_EXCLAIM
+  }
+
   function startLevelMeter(stream: MediaStream, onLevel?: (n: number) => void) {
     try {
       audioCtx = new AudioContext()
       const src = audioCtx.createMediaStreamSource(stream)
       analyser = audioCtx.createAnalyser()
-      analyser.fftSize = 256
+      analyser.fftSize = 512
       src.connect(analyser)
-      const data = new Uint8Array(analyser.frequencyBinCount)
+      const time = new Uint8Array(analyser.fftSize)
+      const freq = new Uint8Array(analyser.frequencyBinCount)
       const tick = () => {
         if (!analyser) return
-        analyser.getByteTimeDomainData(data)
+        analyser.getByteTimeDomainData(time)
         let sum = 0
-        for (let i = 0; i < data.length; i++) {
-          const v = (data[i] - 128) / 128
+        for (let i = 0; i < time.length; i++) {
+          const v = (time[i] - 128) / 128
           sum += v * v
         }
-        const rms = Math.sqrt(sum / data.length)
+        const rms = Math.sqrt(sum / time.length)
         onLevel?.(Math.min(1, rms * 4))
-        // Traccia silenzi per virgole / punti in dettatura
+
+        analyser.getByteFrequencyData(freq)
+        let num = 0
+        let den = 0
+        for (let i = 0; i < freq.length; i++) {
+          num += i * freq[i]
+          den += freq[i]
+        }
+        const centroid = den ? num / den : 0
+
+        // Traccia silenzi + tono (centroide) / energia per ? e !
         if (rms < SILENCE_RMS) {
-          if (!silenceStartedAt && speaking) silenceStartedAt = Date.now()
+          if (!silenceStartedAt && speaking) {
+            silenceStartedAt = Date.now()
+            lastContour = samplePitchContour()
+            lastEnergyHigh = sampleEnergyHigh()
+          }
         } else {
           if (silenceStartedAt) {
             pendingSilenceMs = Math.max(pendingSilenceMs, Date.now() - silenceStartedAt)
           }
           silenceStartedAt = 0
           speaking = true
+          recentCentroids.push(centroid)
+          recentRms.push(rms)
+          if (recentCentroids.length > 48) recentCentroids.shift()
+          if (recentRms.length > 48) recentRms.shift()
         }
         levelRaf = requestAnimationFrame(tick)
       }
@@ -141,9 +187,19 @@ export function createDictation(lang = 'it-IT'): {
   function emitFinal(raw: string) {
     if (!handlersRef) return
     const gap = lastFinalAt ? pauseGapMs() : 0
+    const contour = lastContour
+    const energyHigh = lastEnergyHigh
     lastFinalAt = Date.now()
     speaking = true
-    const piece = applyPausePunctuation(raw, gap)
+    lastContour = 'flat'
+    lastEnergyHigh = false
+    recentCentroids = []
+    recentRms = []
+    const piece = applySpeechPunctuation(raw, {
+      pauseMs: gap,
+      contour,
+      energyHigh,
+    })
     if (piece) handlersRef.onFinal(piece)
   }
 
@@ -160,6 +216,10 @@ export function createDictation(lang = 'it-IT'): {
     silenceStartedAt = 0
     pendingSilenceMs = 0
     speaking = false
+    recentCentroids = []
+    recentRms = []
+    lastContour = 'flat'
+    lastEnergyHigh = false
     handlersRef = handlers
     recog?.abort()
     stopLevelMeter(true)
@@ -299,28 +359,55 @@ export function createDictation(lang = 'it-IT'): {
   return { start, stop, isSupported: true }
 }
 
+export type SpeechPunctuationHints = {
+  pauseMs: number
+  contour?: 'rising' | 'falling' | 'flat'
+  energyHigh?: boolean
+}
+
 /**
- * In base alla pausa: corta → «, …»; lunga → «. …» con maiuscola.
- * Se il motore ha già messo punteggiatura, non ne aggiunge altra.
+ * Punteggiatura da pausa + tono (centroide) + energia + indizi lessicali.
+ * Corta → virgola; lunga → . ? ! con maiuscola.
  */
-export function applyPausePunctuation(chunk: string, pauseMs: number): string {
+export function applySpeechPunctuation(
+  chunk: string,
+  hints: SpeechPunctuationHints,
+): string {
   let text = chunk.replace(/\s+/g, ' ').trim()
   if (!text) return ''
+  const { pauseMs, contour = 'flat', energyHigh = false } = hints
   if (pauseMs < SHORT_PAUSE_MS) return text
-  // Già inizia con punteggiatura (motore o pezzo precedente)
+
+  const stripLead = () => {
+    text = text.replace(/^[.,;:!?…]+\s*/, '')
+    return text
+  }
+
+  const endMark = (): '.' | '?' | '!' => {
+    const body = text.replace(/^[.,;:!?…]+\s*/, '')
+    if (looksLikeQuestion(body) || contour === 'rising') return '?'
+    if (looksLikeExclamation(body) || energyHigh) return '!'
+    return '.'
+  }
+
   if (/^[.,;:!?…]/.test(text)) {
     if (pauseMs >= LONG_PAUSE_MS) {
-      text = text.replace(/^[.,;:!?…]+\s*/, '')
-      if (!text) return ''
-      text = capitalizeLeading(text)
-      return `. ${text}`
+      if (!stripLead()) return ''
+      const mark = endMark()
+      return `${mark} ${capitalizeLeading(text)}`
     }
     return text
   }
   if (pauseMs >= LONG_PAUSE_MS) {
-    return `. ${capitalizeLeading(text)}`
+    const mark = endMark()
+    return `${mark} ${capitalizeLeading(text)}`
   }
   return `, ${text}`
+}
+
+/** @deprecated usa applySpeechPunctuation */
+export function applyPausePunctuation(chunk: string, pauseMs: number): string {
+  return applySpeechPunctuation(chunk, { pauseMs })
 }
 
 function capitalizeLeading(text: string): string {
@@ -334,14 +421,12 @@ function capitalizeLeading(text: string): string {
 export function appendDictatedChunk(value: string, chunk: string): string {
   let piece = chunk.trim()
   if (!piece) return value
-  let base = value.replace(/\s+$/, '')
+  const base = value.replace(/\s+$/, '')
   if (!base) {
-    // Prima frase: togli punteggiatura iniziale da pausa e capitalizza
     piece = piece.replace(/^[.,;:!?…]+\s*/, '')
     piece = capitalizeLeading(piece)
-    return piece ? `${normalizeSpokenScriptureReferences(piece)} ` : value
+    return piece ? `${refineDiscourseSpeechText(piece)} ` : value
   }
-  // Evita «parola..» / «parola,,»
   if (/[.,;:!?…]$/.test(base) && /^[.,;:!?…]/.test(piece)) {
     const lead = piece.match(/^[.,;:!?…]+/)?.[0] || ''
     piece = piece.replace(/^[.,;:!?…]+\s*/, '')
@@ -350,52 +435,10 @@ export function appendDictatedChunk(value: string, chunk: string): string {
       piece = capitalizeLeading(piece)
     }
     const needsSpace = !/\s$/.test(base)
-    return `${normalizeSpokenScriptureReferences(
-      `${base}${needsSpace ? ' ' : ''}${piece}`,
-    )} `
+    return `${refineDiscourseSpeechText(`${base}${needsSpace ? ' ' : ''}${piece}`)} `
   }
   const needsSpace = !/\s$/.test(base) && !/^[.,;:!?]/.test(piece)
-  return `${normalizeSpokenScriptureReferences(
-    `${base}${needsSpace ? ' ' : ''}${piece}`,
-  )} `
-}
-
-const spokenBookLimits = new Map(
-  BIBLE_BOOKS.flatMap((book) => {
-    const names = [book.name, book.short]
-    return names
-      .filter((name): name is string => Boolean(name))
-      .map((name) => [
-        name.toLocaleLowerCase('it-IT'),
-        BIBLE_CHAPTER_COUNTS[book.num],
-      ] as const)
-  }),
-)
-
-const spokenBookPattern = [...spokenBookLimits.keys()]
-  .sort((a, b) => b.length - a.length)
-  .map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'))
-  .join('|')
-
-const spokenScriptureRef = new RegExp(
-  `(^|[^\\p{L}\\p{N}])(${spokenBookPattern})\\s+(\\d{1,3})\\s+(\\d{1,3})(?=$|[^\\p{L}\\p{N}])`,
-  'giu',
-)
-
-/** Converte solo sequenze plausibili libro-capitolo-versetto dettate senza i due punti. */
-export function normalizeSpokenScriptureReferences(text: string): string {
-  return text.replace(
-    spokenScriptureRef,
-    (match, prefix: string, book: string, chapterRaw: string, verseRaw: string) => {
-      const chapter = Number(chapterRaw)
-      const verse = Number(verseRaw)
-      const maxChapter = spokenBookLimits.get(book.toLocaleLowerCase('it-IT'))
-      if (!maxChapter || chapter < 1 || chapter > maxChapter || verse < 1 || verse > 176) {
-        return match
-      }
-      return `${prefix}${book} ${chapter}:${verse}`
-    },
-  )
+  return `${refineDiscourseSpeechText(`${base}${needsSpace ? ' ' : ''}${piece}`)} `
 }
 
 /** @deprecated preferisci appendDictatedChunk per la dettatura */

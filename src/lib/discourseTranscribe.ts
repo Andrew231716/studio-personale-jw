@@ -4,6 +4,7 @@
  */
 
 import { aiRequestExtras } from './ai'
+import { refineDiscourseSpeechText } from './discourseTextRefine'
 import { TRANSCRIBE_TARGET_MINUTES } from './transcribeCapacity'
 import {
   CLIP_HOP_SECONDS,
@@ -248,7 +249,12 @@ export async function transcribeDiscourseAudio(
     }
   }
 
-  const text = segments.map((segment) => segment.text).join('\n')
+  // Raffina termini JW, scritture dette e punteggiatura di senso
+  const refined = segments.map((segment) => ({
+    ...segment,
+    text: refineDiscourseSpeechText(segment.text),
+  })).filter((segment) => segment.text.trim())
+  const text = refined.map((segment) => segment.text).join('\n')
   if (!text) throw new Error('Nessun testo riconosciuto nell’audio.')
-  return { text, segments }
+  return { text, segments: refined }
 }

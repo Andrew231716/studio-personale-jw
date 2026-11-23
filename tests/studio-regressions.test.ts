@@ -17,7 +17,12 @@ import { mergeSnapshots, trackSyncChanges } from '../src/lib/icloud/merge.ts'
 import type { ICloudSnapshot } from '../src/lib/icloud/types.ts'
 import { findStudies, indexStudies, type StudySearchResult } from '../src/lib/studySearch.ts'
 import {
+  looksLikeQuestion,
+  refineDiscourseSpeechText,
+} from '../src/lib/discourseTextRefine.ts'
+import {
   appendDictatedChunk,
+  applySpeechPunctuation,
   normalizeSpokenScriptureReferences,
 } from '../src/lib/speechDictation.ts'
 import type { AppSettings, BibleReadingPlan, StudySessionDraft, StudyTopic } from '../src/types.ts'
@@ -133,6 +138,38 @@ test('la dettatura converte libro capitolo versetto nel formato della scrittura'
   assert.equal(appendDictatedChunk('Leggiamo Salmo 28 ', '14'), 'Leggiamo Salmo 28:14 ')
   assert.equal(normalizeSpokenScriptureReferences('Ci vediamo il 28 14.'), 'Ci vediamo il 28 14.')
   assert.equal(normalizeSpokenScriptureReferences('Salmo 151 14'), 'Salmo 151 14')
+  assert.equal(
+    normalizeSpokenScriptureReferences('Leggiamo Salmo capitolo 5 versetto 6 oggi.'),
+    'Leggiamo Salmo 5:6 oggi.',
+  )
+  assert.equal(
+    normalizeSpokenScriptureReferences('Salmo capitolo 5 versetti 5 6 e 7'),
+    'Salmo 5:5-7',
+  )
+  assert.equal(
+    normalizeSpokenScriptureReferences('Giacomo capitolo 2 versetti 1/2 e 3'),
+    'Giacomo 2:1-3',
+  )
+  assert.equal(
+    normalizeSpokenScriptureReferences('Giacomo 3 versetti da 4 a 7'),
+    'Giacomo 3:4-7',
+  )
+})
+
+test('la dettatura mette ? ! in base a tono e senso della frase', () => {
+  assert.equal(
+    applySpeechPunctuation('perché preghiamo', { pauseMs: 1600, contour: 'rising' }).trim(),
+    '? Perché preghiamo',
+  )
+  assert.equal(
+    applySpeechPunctuation('che privilegio', { pauseMs: 1600, energyHigh: true }).trim(),
+    '! Che privilegio',
+  )
+  assert.equal(looksLikeQuestion('Perché lo facciamo'), true)
+  assert.match(
+    refineDiscourseSpeechText('Jehovah ama la congregazione. Perché lo facciamo.'),
+    /Geova.*\?/,
+  )
 })
 
 test('il popup può rilevare due inserimenti dello stesso Salmo', () => {

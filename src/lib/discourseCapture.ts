@@ -10,6 +10,7 @@ import {
   saveDiscourseRecording,
   type DiscourseRecordingMeta,
 } from './discourseRecordings'
+import { discourseSpeechHints } from './discourseTextRefine'
 import { createDictation, type DictationHandlers } from './speechDictation'
 
 export interface DiscourseCaptureHandlers extends Omit<DictationHandlers, 'stream' | 'onEnd'> {
@@ -136,10 +137,10 @@ export function createDiscourseCapture(lang = 'it-IT') {
     if (dictation.isSupported && !offline) {
       dictation.start({
         stream,
-        hints: [
-          ...(lang === 'it-IT' ? ['Geova', 'Sala del Regno', 'Rivelazione', 'Corinti', 'congregazione'] : []),
+        hints: discourseSpeechHints([
+          ...(lang === 'it-IT' ? [] : []),
           ...(target.title ? [target.title.slice(0, 80)] : []),
-        ],
+        ]),
         onPartial: handlers.onPartial,
         onFinal: handlers.onFinal,
         onLevel: undefined, // livello già dallo stream condiviso
