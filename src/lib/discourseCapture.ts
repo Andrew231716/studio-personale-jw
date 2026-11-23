@@ -138,7 +138,6 @@ export function createDiscourseCapture(lang = 'it-IT') {
       dictation.start({
         stream,
         hints: discourseSpeechHints([
-          ...(lang === 'it-IT' ? [] : []),
           ...(target.title ? [target.title.slice(0, 80)] : []),
         ]),
         onPartial: handlers.onPartial,

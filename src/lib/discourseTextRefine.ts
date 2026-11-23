@@ -5,6 +5,12 @@
 
 import { BIBLE_CHAPTER_COUNTS } from './bibleChapterCounts'
 import { BIBLE_BOOKS } from './bibleRefs'
+import {
+  applyJwSttCorrections,
+  expandSpokenBookAbbreviations,
+  italianWordsToDigits,
+  richDiscourseSpeechHints,
+} from './jwSpeechLexicon'
 import { normalizeJwItalian } from './jwItalianTerms'
 
 const spokenBookLimits = new Map(
@@ -72,7 +78,8 @@ function formatVerseList(verses: number[]): string {
  */
 export function normalizeSpokenScriptureReferences(text: string): string {
   if (!text) return text
-  let out = text
+  // Prima: abbreviazioni libro e numeri in lettere («tredici» → 13)
+  let out = expandSpokenBookAbbreviations(italianWordsToDigits(text))
 
   // 1) Libro + capitolo/cap. + versetto/i + lista
   const spokenVerbose = new RegExp(
@@ -152,35 +159,7 @@ export function looksLikeExclamation(text: string): boolean {
 
 /** Suggerimenti frasi per Web Speech (termini JW + libri). */
 export function discourseSpeechHints(extra: string[] = []): string[] {
-  const base = [
-    'Geova',
-    'Gesù Cristo',
-    'Sala del Regno',
-    'Rivelazione',
-    '1 Corinti',
-    '2 Corinti',
-    'congregazione',
-    'ministero',
-    'servo di ministero',
-    'pubblicatore',
-    'pioniere',
-    'anziani',
-    'territorio',
-    'Buona notizia',
-    'Traduzione del Nuovo Mondo',
-    'Salmo',
-    'Giacomo',
-    'Matteo',
-    'Giovanni',
-    'Romani',
-    'Ebrei',
-    'Isaia',
-    'Proverbi',
-    'capitolo',
-    'versetto',
-    'versetti',
-  ]
-  return [...new Set([...base, ...extra.map((s) => s.trim()).filter(Boolean)])].slice(0, 40)
+  return richDiscourseSpeechHints(extra)
 }
 
 /**
@@ -190,6 +169,7 @@ export function discourseSpeechHints(extra: string[] = []): string[] {
 export function refineDiscourseSpeechText(raw: string): string {
   let s = String(raw || '')
   if (!s.trim()) return ''
+  s = applyJwSttCorrections(s)
   s = normalizeSpokenScriptureReferences(s)
   s = normalizeJwItalian(s)
 

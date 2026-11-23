@@ -26,7 +26,8 @@ Rules:
 - Fix only clear grammar so each sentence makes sense; do not add new ideas.
 - JW / jw.org Italian terms when spoken that way: Geova, congregazione, ministero, Sala del Regno, 1 Corinti / 2 Corinti (not Corinzi), Rivelazione (not Apocalisse).
 - Bible refs in written form with colon: «Salmo 5:5-7», «Giacomo 2:1-2,3».
-  If the speaker says «Salmo capitolo 5 versetto 6» or «versetti 5 6 e 7» / «5/6 e 7», write «Salmo 5:6» or «Salmo 5:5-7».`
+  If the speaker says «Salmo capitolo 5 versetto 6», «capitolo cinque versetto sei», or «versetti 5 6 e 7» / «5/6 e 7», write «Salmo 5:6» or «Salmo 5:5-7».
+  Expand spoken number words (cinque, tredici, ventiquattro) to digits in citations.`
 
   const upstream = await fetch(`${GEMINI_BASE}/${model}:generateContent`, {
     method: 'POST',

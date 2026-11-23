@@ -20,6 +20,11 @@ import {
   looksLikeQuestion,
   refineDiscourseSpeechText,
 } from '../src/lib/discourseTextRefine.ts'
+import { alignPracticeTexts } from '../src/lib/discoursePracticeAlign.ts'
+import {
+  italianWordsToDigits,
+  expandSpokenBookAbbreviations,
+} from '../src/lib/jwSpeechLexicon.ts'
 import {
   appendDictatedChunk,
   applySpeechPunctuation,
@@ -170,6 +175,31 @@ test('la dettatura mette ? ! in base a tono e senso della frase', () => {
     refineDiscourseSpeechText('Jehovah ama la congregazione. Perché lo facciamo.'),
     /Geova.*\?/,
   )
+})
+
+test('riconosce numeri in lettere e abbreviazioni nei riferimenti detti', () => {
+  assert.equal(italianWordsToDigits('tredici'), '13')
+  assert.equal(italianWordsToDigits('venti quattro'), '24')
+  assert.equal(
+    normalizeSpokenScriptureReferences('Salmo capitolo cinque versetto sei'),
+    'Salmo 5:6',
+  )
+  assert.equal(
+    normalizeSpokenScriptureReferences(
+      expandSpokenBookAbbreviations('Pr capitolo quattordici versetto dodici'),
+    ),
+    'Proverbi 14:12',
+  )
+})
+
+test('il confronto prova evidenzia parole saltate', () => {
+  const aligned = alignPracticeTexts(
+    'Geova ama la verità e la giustizia',
+    'Geova ama la giustizia',
+  )
+  assert.ok(aligned.missingCount >= 1)
+  assert.ok(aligned.coverage < 1)
+  assert.match(aligned.summary, /Copertura/)
 })
 
 test('il popup può rilevare due inserimenti dello stesso Salmo', () => {
