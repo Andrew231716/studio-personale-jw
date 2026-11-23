@@ -25,7 +25,7 @@ import {
   ScriptureAssist,
   type ScriptureAssistHandle,
 } from '../components/ScriptureAssist'
-import { ScriptureLinkedText } from '../components/ScriptureLinkedText'
+import { DiscourseLivePreview } from '../components/DiscourseLivePreview'
 import { SectionProgress } from '../components/SectionProgress'
 import {
   TOTAL_BIBLE_CHAPTERS,
@@ -40,10 +40,22 @@ import {
 import { polishDiscourseText, structureDiscourseWithAi } from '../lib/discourseAi'
 import { askAi } from '../lib/ai'
 import {
+  downloadDiscoursePreachOutline,
   downloadDiscourseText,
   exportDiscourseEpub,
   exportDiscoursePdf,
 } from '../lib/exportDiscourse'
+import { createLivePolishController, type LivePolishController } from '../lib/discourseLivePolish'
+import {
+  alignPracticeTexts,
+  missingWordsPreview,
+} from '../lib/discoursePracticeAlign'
+import {
+  enqueueTranscription,
+  listPendingTranscriptions,
+  processTranscriptionQueue,
+} from '../lib/discourseOfflineQueue'
+import { detectSpokenSectionCue } from '../lib/jwSpeechLexicon'
 import { reviseDiscourseForExport } from '../lib/exportRevise'
 import {
   SECTION_KIND_LABEL,
@@ -118,7 +130,24 @@ export function DiscorsoView() {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [saveHint, setSaveHint] = useState('')
+  const [livePolishOn, setLivePolishOn] = useState(() => {
+    try { return localStorage.getItem('jw-discourse-live-polish') === '1' }
+    catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('jw-discourse-live-polish', livePolishOn ? '1' : '0') }
+    catch { /* ignore */ }
+  }, [livePolishOn])
+  const [livePolishBusy, setLivePolishBusy] = useState(false)
+  const [practiceDiff, setPracticeDiff] = useState<{
+    sectionId: string
+    summary: string
+    missing: string[]
+    items: ReturnType<typeof alignPracticeTexts>['items']
+  } | null>(null)
+  const [queueCount, setQueueCount] = useState(0)
   const [listening, setListening] = useState(false)
+  const livePolishRef = useRef<LivePolishController | null>(null)
   useEffect(() => {
     if (!listening) return
     const started = performance.now()
@@ -367,15 +396,40 @@ export function DiscorsoView() {
   function appendDictation(noteId: string, sid: string, chunk: string) {
     const current = sectionsRef.current.find((section) => section.id === sid)?.body || ''
     if (visibleNoteId.current !== noteId) return
+    const cue = detectSpokenSectionCue(chunk)
+    if (cue) {
+      const section = sectionsRef.current.find((item) => item.id === sid)
+      if (section && section.kind === 'libera') {
+        patchSavedSection(noteId, sid, {
+          kind: cue,
+          title: section.title.trim() || SECTION_KIND_LABEL[cue],
+        })
+        setRecHint(`Rilevato passaggio: ${SECTION_KIND_LABEL[cue]}`)
+      }
+    }
     const next = appendDictatedChunk(current, chunk)
     if (next === current) return
     patchSavedSection(noteId, sid, { body: next })
+    livePolishRef.current?.notify(next)
     requestAnimationFrame(() => {
       const ta = editorRefs.current[sid]
       if (ta) {
-        // Mantieni visibile la fine del testo mentre detta
         ta.scrollTop = ta.scrollHeight
       }
+    })
+  }
+
+  function ensureLivePolish(noteId: string, sectionId: string) {
+    livePolishRef.current?.cancel()
+    livePolishRef.current = createLivePolishController({
+      enabled: () => livePolishOn,
+      online: () => online,
+      onBusy: setLivePolishBusy,
+      onHint: setRecHint,
+      onResult: (text) => {
+        if (visibleNoteId.current !== noteId) return
+        patchSavedSection(noteId, sectionId, { body: text })
+      },
     })
   }
 
@@ -406,6 +460,7 @@ export function DiscorsoView() {
     const noteId = note.id
     setCaptureSectionId(section.id)
     setActiveSectionId(section.id)
+    ensureLivePolish(noteId, sectionId)
     capture.current = createDiscourseCapture(language === 'E' ? 'en-US' : 'it-IT')
     void capture.current.start({
       discourseId: noteId,
@@ -419,44 +474,60 @@ export function DiscorsoView() {
       },
       onLevel: setMicLevel,
       onError: (msg) => {
-        // Errori fatali microfono: chiudi sessione
         setMicError(msg)
         setListening(false)
         setMicLevel(0)
       },
       onWarning: (msg) => setRecHint(msg),
       onEnd: () => {
-        // Passata finale: scritture dette a pezzi + termini JW + punteggiatura
-        const current = sectionsRef.current.find((item) => item.id === sectionId)?.body || ''
-        const refined = refineDiscourseSpeechText(current)
-        if (refined && refined !== current.trim()) {
-          patchSavedSection(noteId, sectionId, { body: refined })
-        }
-        setCaptureSaving(false)
-        setCaptureSectionId(null)
-        setListening(false)
-        setPartial('')
-        setMicLevel(0)
-        setRecHint((hint) =>
-          hint || 'Dettatura terminata: testo raffinato (punteggiatura, termini JW, scritture).',
-        )
+        void (async () => {
+          const current = sectionsRef.current.find((item) => item.id === sectionId)?.body || ''
+          let refined = refineDiscourseSpeechText(current)
+          if (livePolishOn && online && refined.trim()) {
+            setRecHint('Rifinisco punteggiatura e grammatica con AI…')
+            try {
+              const polished = await polishDiscourseText(refined)
+              refined = polished.text || refined
+            } catch {
+              /* locale già applicato */
+            }
+          } else {
+            await livePolishRef.current?.flush()
+          }
+          if (refined && visibleNoteId.current === noteId) {
+            patchSavedSection(noteId, sectionId, { body: refined })
+          }
+          livePolishRef.current?.cancel()
+          setCaptureSaving(false)
+          setCaptureSectionId(null)
+          setListening(false)
+          setPartial('')
+          setMicLevel(0)
+          setRecHint(
+            'Dettatura terminata: testo raffinato (tono/punteggiatura, termini JW, scritture).',
+          )
+        })()
       },
       onDuration: (durationMs) => patchSavedSection(noteId, sectionId, { recordedDurationMs: durationMs }),
       onRecordingSaved: (meta) => {
         if (visibleNoteId.current !== noteId) return
         setRecordings((prev) => [meta, ...prev.filter((r) => r.id !== meta.id)])
-        setRecHint(
-          online
-            ? 'Registrazione salvata nel blocco.'
-            : 'Registrazione offline salvata su questo dispositivo. Riascoltala quando vuoi; la trascrizione automatica richiede rete.',
-        )
+        if (!online) {
+          enqueueTranscription(meta.id, noteId, 'In attesa di rete')
+          setQueueCount(listPendingTranscriptions().length)
+          setRecHint(
+            'Registrazione offline salvata. Trascrizione messa in coda: partirà automaticamente online.',
+          )
+          return
+        }
+        setRecHint('Registrazione salvata nel blocco.')
       },
       onRecordingError: (msg) => setRecHint(msg),
     })
     setListening(true)
     if (!online) {
       setRecHint(
-        'Modalità offline: registro l’audio in locale. Il testo automatico riprende online.',
+        'Modalità offline: registro l’audio in locale. Il testo automatico e la trascrizione riprendono online (coda automatica).',
       )
     }
   }
@@ -713,16 +784,72 @@ export function DiscorsoView() {
     setTranscribeBusyId(id)
     setRecHint('Trascrivo la registrazione…')
     try {
-      await readRecordingTranscript(id)
+      const text = await readRecordingTranscript(id)
+      if (text && online) {
+        setRecHint('Rifinisco punteggiatura della trascrizione con AI…')
+        try {
+          const polished = await polishDiscourseText(text)
+          const saved = await updateDiscourseRecording(id, { transcript: polished.text })
+          if (saved) setRecordings((items) => items.map((item) => (item.id === saved.id ? saved : item)))
+        } catch {
+          /* testo locale già raffinato in transcribeDiscourseAudio */
+        }
+      }
       setRecHint(
-        'Trascrizione salvata e raffinata (grammatica di base, termini JW, scritture). Puoi modificarla e premere Salva, oppure «Sistema» per una correzione AI più ampia.',
+        'Trascrizione salvata e raffinata (tono/punteggiatura, termini JW, scritture). Modifica e Salva, o confronta con il testo del blocco.',
       )
     } catch (e) {
-      setRecHint(e instanceof Error ? e.message : 'Trascrizione non riuscita')
+      const msg = e instanceof Error ? e.message : 'Trascrizione non riuscita'
+      if (note && (!online || /rete|offline|connessione/i.test(msg))) {
+        enqueueTranscription(id, note.id, msg)
+        setQueueCount(listPendingTranscriptions().length)
+        setRecHint(`${msg} · Aggiunta alla coda: ritento online.`)
+      } else {
+        setRecHint(msg)
+      }
     } finally {
       setTranscribeBusyId(null)
     }
   }
+
+  async function runPracticeCompare(section: DiscourseSection) {
+    const recording = recordings.find((item) => item.sectionId === section.id && item.transcript)
+    if (!recording?.transcript) {
+      setRecHint('Serve una trascrizione collegata a questo blocco per confrontare la prova a voce.')
+      return
+    }
+    const aligned = alignPracticeTexts(section.body, recording.transcript)
+    setPracticeDiff({
+      sectionId: section.id,
+      summary: aligned.summary,
+      missing: missingWordsPreview(aligned.items),
+      items: aligned.items.slice(0, 80),
+    })
+    setRecHint(aligned.summary)
+  }
+
+  useEffect(() => {
+    setQueueCount(listPendingTranscriptions().length)
+  }, [note?.id, recordings.length])
+
+  useEffect(() => {
+    if (!online || !note) return
+    let cancelled = false
+    void processTranscriptionQueue({
+      online,
+      discourseId: note.id,
+      onProgress: setRecHint,
+      transcribe: async (recordingId) => {
+        if (cancelled) return
+        await readRecordingTranscript(recordingId)
+      },
+    }).then((done) => {
+      if (cancelled || !done) return
+      setQueueCount(listPendingTranscriptions().length)
+      setRecHint(`Coda trascrizioni: ${done} completate automaticamente.`)
+    })
+    return () => { cancelled = true }
+  }, [online, note?.id])
 
   async function linkRecording(id: string, sectionId: string) {
     try {
@@ -1231,6 +1358,12 @@ export function DiscorsoView() {
             </p>
           )}
           {saveHint && <p className="muted" style={{ margin: '0 0 0.75rem' }}>{saveHint}</p>}
+          {queueCount > 0 && (
+            <p className="muted" style={{ margin: '0 0 0.75rem' }}>
+              Coda trascrizioni: {queueCount} in attesa
+              {online ? ' · elaborazione automatica attiva' : ' · riprende online'}
+            </p>
+          )}
           {supportNote && !micOk && <p className="muted">{supportNote}</p>}
 
           {!note ? (
@@ -1275,6 +1408,14 @@ export function DiscorsoView() {
                     <ListTree size={14} />{' '}
                     {structureBusy ? 'Analizzo…' : 'Analizza struttura AI'}
                   </button>
+                  <label className="row discourse-auto-label" title="Corregge grammatica e punteggiatura mentre detta">
+                    <input
+                      type="checkbox"
+                      checked={livePolishOn}
+                      onChange={(e) => setLivePolishOn(e.target.checked)}
+                    />
+                    Sistema mentre detta{livePolishBusy ? '…' : ''}
+                  </label>
                   <button
                     className={`btn ${practiceOn ? 'danger' : 'secondary'} small`}
                     type="button"
@@ -1391,16 +1532,26 @@ export function DiscorsoView() {
                       onClick={() => void suggestTimingCuts(s)}>Suggerisci tagli</button>
                   )}
                   {timingAdvice?.sectionId === s.id && <p>{timingAdvice.text}</p>}
-                  <button
-                    className={`btn small ${captureSectionId === s.id && listening ? 'danger' : 'accent'}`}
-                    type="button"
-                    disabled={!captureOk || captureSaving || structureBusy || (listening && captureSectionId !== s.id)}
-                    onClick={() => toggleMic(s.id)}
-                  >
-                    {listening && captureSectionId === s.id
-                      ? <><MicOff size={16} /> Ferma</>
-                      : <><Mic size={16} /> {captureSaving && captureSectionId === s.id ? 'Salvo…' : 'Detta e registra'}</>}
-                  </button>
+                  <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+                    <button
+                      className={`btn small ${captureSectionId === s.id && listening ? 'danger' : 'accent'}`}
+                      type="button"
+                      disabled={!captureOk || captureSaving || structureBusy || (listening && captureSectionId !== s.id)}
+                      onClick={() => toggleMic(s.id)}
+                    >
+                      {listening && captureSectionId === s.id
+                        ? <><MicOff size={16} /> Ferma</>
+                        : <><Mic size={16} /> {captureSaving && captureSectionId === s.id ? 'Salvo…' : 'Detta e registra'}</>}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn secondary small"
+                      disabled={!recordings.some((item) => item.sectionId === s.id && item.transcript)}
+                      onClick={() => runPracticeCompare(s)}
+                    >
+                      Confronta prova↔testo
+                    </button>
+                  </div>
                   {listening && captureSectionId === s.id && (
                     <>
                       {partial && <p className="muted discourse-partial">In corso · {partial}</p>}
@@ -1408,6 +1559,24 @@ export function DiscorsoView() {
                         <span style={{ width: `${Math.round(micLevel * 100)}%` }} />
                       </div>
                     </>
+                  )}
+                  {practiceDiff?.sectionId === s.id && (
+                    <div className="stack">
+                      <p className="muted" style={{ margin: 0 }}>{practiceDiff.summary}</p>
+                      {!!practiceDiff.missing.length && (
+                        <p className="muted" style={{ margin: 0 }}>
+                          Saltate: {practiceDiff.missing.join(', ')}
+                          {practiceDiff.missing.length >= 12 ? '…' : ''}
+                        </p>
+                      )}
+                      <div className="discourse-practice-diff" aria-label="Differenze prova">
+                        {practiceDiff.items.map((item, index) => (
+                          <span key={`${item.type}-${index}`} className={item.type}>
+                            {item.type === 'missing' ? item.expected : item.actual || item.expected}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   )}
                   <div className="discourse-version-controls">
                     <div className="discourse-tabs" role="group" aria-label="Versioni del blocco">
@@ -1448,11 +1617,8 @@ export function DiscorsoView() {
                         }}
                       />
                       {(s.body.trim() || (listening && captureSectionId === s.id && partial.trim())) && (
-                        <div className="discourse-scripture-live">
-                          <p className="muted discourse-scripture-live-label">
-                            Scritture evidenziate · clicca per aprire o riaprire il popup
-                          </p>
-                          <ScriptureLinkedText
+                        <>
+                          <DiscourseLivePreview
                             text={
                               listening && captureSectionId === s.id && partial.trim()
                                 ? `${s.body.trimEnd()}${s.body.trim() ? ' ' : ''}${partial.trim()}`
@@ -1471,7 +1637,7 @@ export function DiscorsoView() {
                                 : s.body,
                             )}
                           </div>
-                        </div>
+                        </>
                       )}
                       <div className="row" style={{ marginTop: 8, flexWrap: 'wrap', gap: 8 }}>
                         <button
@@ -1633,6 +1799,20 @@ export function DiscorsoView() {
                   onClick={() => void runExport('txt')}
                 >
                   <Download size={16} /> TXT
+                </button>
+                <button
+                  className="btn secondary"
+                  type="button"
+                  onClick={() => {
+                    if (!note) return
+                    downloadDiscoursePreachOutline(
+                      { ...note, sections, title: titleDraft || note.title },
+                      language,
+                    )
+                    setRecHint('Outline per predicare scaricato (tempi, scritture, checklist).')
+                  }}
+                >
+                  <Download size={16} /> Outline predica
                 </button>
                 <button
                   className="btn danger"

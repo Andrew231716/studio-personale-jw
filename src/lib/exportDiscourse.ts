@@ -42,6 +42,59 @@ export function downloadDiscourseText(note: DiscourseNote): void {
   saveAs(blob, `jw-studio-discorso-${slug(note.title)}.txt`)
 }
 
+/**
+ * Outline per predicare: tempi, titoli, scritture + link JW Library, note.
+ */
+export function discourseToPreachOutline(note: DiscourseNote, language = 'I'): string {
+  const sections = ensureSections(note)
+  const lines = [
+    `# ${note.title || 'Discorso'}`,
+    `Durata stimata: ${totalMinutes(sections)} min`,
+    '',
+    '## Outline per predicare',
+    '',
+  ]
+  let elapsed = 0
+  for (const s of sections) {
+    const startMin = Math.floor(elapsed)
+    elapsed += s.minutes || 0
+    const endMin = Math.floor(elapsed)
+    const head = s.title.trim() || SECTION_KIND_LABEL[s.kind]
+    lines.push(`### ${startMin}–${endMin} min · ${head}`)
+    const body = s.body.trim()
+    if (body) {
+      // Anteprima breve del punto
+      const preview = body.split(/(?<=[.!?…])\s+/).slice(0, 2).join(' ')
+      lines.push(preview.length > 280 ? `${preview.slice(0, 277)}…` : preview)
+    }
+    const refs = findScriptureRefsInText(body)
+    if (refs.length) {
+      lines.push('Scritture:')
+      for (const ref of refs) {
+        const url =
+          ref.bible
+            ? `https://www.jw.org/finder?wtlocale=${language}&prefer=lang&bible=${ref.bible}`
+            : ''
+        lines.push(url ? `- ${ref.label} · ${url}` : `- ${ref.label}`)
+      }
+    }
+    lines.push('')
+  }
+  lines.push('## Note da non dimenticare')
+  lines.push('- [ ] Contatto iniziale / domanda di apertura')
+  lines.push('- [ ] Scritture da leggere ad alta voce')
+  lines.push('- [ ] Applicazione pratica / invito')
+  lines.push('')
+  return lines.join('\n')
+}
+
+export function downloadDiscoursePreachOutline(note: DiscourseNote, language = 'I'): void {
+  const blob = new Blob([discourseToPreachOutline(note, language)], {
+    type: 'text/plain;charset=utf-8',
+  })
+  saveAs(blob, `jw-studio-outline-${slug(note.title)}.txt`)
+}
+
 export async function exportDiscoursePdf(note: DiscourseNote): Promise<void> {
   const { jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
