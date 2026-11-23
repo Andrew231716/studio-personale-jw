@@ -68,9 +68,15 @@ export function joinSections(sections: DiscourseSection[]): string {
     .trim()
 }
 
+/** Durata obiettivo del blocco (minuti pianificati), mai sostituita dalla registrazione. */
 export function sectionDurationSeconds(section: DiscourseSection): number {
+  return (Number(section.minutes) || 0) * 60
+}
+
+/** Tempo effettivo registrato (somma clip), se presente. */
+export function sectionRecordedSeconds(section: DiscourseSection): number {
   return section.recordedDurationMs == null
-    ? (Number(section.minutes) || 0) * 60
+    ? 0
     : Math.round(section.recordedDurationMs / 1000)
 }
 
