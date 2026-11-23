@@ -136,6 +136,23 @@ export async function saveDiscourseRecordingFromRemote(
   return meta
 }
 
+/** Somma le durate di tutte le registrazioni collegate a un blocco. */
+export function sumSectionRecordingDurationMs(
+  recordings: Array<{ sectionId?: string; durationMs?: number }>,
+  sectionId: string,
+): number {
+  return recordings
+    .filter((item) => item.sectionId === sectionId)
+    .reduce((sum, item) => sum + (Number(item.durationMs) || 0), 0)
+}
+
+export function countSectionRecordings(
+  recordings: Array<{ sectionId?: string }>,
+  sectionId: string,
+): number {
+  return recordings.filter((item) => item.sectionId === sectionId).length
+}
+
 export async function listDiscourseRecordings(
   discourseId: string,
 ): Promise<DiscourseRecordingMeta[]> {

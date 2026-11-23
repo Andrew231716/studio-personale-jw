@@ -68,12 +68,14 @@ import {
 } from '../lib/discourseStructure'
 import { createDiscourseCapture } from '../lib/discourseCapture'
 import {
+  countSectionRecordings,
   deleteDiscourseRecording,
   formatRecordingDuration,
   getDiscourseRecordingBlob,
   listDiscourseRecordings,
   mediaRecorderSupported,
   saveDiscourseRecording,
+  sumSectionRecordingDurationMs,
   updateDiscourseRecording,
   type DiscourseRecordingMeta,
 } from '../lib/discourseRecordings'
@@ -295,7 +297,14 @@ export function DiscorsoView() {
     setPlayUrl(null)
     void listDiscourseRecordings(note.id).then(async (items) => {
       const merged = await mergeLocalAndICloudRecordings(note.id, items)
-      if (active) setRecordings(merged)
+      if (!active) return
+      setRecordings(merged)
+      const sectionIds = new Set(
+        merged.map((item) => item.sectionId).filter((id): id is string => Boolean(id)),
+      )
+      for (const sectionId of sectionIds) {
+        syncSectionRecordedSum(note.id, sectionId, merged)
+      }
     })
     return () => { active = false }
   }, [note?.id])
@@ -324,12 +333,31 @@ export function DiscorsoView() {
       ? sectionsRef.current
       : useAppStore.getState().discourseNotes.find((item) => item.id === noteId)?.sections
     if (!latest?.some((section) => section.id === id)) return
-    const next = latest.map((section) => section.id === id ? { ...section, ...patch } : section)
+    const next = latest.map((section) => {
+      if (section.id !== id) return section
+      const merged = { ...section, ...patch }
+      if ('recordedDurationMs' in patch && patch.recordedDurationMs == null) {
+        delete merged.recordedDurationMs
+      }
+      return merged
+    })
     if (visibleNoteId.current === noteId) {
       sectionsRef.current = next
       setSections(next)
     }
     updateNote(noteId, { sections: next })
+  }
+
+  /** Aggiorna solo la somma tempi prova; lascia intatto Obiettivo (min). */
+  function syncSectionRecordedSum(
+    noteId: string,
+    sectionId: string,
+    items: DiscourseRecordingMeta[],
+  ) {
+    const total = sumSectionRecordingDurationMs(items, sectionId)
+    patchSavedSection(noteId, sectionId, {
+      recordedDurationMs: total > 0 ? total : undefined,
+    })
   }
 
   function patchSection(id: string, patch: Partial<DiscourseSection>) {
@@ -508,19 +536,24 @@ export function DiscorsoView() {
           )
         })()
       },
-      onDuration: (durationMs) => patchSavedSection(noteId, sectionId, { recordedDurationMs: durationMs }),
       onRecordingSaved: (meta) => {
         if (visibleNoteId.current !== noteId) return
-        setRecordings((prev) => [meta, ...prev.filter((r) => r.id !== meta.id)])
+        setRecordings((prev) => {
+          const next = [meta, ...prev.filter((r) => r.id !== meta.id)]
+          syncSectionRecordedSum(noteId, sectionId, next)
+          const count = countSectionRecordings(next, sectionId)
+          const sum = sumSectionRecordingDurationMs(next, sectionId)
+          setRecHint(
+            !online
+              ? `Registrazione offline salvata (${count} clip · totale ${formatRecordingDuration(sum)}). Trascrizione in coda.`
+              : `Registrazione salvata (${count} clip · totale ${formatRecordingDuration(sum)}). Obiettivo minuti invariato.`,
+          )
+          return next
+        })
         if (!online) {
           enqueueTranscription(meta.id, noteId, 'In attesa di rete')
           setQueueCount(listPendingTranscriptions().length)
-          setRecHint(
-            'Registrazione offline salvata. Trascrizione messa in coda: partirà automaticamente online.',
-          )
-          return
         }
-        setRecHint('Registrazione salvata nel blocco.')
       },
       onRecordingError: (msg) => setRecHint(msg),
     })
@@ -576,7 +609,13 @@ export function DiscorsoView() {
       }
     }
     await deleteDiscourseRecording(id)
-    setRecordings((prev) => prev.filter((r) => r.id !== id))
+    setRecordings((prev) => {
+      const next = prev.filter((r) => r.id !== id)
+      if (recording?.sectionId && recording.discourseId) {
+        syncSectionRecordedSum(recording.discourseId, recording.sectionId, next)
+      }
+      return next
+    })
     if (playId === id) {
       if (playUrlRef.current) URL.revokeObjectURL(playUrlRef.current)
       playUrlRef.current = null
@@ -703,12 +742,18 @@ export function DiscorsoView() {
     const noteId = note.id
     setImporting(true)
     try {
+      const durationMs = await readMediaDurationMs(file)
       const saved = await saveDiscourseRecording({
         discourseId: noteId, sectionId, blob: file, fileName: file.name,
         title: file.name.replace(/\.[^.]+$/, ''),
+        durationMs,
       })
       if (visibleNoteId.current === noteId) {
-        setRecordings((items) => [saved, ...items])
+        setRecordings((items) => {
+          const next = [saved, ...items]
+          syncSectionRecordedSum(noteId, sectionId, next)
+          return next
+        })
         setRecHint('File importato. Premi «Trascrivi» per elaborarlo.')
       }
     } catch {
@@ -716,6 +761,24 @@ export function DiscorsoView() {
     } finally {
       setImporting(false)
     }
+  }
+
+  function readMediaDurationMs(file: File): Promise<number | undefined> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file)
+      const el = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio')
+      el.preload = 'metadata'
+      el.onloadedmetadata = () => {
+        const ms = Number.isFinite(el.duration) ? Math.round(el.duration * 1000) : undefined
+        URL.revokeObjectURL(url)
+        resolve(ms && ms > 0 ? ms : undefined)
+      }
+      el.onerror = () => {
+        URL.revokeObjectURL(url)
+        resolve(undefined)
+      }
+      el.src = url
+    })
   }
 
   function exportTranscript(recording: DiscourseRecordingMeta, format: 'txt' | 'srt' | 'summary') {
@@ -853,12 +916,17 @@ export function DiscorsoView() {
 
   async function linkRecording(id: string, sectionId: string) {
     try {
+      const previous = recordings.find((item) => item.id === id)
       const saved = await updateDiscourseRecording(id, { sectionId })
       if (!saved) return
-      setRecordings((current) => current.map((item) => item.id === id ? saved : item))
-      if (saved.durationMs != null) {
-        patchSavedSection(saved.discourseId, sectionId, { recordedDurationMs: saved.durationMs })
-      }
+      setRecordings((current) => {
+        const next = current.map((item) => (item.id === id ? saved : item))
+        syncSectionRecordedSum(saved.discourseId, sectionId, next)
+        if (previous?.sectionId && previous.sectionId !== sectionId) {
+          syncSectionRecordedSum(saved.discourseId, previous.sectionId, next)
+        }
+        return next
+      })
     } catch {
       setRecHint('Impossibile collegare la registrazione al blocco.')
     }
@@ -1393,7 +1461,12 @@ export function DiscorsoView() {
               </div>
 
               <div className="row discourse-meta-row">
-                <strong>Durata totale · {formatTime(sections.reduce((sum, section) => sum + sectionDurationSeconds(section), 0))}</strong>
+                <strong>
+                  Obiettivo totale · {formatTime(sections.reduce((sum, section) => sum + sectionDurationSeconds(section), 0))}
+                  {recordings.some((item) => item.durationMs)
+                    ? ` · Registrato ${formatRecordingDuration(recordings.reduce((sum, item) => sum + (item.durationMs || 0), 0))}`
+                    : ''}
+                </strong>
                 <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
                   <button className="btn secondary small" type="button" onClick={() => addSection('libera')}>
                     <Plus size={14} /> Blocco
@@ -1506,11 +1579,20 @@ export function DiscorsoView() {
                           style={{ width: 64 }}
                         />
                       </label>
-                      {s.recordedDurationMs != null && (
-                        <span><Timer size={14} /> Prova {formatRecordingDuration(s.recordedDurationMs)}
-                          {s.recordedDurationMs > s.minutes * 60_000 && ` · Oltre di ${formatRecordingDuration(s.recordedDurationMs - s.minutes * 60_000)}`}
-                        </span>
-                      )}
+                      {(() => {
+                        const clipCount = countSectionRecordings(recordings, s.id)
+                        const recordedMs = sumSectionRecordingDurationMs(recordings, s.id) || s.recordedDurationMs
+                        if (!recordedMs) return null
+                        return (
+                          <span>
+                            <Timer size={14} /> Registrato {formatRecordingDuration(recordedMs)}
+                            {clipCount > 1 ? ` · ${clipCount} clip` : clipCount === 1 ? ' · 1 clip' : ''}
+                            {recordedMs > s.minutes * 60_000
+                              ? ` · Oltre obiettivo di ${formatRecordingDuration(recordedMs - s.minutes * 60_000)}`
+                              : ` · Obiettivo ${s.minutes} min`}
+                          </span>
+                        )
+                      })()}
                     </div>
                     <button
                       className="btn secondary small"
@@ -1541,7 +1623,7 @@ export function DiscorsoView() {
                     >
                       {listening && captureSectionId === s.id
                         ? <><MicOff size={16} /> Ferma</>
-                        : <><Mic size={16} /> {captureSaving && captureSectionId === s.id ? 'Salvo…' : 'Detta e registra'}</>}
+                        : <><Mic size={16} /> {captureSaving && captureSectionId === s.id ? 'Salvo…' : countSectionRecordings(recordings, s.id) ? 'Aggiungi registrazione' : 'Detta e registra'}</>}
                     </button>
                     <button
                       type="button"

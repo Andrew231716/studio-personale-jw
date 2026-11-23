@@ -3,11 +3,13 @@ import { findScriptureRefsInText } from '../src/lib/bibleText.ts'
 import {
   flattenSectionBodies,
   parseStructurePlan,
+  sectionDurationSeconds,
   sectionsFromUnits,
   splitDiscourseUnits,
   splitForPolish,
   structurePreservesContent,
 } from '../src/lib/discourseStructure.ts'
+import { sumSectionRecordingDurationMs } from '../src/lib/discourseRecordings.ts'
 import { filterOverlapSegments } from '../src/lib/transcriptClips.ts'
 import { parseTranscriptSegments } from '../api/transcriptParse.js'
 import test from 'node:test'
@@ -189,6 +191,31 @@ test('riconosce numeri in lettere e abbreviazioni nei riferimenti detti', () => 
       expandSpokenBookAbbreviations('Pr capitolo quattordici versetto dodici'),
     ),
     'Proverbi 14:12',
+  )
+})
+
+test('obiettivo minuti resta indipendente dalle registrazioni sommate', () => {
+  assert.equal(
+    sectionDurationSeconds({
+      id: 's1',
+      kind: 'libera',
+      title: '',
+      body: '',
+      minutes: 8,
+      recordedDurationMs: 120_000,
+    }),
+    8 * 60,
+  )
+  assert.equal(
+    sumSectionRecordingDurationMs(
+      [
+        { sectionId: 's1', durationMs: 45_000 },
+        { sectionId: 's1', durationMs: 30_000 },
+        { sectionId: 's2', durationMs: 99_000 },
+      ],
+      's1',
+    ),
+    75_000,
   )
 })
 
